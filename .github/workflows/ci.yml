@@ -35,15 +35,20 @@ jobs:
       - name: Check markdown structure
         run: |
           set -euo pipefail
-          find . -name '*.md' -not -path './.git/*' -print0 |
+          find . -name '*.md' \
+            -not -path './.git/*' \
+            -not -path './.venv/*' \
+            -not -path './node_modules/*' \
+            -not -path './dist/*' \
+            -print0 |
             xargs -0 -I {} sh -c 'first="$(head -n 1 "$1")"; test "${first#\#}" != "$first" || test "$first" = "---"' sh {}
 
       - name: Python checks when configured
         run: |
           set -euo pipefail
           if test -f pyproject.toml; then
-            python -m pip install --upgrade pip
-            python -m pip install ruff mypy pytest pytest-cov
+            python3 -m pip install --upgrade pip
+            python3 -m pip install -e ".[dev]"
             ruff check .
             ruff format --check .
             mypy src --strict

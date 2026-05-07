@@ -38,7 +38,7 @@ jobs:
         run: |
           set -euo pipefail
           if test -f pyproject.toml || test -f requirements.txt; then
-            python -m pip install --upgrade pip pip-audit
+            python3 -m pip install --upgrade pip pip-audit
             pip-audit
           else
             echo "No Python dependency manifest found; skipping pip-audit."
