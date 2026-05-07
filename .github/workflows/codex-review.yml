@@ -31,18 +31,33 @@ jobs:
           sed -n '/## Agent: Reviewer/,$p' agents.md | sed -n '1,120p'
 
       - name: Run Codex Reviewer when available
+        id: review
         run: |
           set -euo pipefail
           mkdir -p review
+          REVIEW_FILE="review/${{ github.event.pull_request.number }}.md"
           if command -v codex >/dev/null 2>&1; then
             codex run --agent reviewer --skills skill.md --pr "${{ github.event.pull_request.number }}"
+            test -f "$REVIEW_FILE" || {
+              echo "Reviewer agent did not create $REVIEW_FILE."
+              exit 1
+            }
           else
             {
               echo "## Review"
               echo
               echo "Automated Codex review is not active because the codex CLI is not"
               echo "installed on this runner. Run the Reviewer agent manually before merge."
-            } > "review/${{ github.event.pull_request.number }}.md"
+            } > "$REVIEW_FILE"
+          fi
+          echo "review_file=$REVIEW_FILE" >> "$GITHUB_OUTPUT"
+
+          if grep -Eq '^### .*Blockers' "$REVIEW_FILE" && grep -Eq '^- ' "$REVIEW_FILE"; then
+            echo "review_action=request-changes" >> "$GITHUB_OUTPUT"
+          elif grep -Eq 'zero blockers|Zero blockers|0 blockers' "$REVIEW_FILE"; then
+            echo "review_action=approve" >> "$GITHUB_OUTPUT"
+          else
+            echo "review_action=comment" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Upload review artifact
@@ -50,3 +65,23 @@ jobs:
         with:
           name: codex-review
           path: review/
+
+      - name: Post review to pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REVIEW_FILE: ${{ steps.review.outputs.review_file }}
+          REVIEW_ACTION: ${{ steps.review.outputs.review_action }}
+        run: |
+          set -euo pipefail
+          case "$REVIEW_ACTION" in
+            approve)
+              gh pr review "$PR_NUMBER" --approve --body-file "$REVIEW_FILE"
+              ;;
+            request-changes)
+              gh pr review "$PR_NUMBER" --request-changes --body-file "$REVIEW_FILE"
+              ;;
+            *)
+              gh pr review "$PR_NUMBER" --comment --body-file "$REVIEW_FILE"
+              ;;
+          esac
