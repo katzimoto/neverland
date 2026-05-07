@@ -1,2 +1,2 @@
 # neverland
-the spec for this project is in spec psf file
+the spec for this project is in spec pdf file
