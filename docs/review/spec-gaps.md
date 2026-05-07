@@ -7,13 +7,24 @@ These items must be resolved before implementation reaches the affected phase.
 - **Document persistence model:** the spec references documents, `group_id`,
   `translation_quality`, indexes, and delete cascade, but does not define a
   primary `documents` table.
+  - **Resolved for Phase 01:** add canonical `documents` table with UUID `id`,
+    `source_id`, `external_id`, metadata, language, status, and translation
+    fields. Later indexes derive from this table.
 - **Document identity:** Kafka events define `doc_id` as a UUID, while Atlassian
   mappings use deterministic string identifiers like `jira:{issue_key}`.
+  - **Resolved for Phase 01:** `doc_id` is always the internal UUID. Stable
+    source keys are stored as `documents.external_id`, unique per source.
 - **Group ownership:** `group_id` appears on document events and index payloads,
   but source permissions are modeled as many-to-many source/group mappings.
+  - **Resolved for Phase 01:** access is source-grant based through
+    `source_permissions`. Documents do not have a single `group_id`; later
+    index payloads use allowed groups derived from their source.
 - **NiFi ownership:** `documents.raw` is both the ingestion output and the
   `worker-fast` input, but NiFi is described as a source consumed by ingestion
   from the same topic.
+  - **Resolved for Phase 01:** NiFi may publish normalized `documents.raw`
+    events directly. Ingestion publishes the same event type for folder and
+    Atlassian sources.
 
 ## Blockers Before Phase 03
 

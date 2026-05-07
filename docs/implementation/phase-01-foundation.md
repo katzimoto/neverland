@@ -18,8 +18,12 @@ Create the system foundation that later services will share.
 
 ## Decision Gates
 
-- Resolve document persistence, document identity, `group_id`, and NiFi event
-  ownership gaps before coding.
+- Document identity uses UUID primary keys; source-specific stable identifiers
+  are stored as `external_id`.
+- Document access inherits from `source_permissions`; documents do not carry a
+  single `group_id`.
+- NiFi and ingestion both publish normalized `documents.raw` events.
+- The foundation migration creates the canonical `documents` table.
 
 ## Validation
 
