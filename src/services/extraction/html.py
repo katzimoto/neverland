@@ -18,6 +18,11 @@ class _HTMLTextParser(HTMLParser):
         if tag in {"script", "style", "nav", "footer"}:
             self._skip = True
 
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        # Self-closing tags like <script src="..." /> do not toggle skip state
+        # because they have no content to exclude.
+        pass
+
     def handle_endtag(self, tag: str) -> None:
         if tag in {"script", "style", "nav", "footer"}:
             self._skip = False

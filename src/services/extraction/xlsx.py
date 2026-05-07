@@ -13,7 +13,7 @@ class XlsxExtractor:
     def extract(self, path: Path) -> str:
         """Return concatenated text from all cells."""
         try:
-            wb = load_workbook(str(path), data_only=True)
+            wb = load_workbook(str(path))
             texts: list[str] = []
             for sheet in wb.worksheets:
                 for row in sheet.iter_rows():

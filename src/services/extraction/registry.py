@@ -9,12 +9,16 @@ from services.extraction.docx import DocxExtractor
 from services.extraction.eml import EmlExtractor
 from services.extraction.html import HtmlExtractor
 from services.extraction.json_extractor import JsonExtractor
+from services.extraction.msg_extractor import MsgExtractor
 from services.extraction.odt import OdtExtractor
 from services.extraction.pdf import PdfExtractor
 from services.extraction.plain import PlainExtractor
 from services.extraction.pptx_extractor import PptxExtractor
+from services.extraction.rtf import RtfExtractor
+from services.extraction.tar_extractor import TarExtractor
 from services.extraction.xlsx import XlsxExtractor
 from services.extraction.xml_extractor import XmlExtractor
+from services.extraction.zip_extractor import ZipExtractor
 
 _DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 _PPTX_MIME = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
@@ -32,8 +36,10 @@ class ExtractorRegistry:
             "text/csv": PlainExtractor(),
             "text/html": HtmlExtractor(),
             "text/xml": XmlExtractor(),
+            "text/rtf": RtfExtractor(),
             "application/json": JsonExtractor(),
             "application/xml": XmlExtractor(),
+            "application/rtf": RtfExtractor(),
             # PDF
             "application/pdf": PdfExtractor(),
             # Microsoft Office
@@ -44,6 +50,12 @@ class ExtractorRegistry:
             "application/vnd.oasis.opendocument.text": OdtExtractor(),
             # Email
             "message/rfc822": EmlExtractor(),
+            "application/vnd.ms-outlook": MsgExtractor(),
+            # Archives
+            "application/zip": ZipExtractor(),
+            "application/x-zip-compressed": ZipExtractor(),
+            "application/x-tar": TarExtractor(),
+            "application/gzip": TarExtractor(),
         }
 
     def register(self, mime_type: str, extractor: Extractor) -> None:
