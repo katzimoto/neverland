@@ -19,7 +19,12 @@ on its own branch and reviewed before the next phase starts.
 | 00 | `phase-00-repo-bootstrap.md` | Docs, repo hygiene, GitHub Actions |
 | 01 | `phase-01-foundation.md` | Service skeleton, config, DB, schemas |
 | 02 | `phase-02-auth-permissions.md` | Auth, JWT, groups, permission guards |
-| 03 | `phase-03-core-search-mvp.md` | Ingestion, indexing, search, preview |
+| 03 | `phase-03-core-search-mvp.md` | Ingestion, indexing, search, preview (overview) |
+| 03a | `phase-03a-extraction-persistence.md` | Document persistence and text extraction |
+| 03b | `phase-03b-translation-chunking.md` | Translation and chunking |
+| 03c | `phase-03c-search-infrastructure.md` | Elasticsearch + Qdrant with mock embeddings |
+| 03d | `phase-03d-worker-pipeline.md` | Fast worker pipeline and admin ingestion |
+| 03e | `phase-03e-search-apis.md` | Search, preview, and download APIs |
 | 04 | `phase-04-admin-operations.md` | Admin APIs, DLQ, audit, config |
 | 05 | `phase-05-preview-enrichment.md` | Preview modes and translation enrichment |
 | 06 | `phase-06-intelligence-layer.md` | Ollama intelligence worker |
