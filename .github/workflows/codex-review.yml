@@ -19,9 +19,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git init .
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --depth 1 origin "$GITHUB_REF"
+          git checkout --force FETCH_HEAD
 
       - name: Show review contract
         run: |
@@ -59,12 +64,6 @@ jobs:
           else
             echo "review_action=comment" >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Upload review artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: codex-review
-          path: review/
 
       - name: Post review to pull request
         env:
