@@ -11,11 +11,9 @@ Design source: `docs/design/translation-versions-spec.md`.
 
 ## Phase Placement
 
-Recommended branch: `developer/phase-05c-translation-versions`
+Branch: `developer/phase-05c-translation-versions`
 
-Do not interrupt the active Phase 05b translation enrichment branch. Implement
-this as a follow-up PR after Phase 05b is reviewed, unless the Reviewer and
-Developer explicitly decide to fold it into Phase 05b before code is written.
+Status: In progress (follows completed Phase 05b).
 
 Frontend implementation belongs in `developer/ui-02-document-preview`, as
 described in `docs/implementation/frontend-ui-plan.md`.
