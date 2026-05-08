@@ -39,7 +39,8 @@ def _fmt_dt(value: Any) -> str | None:
         return None
     if isinstance(value, str):
         return value
-    return value.isoformat()
+    # value is a datetime object
+    return str(value.isoformat())
 
 
 class SearchRequest(BaseModel):
