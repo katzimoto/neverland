@@ -503,7 +503,7 @@ def create_app(
         user: Annotated[TokenPayload, Depends(current_user)],
         skip: int = 0,
         limit: int = 50,
-        sort: str = "newest",
+        sort: Literal["newest", "oldest"] = "newest",
     ) -> dict[str, Any]:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)

@@ -282,3 +282,170 @@ def test_sort_oldest(migrated_engine: Engine) -> None:
     assert resp.status_code == 200
     data = resp.json()
     assert data["comments"][0]["body"] == "Comment 0"
+
+
+def test_admin_can_edit_others_comment(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    app = create_app(migrated_engine)
+    client = TestClient(app)
+    admin_token = _admin_token(client)
+
+    # Create doc and comment as admin first
+    doc_id = _create_doc(migrated_engine, "admins")
+    resp = client.post(
+        f"/documents/{doc_id}/comments",
+        json={"body": "Admin comment"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert resp.status_code == 201
+
+    # Create a regular user in admins group
+    with migrated_engine.begin() as connection:
+        auth_repo = AuthRepository(connection)
+        group_id = auth_repo.ensure_group("admins")
+        auth_repo.create_local_user(
+            email="regular@example.com",
+            password_hash=hash_password("secret"),
+            display_name="Regular",
+            is_admin=False,
+            group_names=["admins"],
+        )
+        row = (
+            connection.execute(
+                sa.text("SELECT id FROM users WHERE email = :email"),
+                {"email": "regular@example.com"},
+            )
+            .mappings()
+            .first()
+        )
+    assert row is not None
+    regular_id = UUID(str(row["id"]))
+
+    jwt = JwtService(secret=app.state.settings.jwt_secret)
+    regular_identity = UserIdentity(
+        id=regular_id,
+        email="regular@example.com",
+        display_name="Regular",
+        auth_source="local",
+        is_admin=False,
+        groups=[group_id],
+    )
+    regular_token = jwt.encode(regular_identity)
+
+    # Regular user creates a comment
+    resp = client.post(
+        f"/documents/{doc_id}/comments",
+        json={"body": "Regular comment"},
+        headers={"Authorization": f"Bearer {regular_token}"},
+    )
+    assert resp.status_code == 201
+    regular_comment_id = resp.json()["id"]
+
+    # Admin edits regular user's comment
+    resp = client.patch(
+        f"/documents/{doc_id}/comments/{regular_comment_id}",
+        json={"body": "Edited by admin"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["body"] == "Edited by admin"
+
+
+def test_empty_body_returns_422(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    app = create_app(migrated_engine)
+    client = TestClient(app)
+    token = _admin_token(client)
+
+    doc_id = _create_doc(migrated_engine, "admins")
+
+    resp = client.post(
+        f"/documents/{doc_id}/comments",
+        json={"body": ""},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
+def test_edit_deleted_comment_returns_404(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    app = create_app(migrated_engine)
+    client = TestClient(app)
+    token = _admin_token(client)
+
+    doc_id = _create_doc(migrated_engine, "admins")
+
+    resp = client.post(
+        f"/documents/{doc_id}/comments",
+        json={"body": "To delete"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 201
+    comment_id = resp.json()["id"]
+
+    # Soft delete
+    resp = client.delete(
+        f"/documents/{doc_id}/comments/{comment_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 204
+
+    # Try to edit deleted comment
+    resp = client.patch(
+        f"/documents/{doc_id}/comments/{comment_id}",
+        json={"body": "Should fail"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 404
+
+
+def test_delete_deleted_comment_returns_404(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    app = create_app(migrated_engine)
+    client = TestClient(app)
+    token = _admin_token(client)
+
+    doc_id = _create_doc(migrated_engine, "admins")
+
+    resp = client.post(
+        f"/documents/{doc_id}/comments",
+        json={"body": "To delete twice"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 201
+    comment_id = resp.json()["id"]
+
+    # Soft delete
+    resp = client.delete(
+        f"/documents/{doc_id}/comments/{comment_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 204
+
+    # Try to delete again
+    resp = client.delete(
+        f"/documents/{doc_id}/comments/{comment_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 404
+
+
+def test_cannot_comment_on_inaccessible_doc(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    app = create_app(migrated_engine)
+    client = TestClient(app)
+
+    # Create a doc only accessible to "admins" group
+    doc_id = _create_doc(migrated_engine, "admins")
+
+    # Log in as regular user in "users" group
+    login = client.post("/auth/login", json={"email": "user@example.com", "password": "secret"})
+    assert login.status_code == 200
+    user_token = str(login.json()["access_token"])
+
+    resp = client.post(
+        f"/documents/{doc_id}/comments",
+        json={"body": "Should fail"},
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+    assert resp.status_code == 403
