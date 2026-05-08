@@ -3,13 +3,18 @@
 ## Purpose
 
 This document defines the user-facing Neverland interface for search,
-document inspection, Q&A, annotations, subscriptions, notifications, and
-history. It is a product and interaction spec, not an implementation plan for a
-specific frontend framework.
+document inspection, Q&A, comments, annotations, subscriptions, notifications,
+and history. It is a product and interaction spec, not an implementation plan
+for a specific frontend framework.
 
 The experience should feel native on first use: obvious navigation, fast
 feedback, familiar controls, restrained density, and no marketing-style landing
 screen. The first screen is the working search app.
+
+Detailed feature specs:
+
+- `docs/design/document-comments-spec.md`
+- `docs/design/translation-versions-spec.md`
 
 ## Design References
 
@@ -642,14 +647,16 @@ Document toolbar:
 - Back to search.
 - Document title.
 - Source/type metadata.
-- Download icon button.
+- Translation version selector.
 - Request translation button.
+- Download icon button.
 - More menu.
 
 Right insight pane tabs:
 
 - Summary
 - Details
+- Comments
 - Annotations
 - Related
 
@@ -674,6 +681,7 @@ Common preview controls:
 - Zoom where relevant.
 - Copy selected text.
 - Create annotation from selected text when annotations are enabled.
+- Translation version selection where translated content exists.
 
 ### Preview Fallback States
 
@@ -708,22 +716,35 @@ Translation unavailable:
 
 ### Translation Status
 
-Show translation status in the toolbar and details panel.
+Show translation status in the toolbar and details panel. When translation
+versions are available, use the version selector and behavior from
+`docs/design/translation-versions-spec.md`.
 
 Labels:
 
 - `Original`
 - `Fast translation`
 - `High quality translation`
+- `Manual vN`
+- `Manual vN pending`
+- `Manual vN failed`
 - `Translation unavailable`
 
 Request translation button behavior:
 
-- Hidden when already high quality.
-- Enabled when fast or unknown.
+- Visible when the user can request another translation version.
+- Enabled when original, fast, unknown, or high quality content can be improved
+  by a new manual request.
 - Loading state after click.
-- Success copy: `High quality translation queued`.
+- Success copy: `Translation requested`.
 - Already queued copy: `Translation already queued`.
+
+Version selection behavior:
+
+- Do not hide original content when a translation is selected.
+- Do not replace the current preview while a requested translation is pending.
+- Preserve scroll position by anchor when switching versions, where possible.
+- Support deep links to selected translation versions when authorized.
 
 ### Document Details
 
@@ -737,6 +758,26 @@ Details include:
 - Source path or external ID, truncated with copy action.
 - Permissions summary: `Visible to your groups`, not raw group internals unless
   useful.
+
+## Document Comments
+
+Document comments are shared discussion attached to the whole document. They are
+not anchored annotations.
+
+Detailed behavior is defined in `docs/design/document-comments-spec.md`.
+
+Summary:
+
+- Comments live in the `Comments` tab of the document insight pane.
+- Comments are visible to every user who can access the document.
+- Comments are never visible to users without document access.
+- Users can write plain text, long-form comments, line breaks, and Unicode
+  emoji.
+- There is no private/shared toggle for comments.
+- Creators can edit or delete their own comments.
+- Admins can edit or delete any comment.
+- Admin edits and deletes must be audit-ready.
+- Long comments collapse in the thread and expand without leaving the preview.
 
 ## Q&A
 
@@ -780,14 +821,15 @@ Q&A states:
 ### Role
 
 Annotations make document inspection collaborative without overwhelming the
-reading experience.
+reading experience. Use annotations for position-specific notes. Use document
+comments for whole-document discussion.
 
 ### Interaction
 
 - User selects text or region.
 - A compact annotation popover appears.
 - User writes note.
-- User chooses Private or Shared.
+- User chooses Private or Shared when annotations support both modes.
 - Saved annotation appears in right pane and inline marker.
 
 Annotation list item:
@@ -1063,7 +1105,9 @@ type PreviewResponse = {
   summary: string | null;
   tags: string[];
   entities: Array<{ name: string; type: string; confidence?: number }>;
+  comment_count: number;
   annotations: Annotation[];
+  translation_versions?: TranslationVersionsResponse;
   translation_quality: "fast" | "high" | null;
   related: RelatedDocument[];
   preview: PreviewPayload;
@@ -1229,6 +1273,11 @@ type Annotation = {
 };
 ```
 
+Document comments and translation version contracts are defined in:
+
+- `docs/design/document-comments-spec.md`
+- `docs/design/translation-versions-spec.md`
+
 Related document:
 
 ```ts
@@ -1263,6 +1312,11 @@ No annotations:
 
 - Copy: `No annotations yet. Select text in the preview to add one.`
 
+No comments:
+
+- Copy: `No comments yet. Start a document discussion that everyone with access
+  can see.`
+
 No notifications:
 
 - Copy: `No new matches. Subscription alerts will appear here.`
@@ -1281,9 +1335,13 @@ Use this checklist during frontend review.
 - Local saved searches are scoped by user ID and clearly marked as device-local.
 - `Why this result?` is available without cluttering result rows.
 - Preview fallback states preserve download or retry actions where applicable.
+- Document comments support shared visibility, long text, emoji, creator
+  edit/delete, and admin edit/delete.
+- Translation versions can be requested, listed, selected, deep-linked, and
+  shown without interrupting the current preview.
 - Q&A answers always include citations or a clear no-context response.
-- Preview, citation, annotation, and related-document contracts use the
-  discriminated shapes in this spec.
+- Preview, citation, comment, annotation, translation version, and
+  related-document contracts use the documented shapes.
 - Permission filtering never reveals inaccessible titles, source names, or
   counts.
 - Performance budgets and the four required viewport checks are included in PR
