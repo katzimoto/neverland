@@ -13,6 +13,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import Engine
 
+from services.annotations.models import AnnotationCreateRequest, AnnotationUpdateRequest
+from services.annotations.repository import AnnotationRepository
 from services.auth.jwt import JwtService
 from services.auth.ldap import LdapAuthenticator
 from services.auth.models import LoginRequest, LoginResponse, TokenPayload, UserResponse
@@ -48,6 +50,15 @@ def _fmt_dt(value: Any) -> str | None:
         return value
     # value is a datetime object
     return str(value.isoformat())
+
+
+def _parse_json(value: Any) -> Any:
+    """Parse a JSON value from the database (string or dict)."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return json.loads(value)
+    return value
 
 
 def _audit_log(
@@ -606,6 +617,125 @@ def create_app(
                 raise HTTPException(status_code=403, detail="Cannot delete this comment")
 
             repo.soft_delete(comment_id, deleted_by_id=user.sub)
+
+    @app.get("/documents/{doc_id}/annotations")
+    def list_annotations(
+        doc_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, Any]:
+        with app.state.engine.begin() as connection:
+            auth_repo = AuthRepository(connection)
+            assert_doc_access(doc_id, user, auth_repo)
+
+            repo = AnnotationRepository(connection)
+            annotations = repo.list_annotations(doc_id, user.sub, is_admin=user.is_admin)
+            return {
+                "doc_id": str(doc_id),
+                "annotations": [
+                    {
+                        "id": str(to_uuid(a["id"])),
+                        "user_id": str(to_uuid(a["user_id"])),
+                        "user_display_name": a["user_display_name"],
+                        "text": a["text"],
+                        "note": a["note"],
+                        "position": _parse_json(a["position"]),
+                        "is_private": bool(a["is_private"]),
+                        "created_at": _fmt_dt(a["created_at"]),
+                    }
+                    for a in annotations
+                ],
+            }
+
+    @app.post("/documents/{doc_id}/annotations", status_code=201)
+    def create_annotation(
+        doc_id: UUID,
+        request: AnnotationCreateRequest,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, Any]:
+        with app.state.engine.begin() as connection:
+            auth_repo = AuthRepository(connection)
+            assert_doc_access(doc_id, user, auth_repo)
+
+            repo = AnnotationRepository(connection)
+            annotation = repo.create(
+                doc_id=doc_id,
+                user_id=user.sub,
+                text=request.text,
+                note=request.note,
+                position=request.position,
+                is_private=request.is_private,
+            )
+            return {
+                "id": str(to_uuid(annotation["id"])),
+                "doc_id": str(to_uuid(annotation["doc_id"])),
+                "user_id": str(to_uuid(annotation["user_id"])),
+                "text": annotation["text"],
+                "note": annotation["note"],
+                "position": _parse_json(annotation["position"]),
+                "is_private": bool(annotation["is_private"]),
+                "created_at": _fmt_dt(annotation["created_at"]),
+            }
+
+    @app.put("/annotations/{annotation_id}")
+    def update_annotation(
+        annotation_id: UUID,
+        request: AnnotationUpdateRequest,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, Any]:
+        with app.state.engine.begin() as connection:
+            repo = AnnotationRepository(connection)
+            annotation = repo.get_by_id(annotation_id)
+            if annotation is None:
+                raise HTTPException(status_code=404, detail="Annotation not found")
+
+            # Verify doc access
+            auth_repo = AuthRepository(connection)
+            assert_doc_access(to_uuid(annotation["doc_id"]), user, auth_repo)
+
+            if not repo.can_modify(annotation_id, user.sub, user.is_admin):
+                raise HTTPException(status_code=403, detail="Cannot modify this annotation")
+
+            repo.update(
+                annotation_id,
+                text=request.text,
+                note=request.note,
+                position=request.position,
+                is_private=request.is_private,
+            )
+            updated = repo.get_by_id(annotation_id)
+            if updated is None:
+                raise HTTPException(status_code=404, detail="Annotation not found")
+            return {
+                "id": str(to_uuid(updated["id"])),
+                "user_id": str(to_uuid(updated["user_id"])),
+                "user_display_name": updated["user_display_name"],
+                "text": updated["text"],
+                "note": updated["note"],
+                "position": _parse_json(updated["position"]),
+                "is_private": bool(updated["is_private"]),
+                "created_at": _fmt_dt(updated["created_at"]),
+                "updated_at": _fmt_dt(updated["updated_at"]),
+            }
+
+    @app.delete("/annotations/{annotation_id}", status_code=204)
+    def delete_annotation(
+        annotation_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> None:
+        with app.state.engine.begin() as connection:
+            repo = AnnotationRepository(connection)
+            annotation = repo.get_by_id(annotation_id)
+            if annotation is None:
+                raise HTTPException(status_code=404, detail="Annotation not found")
+
+            # Verify doc access
+            auth_repo = AuthRepository(connection)
+            assert_doc_access(to_uuid(annotation["doc_id"]), user, auth_repo)
+
+            if not repo.can_modify(annotation_id, user.sub, user.is_admin):
+                raise HTTPException(status_code=403, detail="Cannot delete this annotation")
+
+            repo.delete(annotation_id)
 
     @app.post("/admin/intelligence/{doc_id}/trigger")
     def trigger_intelligence(

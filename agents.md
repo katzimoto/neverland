@@ -222,6 +222,12 @@ Document Comments (07a)
     → PATCH /documents/{doc_id}/comments/{comment_id}
     → DELETE /documents/{doc_id}/comments/{comment_id} (soft delete)
 
+Annotations (07b)
+    → GET /documents/{doc_id}/annotations
+    → POST /documents/{doc_id}/annotations
+    → PUT /annotations/{annotation_id}
+    → DELETE /annotations/{annotation_id} (hard delete)
+
 Manual Translation
     → POST /documents/{doc_id}/translate
     → Set translation_quality = 'pending_high'
@@ -241,6 +247,7 @@ null  --manual/auto-->  "pending_high"  --slow worker-->  "high"
 - `documents` — core document metadata (status, translation_quality)
 - `document_views` — per-user view tracking
 - `document_comments` — per-document threaded comments (07a)
+- `annotations` — per-document highlights with notes and position (07b)
 - `system_config` — feature flags and tunables (JSON values)
 
 ---
@@ -266,8 +273,8 @@ null  --manual/auto-->  "pending_high"  --slow worker-->  "high"
 Phase 06 is complete (intelligence layer). See `docs/implementation/phase-07-rag-ui-features.md`.
 
 Phase 07 execution order (sequential, one PR per sub-phase, stop for review after each):
-1. **07a** — Document comments API + backend (PR #16, in review)
-2. **07b** — Annotations API + backend
+1. **07a** — Document comments API + backend (PR #16, merged)
+2. **07b** — Annotations API + backend (PR #17, in review)
 3. **07c** — RAG Q&A endpoint + service (Qdrant payloads only, no Postgres chunks table)
 4. **07d** — Subscriptions, notifications, alert matching
 5. **07e** — Related documents + expertise map
