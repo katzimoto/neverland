@@ -1,0 +1,479 @@
+from __future__ import annotations
+
+from uuid import uuid4
+
+import sqlalchemy as sa
+from fastapi.testclient import TestClient
+from sqlalchemy import Engine
+
+from services.api.main import create_app
+from services.auth.passwords import hash_password
+from services.auth.repository import AuthRepository
+from shared.config import Settings
+
+TEST_JWT_SECRET = "x" * 32
+
+
+def _admin_token(client: TestClient) -> str:
+    login = client.post("/auth/login", json={"email": "admin@example.com", "password": "secret"})
+    assert login.status_code == 200
+    return login.json()["access_token"]
+
+
+def _user_token(client: TestClient) -> str:
+    login = client.post("/auth/login", json={"email": "user@example.com", "password": "secret"})
+    assert login.status_code == 200
+    return login.json()["access_token"]
+
+
+def _setup_users(engine: Engine) -> None:
+    with engine.begin() as connection:
+        auth_repo = AuthRepository(connection)
+        auth_repo.create_local_user(
+            email="admin@example.com",
+            password_hash=hash_password("secret"),
+            display_name="Admin",
+            is_admin=True,
+            group_names=["admins"],
+        )
+        auth_repo.create_local_user(
+            email="user@example.com",
+            password_hash=hash_password("secret"),
+            display_name="User",
+            is_admin=False,
+            group_names=["users"],
+        )
+
+
+# Users
+
+
+def test_admin_list_users(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    response = client.get("/admin/users", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 2
+    emails = {u["email"] for u in data}
+    assert emails == {"admin@example.com", "user@example.com"}
+
+
+def test_admin_create_user(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    response = client.post(
+        "/admin/users",
+        json={"email": "new@example.com", "password": "newpass", "display_name": "New User"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["email"] == "new@example.com"
+    assert data["display_name"] == "New User"
+
+
+def test_admin_delete_user(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    # Get user ID
+    users = client.get("/admin/users", headers={"Authorization": f"Bearer {token}"})
+    user_id = [u["id"] for u in users.json() if u["email"] == "user@example.com"][0]
+
+    response = client.delete(
+        f"/admin/users/{user_id}", headers={"Authorization": f"Bearer {token}"}
+    )
+
+    assert response.status_code == 204
+
+    # Verify user is gone
+    users = client.get("/admin/users", headers={"Authorization": f"Bearer {token}"})
+    assert len(users.json()) == 1
+
+
+def test_admin_cannot_delete_self(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    # Get admin's own ID
+    users = client.get("/admin/users", headers={"Authorization": f"Bearer {token}"})
+    admin_id = [u["id"] for u in users.json() if u["email"] == "admin@example.com"][0]
+
+    response = client.delete(
+        f"/admin/users/{admin_id}", headers={"Authorization": f"Bearer {token}"}
+    )
+
+    assert response.status_code == 400
+    assert "yourself" in response.json()["detail"].lower()
+
+
+def test_admin_delete_nonexistent_user_returns_404(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    response = client.delete(
+        f"/admin/users/{uuid4()}", headers={"Authorization": f"Bearer {token}"}
+    )
+
+    assert response.status_code == 404
+
+
+# Groups
+
+
+def test_admin_list_groups(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    response = client.get("/admin/groups", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    data = response.json()
+    names = {g["name"] for g in data}
+    assert "admins" in names
+    assert "users" in names
+
+
+def test_admin_create_group(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    response = client.post(
+        "/admin/groups",
+        json={"name": "analysts"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["name"] == "analysts"
+
+
+# Sources
+
+
+def test_admin_list_sources(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    # Create a source
+    with migrated_engine.begin() as connection:
+        connection.execute(
+            sa.text(
+                """
+                INSERT INTO ingestion_sources (id, name, type, source_language)
+                VALUES (:id, 'Test', 'folder', 'en')
+                """
+            ),
+            {"id": uuid4().hex},
+        )
+
+    response = client.get("/admin/sources", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["name"] == "Test"
+
+
+def test_admin_create_source(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    response = client.post(
+        "/admin/sources",
+        json={"name": "New Source", "type": "folder", "path": "/data", "source_language": "en"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["name"] == "New Source"
+
+
+# Permissions
+
+
+def test_admin_grant_and_revoke_permission(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    # Create source and group
+    with migrated_engine.begin() as connection:
+        auth_repo = AuthRepository(connection)
+        group_id = auth_repo.ensure_group("analysts")
+        source_id = auth_repo.create_ingestion_source("Test Source")
+
+    # Grant
+    response = client.post(
+        f"/admin/sources/{source_id}/permissions",
+        json={"group_id": str(group_id)},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 201
+
+    # Revoke
+    response = client.delete(
+        f"/admin/sources/{source_id}/permissions/{group_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 204
+
+
+# System Config
+
+
+def test_admin_read_config(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    response = client.get("/admin/config", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    data = response.json()
+    assert isinstance(data, list)
+    assert len(data) > 0
+
+
+def test_admin_update_config(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    response = client.put(
+        "/admin/config/search.vector_weight",
+        json={"value": 0.8},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["value"] == 0.8
+
+
+def test_admin_update_nonexistent_config_returns_404(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    response = client.put(
+        "/admin/config/nonexistent.key",
+        json={"value": "test"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 404
+
+
+def test_admin_reset_config(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    # First change a value
+    client.put(
+        "/admin/config/search.vector_weight",
+        json={"value": 0.99},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    # Reset
+    response = client.post(
+        "/admin/config/reset",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["reset"] is True
+    assert "search.vector_weight" in data["keys"]
+
+    # Verify value was restored
+    config = client.get("/admin/config", headers={"Authorization": f"Bearer {token}"})
+    vector_weight = [c for c in config.json() if c["key"] == "search.vector_weight"][0]
+    assert vector_weight["value"] == 0.7
+
+
+# DLQ
+
+
+def test_admin_list_dlq_empty(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    response = client.get("/admin/dlq", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_admin_dlq_retry_and_list(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    # Insert a DLQ item manually
+    doc_id = uuid4()
+    dlq_id = uuid4()
+    with migrated_engine.begin() as connection:
+        connection.execute(
+            sa.text(
+                """
+                INSERT INTO documents (id, source_id, external_id, source, mime_type)
+                VALUES (:id, :source_id, 'file:/data/test.txt', 'folder', 'text/plain')
+                """
+            ),
+            {"id": doc_id.hex, "source_id": uuid4().hex},
+        )
+        connection.execute(
+            sa.text(
+                """
+                INSERT INTO dlq (id, doc_id, error_message, status)
+                VALUES (:id, :doc_id, 'Test error', 'pending')
+                """
+            ),
+            {"id": dlq_id.hex, "doc_id": doc_id.hex},
+        )
+
+    # List DLQ
+    response = client.get("/admin/dlq", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 1
+    assert data[0]["status"] == "pending"
+    assert data[0]["error_message"] == "Test error"
+
+    # Retry
+    response = client.post(
+        f"/admin/dlq/{dlq_id}/retry",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "retried"
+
+    # Verify status changed
+    response = client.get("/admin/dlq", headers={"Authorization": f"Bearer {token}"})
+    assert response.json()[0]["status"] == "retried"
+    assert response.json()[0]["retry_count"] == 1
+
+
+def test_admin_retry_nonexistent_dlq_returns_404(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    response = client.post(
+        f"/admin/dlq/{uuid4()}/retry",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 404
+
+
+# Activity / Audit Log
+
+
+def test_admin_activity_log_captures_mutations(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    # Perform a mutation
+    client.post(
+        "/admin/groups",
+        json={"name": "audited-group"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    # Check activity log
+    response = client.get("/admin/activity", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) >= 1
+    assert data[0]["action"] == "create"
+    assert data[0]["resource_type"] == "group"
+
+
+def test_non_admin_cannot_access_admin_activity(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _user_token(client)
+
+    response = client.get("/admin/activity", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 403
+
+
+# Non-admin forbidden
+
+
+def test_non_admin_cannot_access_admin_users(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _user_token(client)
+
+    response = client.get("/admin/users", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 403
+
+
+def test_non_admin_cannot_access_admin_config(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _user_token(client)
+
+    response = client.get("/admin/config", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 403
