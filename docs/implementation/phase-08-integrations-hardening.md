@@ -36,9 +36,15 @@ Complete external integrations, observability, and hardening work.
 - Metrics and logging tests.
 - HTML sanitization tests.
 - Load and performance smoke tests.
+- Docker Compose smoke test using real local services, not mocked clients.
 
 ## Acceptance Criteria
 
 - External integrations are deterministic under test.
 - Logs and metrics support production debugging.
 - Security checks cover HTML, auth, secrets, and dependency surfaces.
+- `docker compose up` starts the API, workers, and required infrastructure
+  services.
+- Migrations run successfully against a clean Compose Postgres volume.
+- A no-mock smoke test authenticates, ingests a fixture document, searches it,
+  previews it, and downloads it using real Compose services.

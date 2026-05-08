@@ -16,6 +16,12 @@ Create the system foundation that later services will share.
 - Structured logging and correlation ID helpers.
 - Health endpoint conventions.
 
+## Implementation Notes
+
+- Docker Compose in this phase is infrastructure-only. It validates the
+  foundational service dependencies and does not yet require API or worker
+  application containers.
+
 ## Decision Gates
 
 - Document identity uses UUID primary keys; source-specific stable identifiers

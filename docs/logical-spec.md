@@ -70,6 +70,9 @@ document surfacing, and admin-configurable operation.
 ## Non-Functional Requirements
 
 - Fully air-gapped in v1: no external LLM, translation, or SaaS API calls.
+- The final local deployment runs through Docker Compose with API, worker, and
+  infrastructure services wired together for smoke tests without mocked
+  Elasticsearch, Qdrant, translation, or database clients.
 - Target document capacity is 500K+ documents.
 - Search latency target is below 300 ms.
 - Q&A latency target is below 10 seconds.
