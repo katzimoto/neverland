@@ -34,6 +34,12 @@ This phase is split into five reviewable sub-phases.
 - Permission-filtered search tests.
 - Translation failure fallback tests.
 
+## Implementation Notes
+
+- Phase 03 introduces the real ingestion, search, preview, and download code,
+  but it does not require Docker Compose to run the API and workers as
+  containers. Full no-mock Compose deployment is deferred to Phase 08.
+
 ## Acceptance Criteria
 
 - A user can find only documents their groups allow.
