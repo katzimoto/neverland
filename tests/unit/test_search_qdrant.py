@@ -124,3 +124,13 @@ def test_create_collection_already_exists() -> None:
     client.create_collection_if_not_exists(vector_size=384)
 
     mock_qdrant.create_collection.assert_not_called()
+
+
+def test_client_close() -> None:
+    client = QdrantSearchClient(url="http://localhost:6333")
+    mock_qdrant = MagicMock()
+    client._client = mock_qdrant
+
+    client.close()
+
+    mock_qdrant.close.assert_called_once()

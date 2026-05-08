@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from services.search.encoder import MockEncoder
 
 
@@ -63,6 +65,13 @@ def test_encoder_batch_empty_list() -> None:
     vectors = encoder.encode_batch([])
 
     assert vectors == []
+
+
+def test_encoder_non_string_raises() -> None:
+    encoder = MockEncoder()
+
+    with pytest.raises(TypeError, match="text must be a string"):
+        encoder.encode(123)  # type: ignore[arg-type]
 
 
 def test_encoder_no_external_dependencies() -> None:

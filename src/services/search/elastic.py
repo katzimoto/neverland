@@ -20,8 +20,9 @@ class ElasticsearchSearchClient:
         if self._client.indices.exists(index=INDEX_NAME):
             return
 
-        body: dict[str, Any] = {
-            "mappings": {
+        self._client.indices.create(
+            index=INDEX_NAME,
+            mappings={
                 "properties": {
                     "doc_id": {"type": "keyword"},
                     "content_english": {"type": "text"},
@@ -31,9 +32,8 @@ class ElasticsearchSearchClient:
                     "metadata": {"type": "object"},
                     "allowed_group_ids": {"type": "keyword"},
                 }
-            }
-        }
-        self._client.indices.create(index=INDEX_NAME, body=body)
+            },
+        )
 
     def index_document(self, doc_id: str, document: dict[str, Any]) -> None:
         """Index or update a document by *doc_id*."""
@@ -42,6 +42,10 @@ class ElasticsearchSearchClient:
     def delete_document(self, doc_id: str) -> None:
         """Remove a document from the index."""
         self._client.delete(index=INDEX_NAME, id=doc_id)
+
+    def close(self) -> None:
+        """Close the underlying Elasticsearch client."""
+        self._client.close()
 
     def search(
         self,

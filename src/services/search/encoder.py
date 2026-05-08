@@ -21,7 +21,7 @@ class MockEncoder:
         hash_bytes = hashlib.sha256(text.encode("utf-8")).digest()
         vector: list[float] = []
 
-        # Generate floats from hash bytes using struct.unpack
+        # Generate deterministic floats from hash bytes
         for i in range(DIMENSIONS):
             # Cycle through hash bytes if needed (SHA-256 is 32 bytes)
             byte_idx = i % len(hash_bytes)

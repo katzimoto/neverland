@@ -119,7 +119,7 @@ def test_create_index_if_not_exists() -> None:
     mock_es.indices.create.assert_called_once()
     call_args = mock_es.indices.create.call_args
     assert call_args.kwargs["index"] == INDEX_NAME
-    assert "mappings" in call_args.kwargs["body"]
+    assert "mappings" in call_args.kwargs
 
 
 def test_create_index_already_exists() -> None:
@@ -131,3 +131,13 @@ def test_create_index_already_exists() -> None:
     client.create_index_if_not_exists()
 
     mock_es.indices.create.assert_not_called()
+
+
+def test_client_close() -> None:
+    client = ElasticsearchSearchClient(hosts=["http://localhost:9200"])
+    mock_es = MagicMock()
+    client._client = mock_es
+
+    client.close()
+
+    mock_es.close.assert_called_once()

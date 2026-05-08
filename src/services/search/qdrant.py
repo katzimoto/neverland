@@ -22,7 +22,7 @@ class QdrantSearchClient:
     """Thin wrapper around the Qdrant client for vector (semantic) search."""
 
     def __init__(self, url: str = "http://localhost:6333") -> None:
-        self._client = QdrantClient(url=url)
+        self._client = QdrantClient(url=url, check_compatibility=False)
 
     def create_collection_if_not_exists(self, vector_size: int = 384) -> None:
         """Create the chunk collection if it does not exist."""
@@ -106,3 +106,7 @@ class QdrantSearchClient:
                 must=[FieldCondition(key="doc_id", match=MatchValue(value=doc_id))]
             ),
         )
+
+    def close(self) -> None:
+        """Close the underlying Qdrant client."""
+        self._client.close()
