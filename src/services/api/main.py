@@ -8,6 +8,8 @@ from uuid import UUID
 
 import sqlalchemy as sa
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 from sqlalchemy import Engine
 
 from services.auth.jwt import JwtService
@@ -17,15 +19,50 @@ from services.auth.repository import AuthRepository
 from services.auth.service import AuthService
 from services.documents.repository import DocumentRepository
 from services.extraction.registry import ExtractorRegistry
-from services.permissions.enforcer import require_admin
+from services.permissions.enforcer import assert_doc_access, require_admin
 from services.pipeline.worker import PipelineWorker
 from services.search.elastic import ElasticsearchSearchClient
 from services.search.encoder import MockEncoder
+from services.search.hybrid import merge_results
 from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient
 from shared.config import Settings
 
 AUTH_SCHEME = "Bearer "
+
+
+class SearchRequest(BaseModel):
+    """Search request body."""
+
+    query: str
+    page: int = 1
+    page_size: int = Field(default=10, ge=1, le=100)
+
+
+class SearchResultItem(BaseModel):
+    """Single search result."""
+
+    doc_id: str
+    score: float
+    title: str | None = None
+    chunk_text: str | None = None
+
+
+class SearchResponse(BaseModel):
+    """Search response."""
+
+    results: list[SearchResultItem]
+    total: int
+
+
+class PreviewResponse(BaseModel):
+    """Document preview response."""
+
+    doc_id: str
+    title: str | None = None
+    mime_type: str
+    translation_quality: str | None = None
+    metadata: dict[str, Any]
 
 
 def create_app(
@@ -161,5 +198,103 @@ def create_app(
                     results["failed"] += 1
 
             return results
+
+    @app.post("/search", response_model=SearchResponse)
+    def search(
+        request: SearchRequest,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> SearchResponse:
+        group_ids = [str(g) for g in user.groups]
+        if not group_ids:
+            return SearchResponse(results=[], total=0)
+
+        es_client = app.state.es_client or ElasticsearchSearchClient(
+            hosts=[app.state.settings.elastic_url]
+        )
+        qdrant_client = app.state.qdrant_client or QdrantSearchClient(
+            url=app.state.settings.qdrant_url
+        )
+        encoder = MockEncoder()
+
+        bm25_results = es_client.search(request.query, group_ids=group_ids, size=50)
+        query_vector = encoder.encode(request.query)
+        vector_results = qdrant_client.search(vector=query_vector, group_ids=group_ids, limit=50)
+
+        # TODO: read weights from system_config in Phase 04
+        merged = merge_results(
+            bm25_results=bm25_results,
+            vector_results=vector_results,
+            vector_weight=0.7,
+            bm25_weight=0.3,
+        )
+
+        start = (request.page - 1) * request.page_size
+        end = start + request.page_size
+        page = merged[start:end]
+
+        return SearchResponse(
+            results=[
+                SearchResultItem(
+                    doc_id=r.doc_id,
+                    score=r.score,
+                    title=r.title,
+                    chunk_text=r.chunk_text,
+                )
+                for r in page
+            ],
+            total=len(merged),
+        )
+
+    @app.get("/preview/{doc_id}", response_model=PreviewResponse)
+    def preview(
+        doc_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> PreviewResponse:
+        with app.state.engine.begin() as connection:
+            auth_repo = AuthRepository(connection)
+            assert_doc_access(doc_id, user, auth_repo)
+
+            doc_repo = DocumentRepository(connection)
+            doc = doc_repo.get_by_id(doc_id)
+            if doc is None:
+                raise HTTPException(status_code=404, detail="Document not found")
+
+            return PreviewResponse(
+                doc_id=str(doc.id),
+                title=doc.title,
+                mime_type=doc.mime_type,
+                translation_quality=doc.translation_quality,
+                metadata=doc.metadata,
+            )
+
+    @app.get("/download/{doc_id}")
+    def download(
+        doc_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> StreamingResponse:
+        with app.state.engine.begin() as connection:
+            auth_repo = AuthRepository(connection)
+            assert_doc_access(doc_id, user, auth_repo)
+
+            doc_repo = DocumentRepository(connection)
+            doc = doc_repo.get_by_id(doc_id)
+            if doc is None or doc.path is None:
+                raise HTTPException(status_code=404, detail="Document not found")
+
+        files_root = app.state.settings.files_root.resolve()
+        target = Path(doc.path).resolve()
+        if not target.is_relative_to(files_root):
+            raise HTTPException(status_code=400, detail="Invalid file path")
+
+        def file_iterator() -> Iterator[bytes]:
+            with target.open("rb") as f:
+                while chunk := f.read(8192):
+                    yield chunk
+
+        return StreamingResponse(
+            file_iterator(),
+            media_type=doc.mime_type,
+            headers={"Content-Disposition": f'attachment; filename="{target.name}"'},
+        )
 
     return app

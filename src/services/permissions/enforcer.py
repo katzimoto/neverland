@@ -19,13 +19,17 @@ def get_allowed_groups(user: TokenPayload | UserIdentity) -> list[UUID]:
     return list(user.groups)
 
 
-def assert_source_access(source_id: UUID, user: UserIdentity, repository: AuthRepository) -> None:
+def assert_source_access(
+    source_id: UUID, user: TokenPayload | UserIdentity, repository: AuthRepository
+) -> None:
     """Raise 403 unless the user can access a source through source grants."""
-    if not repository.user_can_access_source(user, source_id):
+    if not repository.user_can_access_source(user, source_id):  # type: ignore[arg-type]
         raise HTTPException(status_code=403, detail="Source access denied")
 
 
-def assert_doc_access(doc_id: UUID, user: UserIdentity, repository: AuthRepository) -> None:
+def assert_doc_access(
+    doc_id: UUID, user: TokenPayload | UserIdentity, repository: AuthRepository
+) -> None:
     """Raise 403 unless the user can access the document's source."""
     source_id = repository.document_source_id(doc_id)
     if source_id is None:
