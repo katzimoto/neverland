@@ -18,7 +18,6 @@ All notable changes to this project will be documented in this file.
 - Phase 00: Planning, repository hygiene, and GitHub Actions bootstrap.
 
 ### Planned
-- Phase 05b: Translation enrichment — manual request, auto-enrich threshold, slow worker reindex.
 - Phase 06: Intelligence layer — Ollama integration, summarization, entity extraction, auto-tagging.
 - Phase 07: RAG Q&A, annotations, subscriptions, notifications, related documents, expertise map.
 - Phase 08: External integrations (NiFi, Confluence, Jira), old Office extraction, observability.
