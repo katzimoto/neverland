@@ -10,9 +10,13 @@ grounded in source documents.
 ## Source Specs
 
 - `docs/design/user-ui-spec.md`
+- `docs/design/document-comments-spec.md`
+- `docs/design/translation-versions-spec.md`
 - `docs/logical-spec.md`
 - `docs/implementation/phase-03e-search-apis.md`
 - `docs/implementation/phase-05-preview-enrichment.md`
+- `docs/implementation/translation-versions-plan.md`
+- `docs/implementation/document-comments-plan.md`
 - `docs/implementation/phase-07-rag-ui-features.md`
 
 ## Chosen Stack
@@ -93,9 +97,10 @@ Classify API usage before each UI phase starts.
 | Search | Available from Phase 03e | Use real API |
 | Preview metadata/basic preview | Phase 03e, expanded in Phase 05 | Use real API and feature-detect preview mode fields |
 | Download | Available from Phase 03e | Use real API |
-| Request translation | Phase 05 | Hide until endpoint exists or feature flag enables it |
+| Translation versions/manual request | Phase 05c | Use selector when versions exist; hide request when disabled |
 | Q&A | Phase 07 | Use adapter with disabled state before backend exists |
 | Annotations | Phase 07 | Use adapter with disabled state before backend exists |
+| Document comments | Phase 07a | Hide comments tab or show disabled state before API exists |
 | Saved searches | No backend in current phases | Store locally by user ID in browser storage for MVP |
 | Subscriptions | Phase 07 | Use adapter with disabled state before backend exists |
 | Notifications | Phase 07 | Use adapter with empty state before backend exists |
@@ -224,6 +229,8 @@ Branch: `developer/ui-02-document-preview`
 - Document route `/doc/:doc_id`.
 - Back-to-search behavior preserving query and filters.
 - Preview shell with toolbar, main preview pane, and right insight pane.
+- Translation version selector and request translation dialog when endpoints
+  exist.
 - Preview renderers for available backend modes:
   - text.
   - html.
@@ -240,14 +247,18 @@ Branch: `developer/ui-02-document-preview`
   - translation unavailable.
 - Download action.
 - Request translation action when endpoint exists.
+- Version switching without leaving the document route.
 - Trust/provenance display in toolbar and details tab.
 
 ### Validation
 
 - Fixture component tests for each preview mode.
+- Component tests for translation version selector, pending/failed states, and
+  request dialog.
 - Permission error test for inaccessible document.
 - Playwright workflow: search result opens preview, back returns to search state,
-  download/request translation controls render correctly.
+  download/request translation controls render correctly, and version selection
+  preserves document context.
 - Screenshot checks for preview at desktop and mobile.
 - Accessibility checks for tabs, toolbar buttons, and preview landmarks.
 
@@ -256,6 +267,8 @@ Branch: `developer/ui-02-document-preview`
 - Preview never blocks document metadata from rendering.
 - Unsupported or failed previews still offer available safe actions.
 - Document title, source, translation state, and indexed date are visible.
+- Selected translation version is visible and does not replace the preview while
+  a new request is pending.
 - Text and controls do not overlap at mobile sizes.
 
 Stop for Reviewer-agent review.
@@ -291,12 +304,16 @@ Branch: `developer/ui-03-qa-citations`
 
 Stop for Reviewer-agent review.
 
-## UI Phase 04: Annotations
+## UI Phase 04: Document Comments And Annotations
 
-Branch: `developer/ui-04-annotations`
+Branch: `developer/ui-04-comments-annotations`
 
 ### Scope
 
+- Shared document comment list in document insight pane.
+- Comment composer with long text, line breaks, and emoji support.
+- Create, edit, delete comment flows.
+- Creator/admin action visibility for comments.
 - Annotation list in document insight pane.
 - Text/region selection affordance per preview mode.
 - Create, edit, delete annotation flows.
@@ -306,16 +323,24 @@ Branch: `developer/ui-04-annotations`
 
 ### Validation
 
+- Component tests for comment composer, long comment collapse/expand, emoji-only
+  comments, edit/delete states, and admin affordances.
 - Component tests for annotation editor, list item, privacy labels.
 - Preview-mode tests for supported position shapes.
-- Playwright workflow: create private note, create shared note, edit, delete.
-- Permission tests for own annotation vs shared annotation behavior.
+- Playwright workflow: create comment, edit own comment, delete own comment,
+  create private note, create shared note, edit, delete.
+- Permission tests for own comment, other-user comment, admin comment behavior,
+  own annotation, and shared annotation behavior.
 
 ### Acceptance Criteria
 
+- Comments are visible to all users with document access and hidden from users
+  without document access.
+- Comment creators and admins can edit/delete; other users cannot.
+- Long comments do not take over the preview pane.
 - Private annotations are clearly labeled.
 - Shared annotations do not appear for users without document access.
-- Annotation actions are keyboard accessible.
+- Comment and annotation actions are keyboard accessible.
 
 Stop for Reviewer-agent review.
 
