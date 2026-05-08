@@ -1,131 +1,139 @@
-# AGENTS.md
+# AGENTS.md — Neverland Developer & Reviewer Guide
 
-> Codex agent definitions for this repository.
-> Two agents operate in sequence: **Developer** generates code from spec,
-> **Reviewer** audits quality, coverage and style before merge.
-> Both agents share the tooling contract defined in `SKILLS.md`.
+> **READ THIS FIRST** if you are an AI agent joining this project.
+> This file is the single source of truth for how to develop, review, and maintain Neverland.
 
------
+## 1. Project Overview (30 seconds)
 
-## Agent: Developer
+**Neverland** is a local-first knowledge intelligence system for private document corpora.
+- **Stack:** Python 3.13, FastAPI, SQLAlchemy, PostgreSQL, Elasticsearch, Qdrant, LibreTranslate, Docker Compose
+- **Architecture:** REST API + background workers (fast/slow/intelligence), air-gapped deployment
+- **Current state:** Phase 05b complete (translation enrichment). Phase 06 (intelligence layer) is next.
 
-**Role** — Translate a feature spec or GitHub issue into production-ready,
-test-first code that passes CI on the first push.
+### Key docs to read first
+1. `docs/logical-spec.md` — What the product does (domain, actors, capabilities)
+2. `docs/implementation/README.md` — Phase index and implementation rules
+3. `docs/review/spec-gaps.md` — Resolved and open architecture decisions
+4. `CHANGELOG.md` — What has been built so far
 
-### Identity
+### Canonical specs (read-only)
+- `spec.md` and `spec-v4.pdf` — Original client requirements. Do not modify.
 
-```
-name: developer
-model: codex-latest          # override with CODEX_DEV_MODEL env var
-temperature: 0.2             # deterministic; creativity is not the goal
-max_tokens: 4096             # stay within budget; split large tasks
-```
+---
 
-### Responsibilities
-
-1. Read the spec (issue body, PR description, or `docs/specs/<feature>.md`).
-1. Write **failing tests first** (TDD red phase).
-1. Implement the minimal code that makes the tests pass (green phase).
-1. Refactor for clarity without breaking tests (refactor phase).
-1. Update or create inline docstrings / JSDoc for every public symbol.
-1. Run the full lint + test suite locally before declaring done.
-
-### Token-efficiency rules
-
-- Summarise context to ≤ 500 tokens before reasoning; drop file contents
-  that are irrelevant to the current task.
-- Re-use existing helpers; never duplicate logic across files.
-- When editing existing files prefer `patch` diffs over full rewrites.
-- Limit a single agent turn to **one logical change** (one feature / one fix).
-  Open follow-up tasks for unrelated improvements discovered en route.
-
-### Constraints
-
-- **Never** push directly to `main` or `master`.
-- **Never** lower test coverage below the threshold in `SKILLS.md`.
-- **Never** disable lint rules inline; fix the root cause instead.
-- **Never** add dependencies without updating `package.json` / `pyproject.toml`
-  and documenting the reason in the PR description.
-- If a spec is ambiguous, create a `docs/questions/<issue-number>.md` file
-  with explicit questions and stop — do not guess.
-
-### Output contract
-
-Every PR opened by the Developer agent **must** include:
-
-|Artifact                         |Location                               |
-|---------------------------------|---------------------------------------|
-|Implementation                   |`src/`                                 |
-|Unit tests                       |`tests/unit/`                          |
-|Integration tests (if applicable)|`tests/integration/`                   |
-|Updated docs                     |`docs/` or inline docstrings           |
-|Changelog entry                  |`CHANGELOG.md` → `[Unreleased]` section|
-
-### GitHub Actions integration
-
-The Developer agent is triggered by the `codex-dev` workflow
-(see `.github/workflows/codex-dev.yml`).
-
-```yaml
-# Minimal trigger block — copy into your workflow file
-on:
-  issues:
-    types: [labeled]          # label: "codex-dev"
-  workflow_dispatch:
-    inputs:
-      spec_path:
-        description: "Path to spec file (e.g. docs/specs/my-feature.md)"
-        required: true
-
-env:
-  CODEX_AGENT: developer
-  CODEX_SKILLS_PATH: SKILLS.md
-```
-
-Recommended job steps (in order):
-
-1. `actions/checkout` with `fetch-depth: 0`
-1. Install runtime + dev dependencies (cached)
-1. `codex run --agent developer --skills SKILLS.md "$SPEC"`
-1. `git diff --exit-code` — fail if agent produced no changes
-1. Auto-open PR with `gh pr create`
-
------
-
-## Agent: Reviewer
-
-**Role** — Act as a senior engineer performing a thorough code review.
-Enforce quality gates, reject weak test coverage, and suggest concrete
-improvements rather than vague observations.
-
-### Identity
+## 2. Repository Layout
 
 ```
-name: reviewer
-model: codex-latest          # override with CODEX_REV_MODEL env var
-temperature: 0.1             # highly consistent judgements
-max_tokens: 2048             # reviews are commentary, not rewrites
+neverland/
+├── AGENTS.md              # ← You are here
+├── skill.md               # Project-specific skills (TDD, lint, coverage rules)
+├── CHANGELOG.md           # Release history
+├── README.md              # One-liner + spec reference
+├── pyproject.toml         # Python deps, pytest, ruff, mypy config
+├── docker-compose.yml     # Local infrastructure (Postgres, ES, Qdrant)
+│
+├── src/                   # Production code
+│   ├── services/
+│   │   ├── api/main.py        # FastAPI app, all HTTP routes
+│   │   ├── auth/              # JWT, LDAP, passwords, users/groups
+│   │   ├── chunking/          # Text chunking for embedding
+│   │   ├── documents/         # Document model + repository (Postgres)
+│   │   ├── extraction/        # 15+ file type extractors (registry pattern)
+│   │   ├── permissions/       # Group-based access enforcer
+│   │   ├── pipeline/          # Fast worker + Slow worker
+│   │   ├── preview/           # Preview service + view tracking
+│   │   ├── search/            # ES (BM25), Qdrant (vectors), hybrid merger
+│   │   └── translation/       # LibreTranslate client
+│   └── shared/                # Config, DB utils, correlation IDs, events
+│
+├── tests/
+│   ├── unit/                  # Fast, isolated tests (one per src module)
+│   ├── integration/           # API + DB round-trip tests
+│   └── fixtures/              # Sample files (docx, pdf, pptx, txt, xlsx)
+│
+├── migrations/                # Alembic migrations (numbered + timestamped)
+│
+├── docs/
+│   ├── logical-spec.md        # Product behavior (read first)
+│   ├── review/
+│   │   └── spec-gaps.md       # Architecture decision log
+│   ├── implementation/
+│   │   ├── README.md          # Phase index
+│   │   ├── phase-0N-*.md      # Per-phase implementation plans
+│   │   └── frontend-ui-plan.md
+│   └── design/                # UI specs, logos (non-code design assets)
+│
+├── review/                    # Per-PR review reports
+│   └── <pr-number>.md
+│
+├── scripts/
+│   ├── pre-commit             # Fast lint/format/type check (no tests)
+│   └── install-hooks.sh       # One-time hook installer
+│
+└── .github/workflows/ci.yml   # CI: lint + type check + tests + security
 ```
 
-### Responsibilities
+---
 
-1. **Static analysis** — Run all linters defined in `SKILLS.md` and report
-   violations categorised as `error | warning | info`.
-1. **Test coverage audit** — Confirm unit + integration coverage meets the
-   thresholds in `SKILLS.md`; list every uncovered branch.
-1. **Logic review** — Reason about correctness, edge cases, error handling,
-   and concurrency hazards.
-1. **Documentation review** — Verify every public symbol has a docstring;
-   check that `CHANGELOG.md` and `docs/` were updated.
-1. **Security scan** — Flag hardcoded secrets, insecure defaults, and
-   dependency CVEs (via `npm audit` / `pip-audit`).
-1. **Performance check** — Identify O(n²) loops, blocking I/O in async
-   contexts, and unnecessary re-renders (frontend).
+## 3. Development Workflow
 
-### Review output format
+### Before you write code
 
-The Reviewer agent writes its findings to `review/<pr-number>.md`
-using the structure below:
+1. **Check the phase plan** in `docs/implementation/phase-0N-*.md`
+2. **Check blockers** in `docs/review/spec-gaps.md` — if any are open for your phase, STOP and resolve them first
+3. **Check CHANGELOG.md** — understand what is already built
+4. **Branch from `main`**:
+   ```bash
+   git checkout -b developer/phase-0N-<short-name>
+   ```
+
+### While you write code
+
+1. **TDD cycle**: failing test → minimal pass → refactor
+2. **Coverage floor:** 90% lines + branches (enforced in `pyproject.toml` and CI)
+3. **Pre-commit hook runs automatically:** ruff check → ruff format → mypy (NO tests — those run in CI)
+4. **Install the hook once:**
+   ```bash
+   ./scripts/install-hooks.sh
+   ```
+
+### Before you declare done
+
+Run locally (same as CI but faster):
+```bash
+# Fast (pre-commit)
+ruff check --fix src/ tests/ migrations/
+ruff format src/ tests/ migrations/
+mypy src --strict
+
+# Full (CI)
+pytest                    # ~2 min, 204 tests, coverage report
+```
+
+### Output contract (every PR must include)
+
+| Artifact | Location |
+|----------|----------|
+| Implementation | `src/` |
+| Unit tests | `tests/unit/` |
+| Integration tests | `tests/integration/` |
+| Migration (if schema changes) | `migrations/versions/` |
+| Updated docs | `docs/implementation/` or inline docstrings |
+| Changelog entry | `CHANGELOG.md` → `[Unreleased]` |
+| Review file | `review/<pr-number>.md` |
+
+---
+
+## 4. Review Workflow
+
+### When to review
+- After Developer declares a phase complete
+- Before any merge to `main`
+
+### How to review
+1. Read the PR diff: `git diff origin/main...HEAD`
+2. Run the same checks as CI locally
+3. Write findings to `review/<pr-number>.md` using this structure:
 
 ```markdown
 ## Review — PR #<number>
@@ -142,79 +150,133 @@ using the structure below:
 ### ✅ Coverage report
 | Scope | Measured | Threshold | Status |
 |---|---|---|---|
-| Unit | 94 % | 90 % | ✅ |
-| Integration | 78 % | 75 % | ✅ |
+| Unit + Integration | ≥ 94 % | 90 % | ✅ |
 
 ### 📋 Checklist
-- [ ] All public symbols documented
-- [ ] CHANGELOG.md updated
-- [ ] No hardcoded secrets
-- [ ] Dependency audit clean
-- [ ] Lint: 0 errors
+- [x] All public symbols documented
+- [x] CHANGELOG.md updated
+- [x] No hardcoded secrets
+- [x] Dependency audit clean
+- [x] Lint: 0 errors
+- [x] Migration has downgrade path
+- [x] FK constraints use ON DELETE CASCADE
+
+### Verdict
+**Approved.** / **Changes requested.**
 ```
 
-If there are **zero blockers**, the Reviewer auto-approves and labels the
-PR `reviewer-approved`. Otherwise it requests changes.
+### Review criteria
+- **Blockers:** correctness bugs, security issues, coverage below 90%, missing migrations, broken tests
+- **Warnings:** style issues, missing edge-case tests, documentation gaps, performance concerns
+- **Suggestions:** refactors, feature extensions, nice-to-haves
 
-### Token-efficiency rules
+---
 
-- Load only the diff (`git diff origin/main...HEAD`) — never the full repo.
-- Deduplicate findings: one entry per root cause, not per occurrence.
-- Cap commentary to 3 sentences per finding.
+## 5. Code Conventions
 
-### GitHub Actions integration
+### Python (this project)
+- **Formatter:** Ruff (line length 100)
+- **Linter:** Ruff with rules `E, F, W, I, N, UP, B, C4, SIM, TCH`
+- **Type checker:** mypy --strict
+- **Docstrings:** Google style for every public symbol
+- **Imports:** `from __future__ import annotations` in every file
+- **UUID handling:** Use `shared.db.db_uuid()` for SQL parameter binding
 
-Triggered automatically on every PR targeting `main` via
-`.github/workflows/codex-review.yml`.
+### FastAPI patterns
+- All routes live in `src/services/api/main.py` (single file, ~800 lines, acceptable for MVP)
+- Auth dependency: `Depends(current_user)`
+- Admin guard: `require_admin(user)`
+- Doc access: `assert_doc_access(doc_id, user, auth_repo)`
+- DB connections: `with app.state.engine.begin() as connection:`
 
-```yaml
-on:
-  pull_request:
-    branches: [main, master]
-    types: [opened, synchronize, ready_for_review]
+### Testing patterns
+- Unit tests mock external services (ES, Qdrant, translator)
+- Integration tests use real DB via `migrated_engine` fixture in `tests/conftest.py`
+- JWT secret for tests: `"x" * 32` (see `test_enrichment.py`)
+- Test helpers: `_admin_token()`, `_user_token()`, `_setup_users()`
 
-env:
-  CODEX_AGENT: reviewer
-  CODEX_SKILLS_PATH: SKILLS.md
+---
+
+## 6. Architecture Quick Reference
+
+### Data flow
+```
+Ingestion Source (folder/NiFi/Atlassian)
+    → POST /admin/ingest
+    → PipelineWorker (fast): extract → translate → chunk → embed → index
+    → Postgres (document metadata) + ES (BM25) + Qdrant (vectors)
+
+User Search
+    → POST /search (hybrid BM25 + vector)
+    → Permission filter by user groups
+    → Return merged results
+
+User Preview
+    → GET /preview/{doc_id}
+    → Record view in document_views
+    → Auto-enrich if view count ≥ threshold
+
+Manual Translation
+    → POST /documents/{doc_id}/translate
+    → Set translation_quality = 'pending_high'
+    → SlowWorker (background): re-extract → re-translate → re-index
 ```
 
-Recommended job steps (in order):
-
-1. `actions/checkout` with `fetch-depth: 0`
-1. Install runtime + dev dependencies (cached)
-1. `codex run --agent reviewer --skills SKILLS.md --pr "$PR_NUMBER"`
-1. Upload `review/<pr-number>.md` as a workflow artefact
-1. Post review via `gh pr review` using the generated file
-
------
-
-## Shared conventions
-
-### Branch naming
-
+### Translation state machine
 ```
-<agent>/<issue-number>-<slug>
-# e.g.  developer/42-add-oauth   |   reviewer/42-add-oauth
+null  --fast worker-->  "fast"
+"fast" --manual/auto-->  "pending_high"  --slow worker-->  "high"
+null  --manual/auto-->  "pending_high"  --slow worker-->  "high"
 ```
 
-### Commit message format (Conventional Commits)
+### Key tables
+- `users`, `groups`, `user_groups` — auth
+- `ingestion_sources`, `source_permissions` — document sources
+- `documents` — core document metadata (status, translation_quality)
+- `document_views` — per-user view tracking
+- `system_config` — feature flags and tunables (JSON values)
 
-```
-<type>(<scope>): <subject>          ← 72 chars max
+---
 
-[optional body]
+## 7. Common Pitfalls
 
-[optional footer: Closes #<issue>]
-```
+1. **Tests are SLOW (~2 min)** — the pre-commit hook intentionally skips them. Do not add tests back to pre-commit.
+2. **SlowWorker is not wired to a trigger** — it exists and is tested, but no scheduler/API calls it yet. Wire it in Phase 06 or 08.
+3. **Document status `'deleted'`** — SlowWorker does not check for this. Add a guard if enriching deleted docs becomes a risk.
+4. **Auto-enrich concurrency** — `_maybe_auto_enrich` does an unconditional UPDATE. The Python guard prevents double-fire, but concurrent previews could race. Acceptable for MVP.
+5. **Logo assets in Phase 05b commit** — `docs/design/assets/` and `logo-options.md` were committed with 05b but are unrelated. They are harmless but could be separated in cleanup.
+6. **No `gh` CLI installed globally** — if you need `gh`, install to `~/.local/bin`:
+   ```bash
+   curl -fsSL https://github.com/cli/cli/releases/download/v2.69.0/gh_2.69.0_linux_amd64.tar.gz -o /tmp/gh.tar.gz
+   tar -xzf /tmp/gh.tar.gz -C /tmp
+   cp /tmp/gh_2.69.0_linux_amd64/bin/gh ~/.local/bin/
+   ```
 
-Valid types: `feat | fix | docs | style | refactor | test | chore | ci`
+---
 
-### PR labels managed by agents
+## 8. Next Phase (Phase 06)
 
-|Label              |Set by          |Meaning                 |
-|-------------------|----------------|------------------------|
-|`codex-dev`        |Human / workflow|Triggers Developer agent|
-|`codex-review`     |Auto on PR open |Triggers Reviewer agent |
-|`reviewer-approved`|Reviewer        |Zero blockers found     |
-|`needs-work`       |Reviewer        |Blockers present        |
-|`coverage-fail`    |Reviewer        |Coverage below threshold|
+See `docs/implementation/phase-06-intelligence-layer.md`.
+
+Goal: Add best-effort local LLM intelligence without blocking ingestion.
+- Ollama service integration
+- Worker-intelligence service (`worker-intelligence/` package)
+- Summarization, entity extraction, auto-tagging, alert matching
+- Mocked Ollama tests
+- Best-effort failure behavior (no DLQ, no blocking)
+
+---
+
+## 9. File Checklist for New Agents
+
+When you start a session, read these in order:
+
+- [ ] `AGENTS.md` (this file)
+- [ ] `docs/logical-spec.md`
+- [ ] `docs/implementation/README.md`
+- [ ] `docs/review/spec-gaps.md`
+- [ ] `CHANGELOG.md`
+- [ ] `pyproject.toml` (tool config)
+- [ ] `docs/implementation/phase-0N-*.md` (the phase you're working on)
+
+Then dive into `src/` and `tests/` as needed.

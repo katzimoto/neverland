@@ -1,18 +1,11 @@
-# SKILLS.md
+# skill.md — Neverland Project Skills
 
-> Shared skill definitions consumed by both the **Developer** and **Reviewer**
-> agents declared in `AGENTS.md`.
-> Every skill lists: purpose, commands, configuration pointers, thresholds,
-> and the CI step that enforces it.
+> Shared skill definitions for Developer and Reviewer agents working on Neverland.
+> This is a Python/FastAPI project. All commands and thresholds below are exact.
 
------
+---
 
 ## 1. Test-Driven Development (TDD)
-
-### Philosophy
-
-Write the test first. The implementation exists to make tests pass — not the
-other way around. Tests are the executable specification.
 
 ### Cycle
 
@@ -22,414 +15,308 @@ Green → write the minimal code to pass the test
 Refactor → clean up without changing observable behaviour
 ```
 
-### File conventions
+### Test runner
 
-|Language            |Test runner|Location            |Pattern    |
-|--------------------|-----------|--------------------|-----------|
-|TypeScript / JS     |Vitest     |`tests/unit/`       |`*.test.ts`|
-|TypeScript / JS     |Playwright |`tests/e2e/`        |`*.spec.ts`|
-|Python              |pytest     |`tests/unit/`       |`test_*.py`|
-|Python (integration)|pytest     |`tests/integration/`|`test_*.py`|
-
-### Coverage thresholds
-
-```yaml
-# vitest.config.ts / pytest threshold
-unit:
-  lines:    90
-  branches: 85
-  functions: 90
-statements: 90
-
-integration:
-  lines:    75
-  branches: 70
-```
-
-Agents **must not** merge code below these thresholds.
-The Developer agent must include a coverage report in the PR body.
-
-### Commands
+**pytest** with coverage.
 
 ```bash
-# JavaScript / TypeScript
-npx vitest run --coverage
+# Full suite (CI)
+pytest
 
-# Python
-pytest --cov=src --cov-branch --cov-report=term-missing \
-       --cov-fail-under=90 tests/
+# Fast subset (unit only)
+pytest tests/unit/ -q
+
+# Single test file
+pytest tests/unit/test_translation.py -q
+
+# With coverage report
+pytest --cov=src --cov-branch --cov-report=term-missing tests/
 ```
+
+### Coverage thresholds (enforced)
+
+```
+lines:    ≥ 90%
+branches: ≥ 90%
+```
+
+Configured in `pyproject.toml`:
+```toml
+[tool.pytest.ini_options]
+addopts = "--cov=src --cov-branch --cov-report=term-missing --cov-fail-under=90"
+```
+
+### File locations
+
+| Test type | Directory | Pattern |
+|-----------|-----------|---------|
+| Unit | `tests/unit/` | `test_*.py` |
+| Integration | `tests/integration/` | `test_*.py` |
 
 ### What to test
 
 - **Happy path** — expected inputs produce expected outputs.
-- **Edge cases** — empty input, boundary values, max values.
-- **Error paths** — invalid input throws / returns correct error.
-- **Side effects** — DB writes, HTTP calls, file I/O (use mocks/stubs).
-- **Async behaviour** — timeouts, retries, race conditions.
+- **Edge cases** — empty input, boundary values, max values, missing files.
+- **Error paths** — invalid input throws correct HTTPException or sets status='failed'.
+- **Side effects** — DB writes, ES/Qdrant calls (use mocks/stubs).
+- **Permission filtering** — unauthorized access returns 403.
 
 ### What not to test
 
-- Third-party library internals.
-- Implementation details (test behaviour, not code structure).
+- Third-party library internals (e.g., pypdf, elasticsearch-py).
 - Trivial getters/setters unless they contain logic.
+- Implementation details that are not observable behavior.
 
------
+---
 
-## 2. Linting
+## 2. Linting & Type Checking
 
-All linters run in `--fix` mode during development and in strict (no-fix,
-exit-code 1 on violation) mode in CI.
+### Tools
 
-### JavaScript / TypeScript
+- **Ruff** — lint + format (replaces flake8, black, isort)
+- **mypy** — strict type checking
 
-**Tool:** ESLint + Prettier + typescript-eslint
-
-```bash
-# Fix locally
-npx eslint --fix "src/**/*.{ts,tsx}" "tests/**/*.{ts,tsx}"
-npx prettier --write "src/**/*.{ts,tsx,json,md}"
-
-# CI (strict — no auto-fix)
-npx eslint "src/**/*.{ts,tsx}" "tests/**/*.{ts,tsx}"
-npx prettier --check "src/**/*.{ts,tsx,json,md}"
-```
-
-Minimum required ESLint rules (`eslint.config.ts`):
-
-```ts
-rules: {
-  "@typescript-eslint/no-explicit-any": "error",
-  "@typescript-eslint/explicit-function-return-type": "warn",
-  "no-console": ["warn", { allow: ["warn", "error"] }],
-  "eqeqeq": ["error", "always"],
-  "no-unused-vars": "error",
-  "prefer-const": "error",
-  "no-var": "error",
-}
-```
-
-### Python
-
-**Tools:** Ruff (lint + format) + mypy (type checking)
+### Commands
 
 ```bash
-# Fix locally
-ruff check --fix src/ tests/
-ruff format src/ tests/
+# Fix locally (pre-commit runs this)
+ruff check --fix src/ tests/ migrations/
+ruff format src/ tests/ migrations/
 
 # Type check
-mypy src/ --strict
+mypy src --strict
 
-# CI (strict)
-ruff check src/ tests/
-ruff format --check src/ tests/
-mypy src/ --strict
+# CI (strict — no auto-fix)
+ruff check .
+ruff format --check .
+mypy src --strict
 ```
 
-Minimum `pyproject.toml` settings:
+### Configuration (from pyproject.toml)
 
 ```toml
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "TCH"]
+ignore = ["TC001", "TC002", "TC003"]
 
 [tool.mypy]
 strict = true
 python_version = "3.11"
+mypy_path = "src"
+files = ["src", "tests"]
 ```
 
-### Shell scripts
+### Code style rules
 
-```bash
-shellcheck scripts/**/*.sh
-```
+1. Every `.py` file starts with `from __future__ import annotations`
+2. Every public function/class has a Google-style docstring
+3. Type hints on all function signatures
+4. Use `|` union syntax (`str | None`, not `Optional[str]`)
+5. Use `dict[str, Any]` not `Dict[str, Any]`
+6. Import order: stdlib → third-party → local (`services.*`, `shared.*`)
+7. UUID SQL params: use `shared.db.db_uuid(value)` to handle UUID→string binding
 
-### GitHub Actions workflows
-
-```bash
-actionlint .github/workflows/*.yml
-```
-
-### Pre-commit (local enforcement)
-
-```yaml
-# .pre-commit-config.yaml
-repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.4
-    hooks: [{ id: ruff, args: [--fix] }, { id: ruff-format }]
-  - repo: https://github.com/pre-commit/mirrors-eslint
-    rev: v9.3.0
-    hooks: [{ id: eslint, additional_dependencies: [eslint, typescript-eslint] }]
-  - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v4.0.0-alpha.8
-    hooks: [{ id: prettier }]
-  - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: v0.10.0.1
-    hooks: [{ id: shellcheck }]
-```
-
------
+---
 
 ## 3. Documentation
 
-### Docstring standards
+### Required per PR
 
-#### Python (Google style)
+| Item | Required when |
+|------|---------------|
+| Inline docstring | Every new or modified public symbol |
+| Phase plan update | If scope changes |
+| `CHANGELOG.md` entry | Every merged PR |
+| `review/<pr>.md` | Every reviewed PR |
+
+### Docstring template (Google style)
 
 ```python
-def calculate_discount(price: float, rate: float) -> float:
-    """Calculate the discounted price.
+def my_function(param: str) -> int:
+    """Short one-line summary.
+
+    Longer description if needed. Mention side effects or preconditions.
 
     Args:
-        price: Original price in the base currency.
-        rate: Discount rate as a decimal (e.g. 0.15 for 15 %).
+        param: Description of parameter.
 
     Returns:
-        Discounted price rounded to 2 decimal places.
+        Description of return value.
 
     Raises:
-        ValueError: If rate is not in the range [0, 1].
+        ValueError: When param is invalid.
 
     Example:
-        >>> calculate_discount(100.0, 0.15)
-        85.0
+        >>> my_function("hello")
+        5
     """
 ```
 
-#### TypeScript (TSDoc)
-
-```ts
-/**
- * Calculate the discounted price.
- *
- * @param price - Original price in the base currency.
- * @param rate - Discount rate as a decimal (e.g. `0.15` for 15 %).
- * @returns Discounted price rounded to 2 decimal places.
- * @throws {RangeError} When `rate` is outside `[0, 1]`.
- *
- * @example
- * ```ts
- * calculateDiscount(100, 0.15); // 85
- * ```
- */
-```
-
-### Required docs per PR
-
-|Item                         |Required when                      |
-|-----------------------------|-----------------------------------|
-|Inline docstring             |Every new or modified public symbol|
-|`docs/specs/<feature>.md`    |New feature                        |
-|`docs/adr/<number>-<slug>.md`|Architecture decision              |
-|`CHANGELOG.md` entry         |Every merged PR                    |
-|`README.md` update           |New setup step / env var / command |
-
-### Changelog format (Keep a Changelog)
+### Changelog format
 
 ```markdown
 ## [Unreleased]
 
 ### Added
-- Short description of new feature (#issue)
-
-### Changed
-- ...
+- Phase 05b: Translation enrichment — manual request, auto-enrich threshold,
+  slow worker reindex. (#12)
 
 ### Fixed
 - ...
-
-### Removed
-- ...
 ```
 
-### Docs lint
+---
+
+## 4. Security
+
+### Hard rules
+
+- No hardcoded credentials, tokens, or keys — use `Settings` from `shared.config`.
+- Sanitize external input (HTML previews use regex sanitization in `_sanitize_html`).
+- Use parameterized queries (SQLAlchemy `sa.text()` with bound params).
+- `document.path` is never served directly — use `send_file` with path validation.
+
+### Audit commands
 
 ```bash
-# Check broken links
-npx markdownlint-cli2 "**/*.md" --ignore node_modules
-```
-
------
-
-## 4. Best Practices
-
-### General
-
-- **Single responsibility** — one function does one thing.
-- **Fail fast** — validate inputs at the boundary; never let bad data travel deep.
-- **Immutability by default** — prefer `const`, frozen objects, and pure functions.
-- **Explicit over implicit** — name things clearly; avoid magic numbers/strings
-  (use named constants).
-- **No silent failures** — every error must be either handled or explicitly
-  propagated; never swallow exceptions.
-
-### Security
-
-```bash
-# JS dependency audit
-npm audit --audit-level=high
-
-# Python dependency audit
+# Dependency audit (runs in CI)
 pip-audit
 
-# Secret scanning (run in CI on every push)
-trufflehog filesystem . --only-verified
+# Secret scan (runs in CI)
+grep -RInE '(JWT_SECRET|PASSWORD|API_TOKEN|PRIVATE_KEY)=([^c]|c[^h]|ch[^a]|cha[^n]|chan[^g]|chang[^e]|change[^m]|changem[^e])' \
+  --exclude-dir=.git --exclude=.env.example .
 ```
 
-Hard rules:
+---
 
-- No hardcoded credentials, tokens, or keys — use environment variables.
-- Sanitise all external input before use.
-- Use parameterised queries; never string-interpolate SQL.
-- Set least-privilege permissions on any file, process, or IAM role.
+## 5. FastAPI Patterns
 
-### Performance
+### Route structure
 
-- Prefer `async/await` over callbacks; never block the event loop.
-- Cache expensive computations (memoise or use a cache layer).
-- Paginate or stream large data sets; never load unbounded result sets.
-- Profile before optimising — fix measured bottlenecks, not assumed ones.
-
-### Error handling
+All routes are in `src/services/api/main.py`. Group by feature area:
 
 ```python
-# Python — always use typed, descriptive exceptions
-class PaymentDeclinedError(ValueError):
-    """Raised when the payment gateway declines a charge."""
+# Auth routes
+@app.post("/auth/login")
+@app.post("/auth/logout")
+
+# Search routes
+@app.post("/search")
+
+# Preview routes
+@app.get("/preview/{doc_id}")
+@app.get("/me/activity")
+
+# Admin routes
+@app.get("/admin/activity")
+@app.get("/admin/enrichment-queue")
 ```
 
-```ts
-// TypeScript — use Result types or typed error unions, not generic Error
-type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };
+### Common patterns
+
+```python
+# Auth dependency
+from services.auth.models import TokenPayload
+from services.auth.jwt import current_user
+
+@app.get("/protected")
+def protected(user: Annotated[TokenPayload, Depends(current_user)]):
+    ...
+
+# Admin guard
+from services.permissions.enforcer import require_admin
+
+@app.get("/admin/only")
+def admin_only(user: Annotated[TokenPayload, Depends(current_user)]):
+    require_admin(user)
+    ...
+
+# Document access check
+from services.permissions.enforcer import assert_doc_access
+
+@app.get("/documents/{doc_id}")
+def get_doc(doc_id: UUID, user: Annotated[TokenPayload, Depends(current_user)]):
+    with app.state.engine.begin() as connection:
+        auth_repo = AuthRepository(connection)
+        assert_doc_access(doc_id, user, auth_repo)
+        ...
+
+# DB transaction
+with app.state.engine.begin() as connection:
+    repo = SomeRepository(connection)
+    repo.do_work()
+    # committed automatically on exit
 ```
 
-### Dependency management
+---
 
-- Pin all dependencies to exact versions in lock files (`package-lock.json`,
-  `poetry.lock`, `uv.lock`).
-- Group runtime vs dev dependencies correctly.
-- Remove unused dependencies — checked via `depcheck` (JS) / `deptry` (Python).
+## 6. Database & Migrations
+
+### Alembic
 
 ```bash
-npx depcheck
-uvx deptry src
+# Generate migration
+alembic revision --autogenerate -m "description"
+
+# Run migrations
+alembic upgrade head
+
+# Downgrade one
+alembic downgrade -1
 ```
 
------
+### Migration rules
 
-## 5. CI Skill Pipeline
+1. Every migration must have a `downgrade()` path.
+2. FK constraints must use `ON DELETE CASCADE` or `ON DELETE SET NULL` explicitly.
+3. Check constraints must be dropped and recreated (not altered in-place).
+4. Test migrations in `tests/test_migrations.py`.
 
-The skills above map to the following GitHub Actions jobs.
-All jobs run on `ubuntu-latest` with dependency caching.
+---
 
-```yaml
-jobs:
+## 7. CI Pipeline
 
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm }
-      - run: npm ci
-      - run: npx eslint "src/**/*.{ts,tsx}"
-      - run: npx prettier --check "src/**/*.{ts,tsx,json,md}"
-      # Python (add if applicable)
-      - uses: astral-sh/setup-uv@v4
-      - run: uv run ruff check src/ tests/
-      - run: uv run ruff format --check src/ tests/
-      - run: uv run mypy src/ --strict
+Defined in `.github/workflows/ci.yml`.
 
-  test:
-    name: Test & Coverage
-    runs-on: ubuntu-latest
-    needs: lint
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm }
-      - run: npm ci
-      - run: npx vitest run --coverage
-      - uses: codecov/codecov-action@v4
-        with: { fail_ci_if_error: true }
-      # Python
-      - run: uv run pytest --cov=src --cov-branch --cov-fail-under=90 tests/
+Jobs run on every push to:
+- `main`
+- `developer/**`
+- `docs/**`
+- `feature/**`
+- `fix/**`
 
-  security:
-    name: Security Audit
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: npm audit --audit-level=high
-      - run: uv run pip-audit
-      - uses: trufflesecurity/trufflehog@v3
-        with: { path: . }
+And on every pull request.
 
-  docs-lint:
-    name: Docs Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: npx markdownlint-cli2 "**/*.md" --ignore node_modules
+### Steps (in order)
 
-  codex-review:
-    name: Codex Reviewer
-    runs-on: ubuntu-latest
-    needs: [lint, test, security]
-    if: github.event_name == 'pull_request'
-    steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
-      - run: |
-          codex run \
-            --agent reviewer \
-            --skills SKILLS.md \
-            --pr "${{ github.event.pull_request.number }}"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: review-${{ github.event.pull_request.number }}
-          path: review/${{ github.event.pull_request.number }}.md
-      - run: |
-          gh pr review "${{ github.event.pull_request.number }}" \
-            --body-file "review/${{ github.event.pull_request.number }}.md"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
+1. Install dependencies (`pip install -e ".[dev]"`)
+2. Check required bootstrap files exist
+3. Check markdown structure (every `.md` starts with `#` or `---`)
+4. Lint & Format (`ruff check`, `ruff format --check`)
+5. Type check (`mypy src --strict`)
+6. Test with coverage (`pytest`)
+7. Docker Compose config validation
+8. Secret scan
+9. Dependency audit (`pip-audit`)
 
-### Job dependency graph
+---
 
-```
-lint ──┐
-       ├──▶ test ──┐
-       │            ├──▶ codex-review
-security ──┘        │
-                    │
-docs-lint ──────────┘
-```
+## 8. Token Budget Guidelines
 
------
+| Operation | Max tokens |
+|-----------|-----------|
+| Context summarisation (per file) | 300 |
+| Single agent turn | 4 096 |
+| Review output | 2 048 |
+| Total per PR (Developer) | 16 000 |
+| Total per PR (Reviewer) | 8 000 |
 
-## 6. Token Budget Guidelines
-
-Both agents must respect these budgets to keep CI costs predictable.
-
-|Operation                       |Max tokens|
-|--------------------------------|----------|
-|Context summarisation (per file)|300       |
-|Single agent turn               |4 096     |
-|Review output                   |2 048     |
-|Total per PR (Developer)        |16 000    |
-|Total per PR (Reviewer)         |8 000     |
-
-**Strategies to stay within budget:**
-
-- Load only the diff, never the full repository.
-- Summarise long files to their public API surface before including them.
+**Strategies:**
+- Load only the diff (`git diff origin/main...HEAD`), never the full repo.
+- Summarise long files to their public API surface.
 - Chunk large features into multiple smaller PRs.
-- Cache repeated tool results within a session (e.g., `npm ls` output).
-- Prefer structured output (JSON / YAML) over verbose prose in inter-agent
-  communication.
+- Prefer structured output over verbose prose.
