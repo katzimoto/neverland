@@ -63,6 +63,17 @@ def _parse_json(value: Any) -> Any:
     return value
 
 
+def _config_bool(value: Any, default: bool) -> bool:
+    """Parse a runtime config value as a boolean."""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() in {"1", "true", "yes", "on"}
+    return bool(value)
+
+
 def _audit_log(
     connection: sa.Connection,
     user_id: UUID | None,
@@ -183,6 +194,7 @@ def create_app(
     translator: LibreTranslateClient | None = None,
     es_client: ElasticsearchSearchClient | None = None,
     qdrant_client: QdrantSearchClient | None = None,
+    ollama_client: OllamaClient | None = None,
 ) -> FastAPI:
     """Create the API app with Phase 02 auth routes."""
     app = FastAPI(title="Neverland API")
@@ -192,6 +204,7 @@ def create_app(
     app.state.translator = translator
     app.state.es_client = es_client
     app.state.qdrant_client = qdrant_client
+    app.state.ollama_client = ollama_client
 
     @contextmanager
     def repository_context() -> Iterator[AuthRepository]:
@@ -744,6 +757,9 @@ def create_app(
         request: QuestionRequest,
         user: Annotated[TokenPayload, Depends(current_user)],
     ) -> dict[str, Any]:
+        if not app.state.settings.feature_rag_qa:
+            raise HTTPException(status_code=404, detail="RAG Q&A is disabled")
+
         group_ids = [str(g) for g in user.groups]
         if not group_ids:
             return {
@@ -753,16 +769,27 @@ def create_app(
                 "model": "",
             }
 
-        qdrant_client = app.state.qdrant_client or QdrantSearchClient(
-            url=app.state.settings.qdrant_url
-        )
-        encoder = MockEncoder()
-        ollama_client = OllamaClient(
-            base_url=app.state.settings.ollama_url,
-            model=app.state.settings.ollama_model,
-        )
-
         with app.state.engine.begin() as connection:
+            flag_row = (
+                connection.execute(
+                    sa.text("SELECT value FROM system_config WHERE key = :key"),
+                    {"key": "feature.rag_qa"},
+                )
+                .mappings()
+                .first()
+            )
+            if flag_row and not _config_bool(flag_row["value"], default=True):
+                raise HTTPException(status_code=404, detail="RAG Q&A is disabled")
+
+            qdrant_client = app.state.qdrant_client or QdrantSearchClient(
+                url=app.state.settings.qdrant_url
+            )
+            encoder = MockEncoder()
+            ollama_client = app.state.ollama_client or OllamaClient(
+                base_url=app.state.settings.ollama_url,
+                model=app.state.settings.ollama_model,
+            )
+
             # Read system prompt from config
             prompt_row = (
                 connection.execute(

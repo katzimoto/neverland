@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 from uuid import UUID
 
+import sqlalchemy as sa
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine
 
@@ -202,11 +203,9 @@ def test_qa_ollama_failure_returns_fallback(migrated_engine: Engine) -> None:
             migrated_engine,
             Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
             qdrant_client=mock_qdrant,
+            ollama_client=mock_ollama,
         )
     )
-    # Monkeypatch the Ollama client on the app
-    app = client.app
-    app.state.ollama_url = "http://mock"
 
     token = _admin_token(client)
 
@@ -254,3 +253,53 @@ def test_qa_top_k_limits_chunks(migrated_engine: Engine) -> None:
     # Qdrant is called with limit=3
     mock_qdrant.search.assert_called_once()
     assert mock_qdrant.search.call_args.kwargs["limit"] == 3
+
+
+def test_qa_disabled_by_settings_returns_404(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(
+                auth_provider="local",
+                jwt_secret=TEST_JWT_SECRET,
+                feature_rag_qa=False,
+            ),
+        )
+    )
+    token = _admin_token(client)
+
+    resp = client.post(
+        "/qa",
+        json={"question": "Can I ask this?"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert resp.status_code == 404
+
+
+def test_qa_disabled_by_system_config_returns_404(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+
+    with migrated_engine.begin() as connection:
+        connection.execute(
+            sa.text("UPDATE system_config SET value = :value WHERE key = 'feature.rag_qa'"),
+            {"value": "false"},
+        )
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+        )
+    )
+    token = _admin_token(client)
+
+    resp = client.post(
+        "/qa",
+        json={"question": "Can I ask this?"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert resp.status_code == 404
