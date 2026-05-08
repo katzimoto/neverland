@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from services.chunking.splitter import chunk_text
+import pytest
+
+from services.chunking.splitter import _split_sentences, chunk_text
 
 
 def test_chunk_empty_text() -> None:
@@ -92,11 +94,6 @@ def test_chunk_zero_overlap() -> None:
     chunks = chunk_text(text, chunk_size=50, overlap=0)
 
     assert len(chunks) > 1
-    # With zero overlap, chunks should be independent
-    for i in range(1, len(chunks)):
-        prev_end = chunks[i - 1].split()[-1]
-        curr_start = chunks[i].split()[0]
-        assert prev_end != curr_start or prev_end == curr_start
 
 
 def test_chunk_trailing_text_without_punctuation() -> None:
@@ -108,3 +105,56 @@ def test_chunk_trailing_text_without_punctuation() -> None:
 
     assert len(chunks) > 1
     assert len(chunks[-1].split()) <= 50
+
+
+def test_chunk_overlap_equal_to_chunk_size_raises() -> None:
+    """overlap >= chunk_size would cause an infinite loop."""
+    with pytest.raises(ValueError, match="overlap must be non-negative and less than chunk_size"):
+        chunk_text("some text", chunk_size=50, overlap=50)
+
+
+def test_chunk_negative_overlap_raises() -> None:
+    with pytest.raises(ValueError, match="overlap must be non-negative and less than chunk_size"):
+        chunk_text("some text", chunk_size=50, overlap=-1)
+
+
+def test_chunk_zero_chunk_size_raises() -> None:
+    with pytest.raises(ValueError, match="chunk_size must be positive"):
+        chunk_text("some text", chunk_size=0, overlap=0)
+
+
+def test_chunk_negative_chunk_size_raises() -> None:
+    with pytest.raises(ValueError, match="chunk_size must be positive"):
+        chunk_text("some text", chunk_size=-10, overlap=0)
+
+
+# Direct _split_sentences tests
+
+
+def test_split_sentences_empty() -> None:
+    assert _split_sentences("") == []
+    assert _split_sentences("   ") == []
+
+
+def test_split_sentences_no_boundary() -> None:
+    text = "no punctuation here"
+    result = _split_sentences(text)
+
+    assert result == ["no punctuation here"]
+
+
+def test_split_sentences_trailing_text() -> None:
+    text = "First sentence. Second sentence. trailing text"
+    result = _split_sentences(text)
+
+    assert "First sentence." in result
+    # English-centric regex only splits on punctuation + space + capital letter,
+    # so "Second sentence. trailing text" remains one item
+    assert "Second sentence. trailing text" in result
+
+
+def test_split_sentences_multiple_boundaries() -> None:
+    text = "One. Two! Three?"
+    result = _split_sentences(text)
+
+    assert result == ["One.", "Two!", "Three?"]

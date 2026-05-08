@@ -20,9 +20,11 @@ class LibreTranslateClient:
         self,
         base_url: str = "http://localhost:5000",
         timeout: float = 30.0,
+        max_retries: int = 1,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
+        self._max_retries = max_retries
         self._client = httpx.Client(timeout=timeout)
 
     def translate(
@@ -44,20 +46,44 @@ class LibreTranslateClient:
             "target": target_lang,
         }
 
-        try:
-            response = self._client.post(
-                f"{self._base_url}/translate",
-                json=payload,
-            )
-            response.raise_for_status()
-            data = response.json()
-            return str(data["translatedText"])
-        except (httpx.TimeoutException, httpx.HTTPStatusError) as exc:
-            logger.warning("Translation failed (%s), returning original", exc)
-            return text
-        except (ValueError, KeyError) as exc:
-            logger.warning("Translation response malformed (%s), returning original", exc)
-            return text
+        last_exc: Exception | None = None
+        for attempt in range(self._max_retries + 1):
+            try:
+                response = self._client.post(
+                    f"{self._base_url}/translate",
+                    json=payload,
+                )
+                response.raise_for_status()
+                data = response.json()
+                return str(data["translatedText"])
+            except (httpx.TimeoutException, httpx.HTTPStatusError) as exc:
+                last_exc = exc
+                if attempt < self._max_retries:
+                    logger.warning(
+                        "Translation attempt %d failed (%s), retrying",
+                        attempt + 1,
+                        exc,
+                    )
+                    continue
+            except httpx.RequestError as exc:
+                last_exc = exc
+                logger.warning(
+                    "Translation network error on attempt %d (%s)",
+                    attempt + 1,
+                    exc,
+                )
+                break
+            except (ValueError, KeyError) as exc:
+                last_exc = exc
+                logger.warning("Translation response malformed (%s)", exc)
+                break
+
+        logger.warning(
+            "Translation failed after %d attempts (%s), returning original",
+            self._max_retries + 1,
+            last_exc,
+        )
+        return text
 
     def close(self) -> None:
         """Close the underlying HTTP client."""

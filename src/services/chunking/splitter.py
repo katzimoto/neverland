@@ -17,7 +17,17 @@ def chunk_text(text: str, chunk_size: int = 512, overlap: int = 50) -> list[str]
     the start of the next chunk. The last chunk is not padded.
 
     Returns an empty list when *text* is empty or whitespace-only.
+
+    Note:
+        The sentence boundary detector is English-centric (expects punctuation
+        followed by a capital letter). Non-English text may be hard-cut more
+        frequently than sentence boundaries would allow.
     """
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be positive")
+    if overlap < 0 or overlap >= chunk_size:
+        raise ValueError("overlap must be non-negative and less than chunk_size")
+
     words = text.split()
     if not words:
         return []
@@ -37,10 +47,7 @@ def chunk_text(text: str, chunk_size: int = 512, overlap: int = 50) -> list[str]
             overlap_words = current_chunk_words[-overlap:] if overlap > 0 else []
             current_chunk_words = overlap_words + sentence_words
         else:
-            if current_chunk_words:
-                current_chunk_words.extend(sentence_words)
-            else:
-                current_chunk_words = sentence_words[:]
+            current_chunk_words.extend(sentence_words)
 
         # If a single sentence is longer than chunk_size, hard-cut it
         while len(current_chunk_words) > chunk_size:
