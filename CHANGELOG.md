@@ -4,6 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+- Added Phase 03b LibreTranslate client with fallback and token-based chunking (sentence-aware).
 - Added Phase 03a document persistence and text extraction (plain, PDF, DOCX, PPTX, XLSX, HTML, JSON, XML, ODT, EML).
 - Added Phase 02 authentication, JWT, LDAP boundary, and permission enforcement.
 - Added Phase 01 foundation schema, shared contracts, service skeletons, and tests.
