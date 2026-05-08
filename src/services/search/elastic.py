@@ -29,6 +29,7 @@ class ElasticsearchSearchClient:
                     "title": {"type": "text"},
                     "summary": {"type": "text"},
                     "tags": {"type": "keyword"},
+                    "entities": {"type": "keyword"},
                     "metadata": {"type": "object"},
                     "allowed_group_ids": {"type": "keyword"},
                 }
@@ -42,6 +43,19 @@ class ElasticsearchSearchClient:
     def delete_document(self, doc_id: str) -> None:
         """Remove a document from the index."""
         self._client.delete(index=INDEX_NAME, id=doc_id)
+
+    def update_document_field(
+        self,
+        doc_id: str,
+        field: str,
+        value: Any,
+    ) -> None:
+        """Update a single field of an existing document (partial update)."""
+        self._client.update(
+            index=INDEX_NAME,
+            id=doc_id,
+            doc={field: value},
+        )
 
     def close(self) -> None:
         """Close the underlying Elasticsearch client."""

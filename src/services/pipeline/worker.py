@@ -10,6 +10,7 @@ from uuid import UUID
 from services.chunking.splitter import chunk_text
 from services.documents.repository import DocumentRepository
 from services.extraction.registry import ExtractorRegistry
+from services.intelligence.worker import IntelligenceWorker
 from services.search.elastic import ElasticsearchSearchClient
 from services.search.encoder import MockEncoder
 from services.search.qdrant import QdrantSearchClient
@@ -30,6 +31,7 @@ class PipelineWorker:
         encoder: MockEncoder,
         es_client: ElasticsearchSearchClient,
         qdrant_client: QdrantSearchClient,
+        intelligence_worker: IntelligenceWorker | None = None,
     ) -> None:
         self._doc_repo = document_repository
         self._extractor = extractor_registry
@@ -37,6 +39,7 @@ class PipelineWorker:
         self._encoder = encoder
         self._es = es_client
         self._qdrant = qdrant_client
+        self._intelligence = intelligence_worker
 
     def process_document(self, doc_id: UUID) -> None:
         """Run the full pipeline for a single document.
@@ -108,3 +111,14 @@ class PipelineWorker:
 
         # 7. Update status
         self._doc_repo.update_indexed(doc_id, "indexed", translation_quality)
+
+        # 8. Intelligence (best-effort, never blocking)
+        if self._intelligence is not None and translation_quality in ("fast", "high"):
+            try:
+                self._intelligence.process_document(doc.id, translated)
+            except Exception:
+                logger.exception(
+                    "Intelligence failed for doc_id=%s correlation=%s",
+                    doc_id,
+                    get_correlation_id(),
+                )

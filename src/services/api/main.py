@@ -21,6 +21,9 @@ from services.auth.repository import AuthRepository
 from services.auth.service import AuthService
 from services.documents.repository import DocumentRepository, TranslationVersionRepository
 from services.extraction.registry import ExtractorRegistry
+from services.intelligence.ollama_client import OllamaClient
+from services.intelligence.repository import IntelligenceRepository
+from services.intelligence.worker import IntelligenceWorker
 from services.permissions.enforcer import assert_doc_access, require_admin
 from services.pipeline.worker import PipelineWorker
 from services.preview.service import PreviewService
@@ -437,6 +440,95 @@ def create_app(
                 }
                 for v in versions
             ]
+
+    @app.get("/documents/{doc_id}/summary")
+    def get_summary(
+        doc_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, Any]:
+        with app.state.engine.begin() as connection:
+            auth_repo = AuthRepository(connection)
+            assert_doc_access(doc_id, user, auth_repo)
+
+            intelligence_repo = IntelligenceRepository(connection)
+            summary = intelligence_repo.get_summary(doc_id)
+            if summary is None:
+                raise HTTPException(status_code=404, detail="Summary not found")
+            return {
+                "doc_id": str(doc_id),
+                "summary": summary["summary"],
+                "model": summary["model"],
+                "updated_at": _fmt_dt(summary["updated_at"]),
+            }
+
+    @app.get("/documents/{doc_id}/entities")
+    def get_entities(
+        doc_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> list[dict[str, Any]]:
+        with app.state.engine.begin() as connection:
+            auth_repo = AuthRepository(connection)
+            assert_doc_access(doc_id, user, auth_repo)
+
+            intelligence_repo = IntelligenceRepository(connection)
+            entities = intelligence_repo.get_entities(doc_id)
+            return [
+                {
+                    "id": str(e["id"]),
+                    "name": e["name"],
+                    "type": e["type"],
+                    "frequency": e["frequency"],
+                }
+                for e in entities
+            ]
+
+    @app.get("/documents/{doc_id}/tags")
+    def get_tags(
+        doc_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, Any]:
+        with app.state.engine.begin() as connection:
+            auth_repo = AuthRepository(connection)
+            assert_doc_access(doc_id, user, auth_repo)
+
+            intelligence_repo = IntelligenceRepository(connection)
+            tags = intelligence_repo.get_tags(doc_id)
+            return {"doc_id": str(doc_id), "tags": tags}
+
+    @app.post("/admin/intelligence/{doc_id}/trigger")
+    def trigger_intelligence(
+        doc_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, Any]:
+        require_admin(user)
+        with app.state.engine.begin() as connection:
+            doc_repo = DocumentRepository(connection)
+            doc = doc_repo.get_by_id(doc_id)
+            if doc is None or doc.path is None:
+                raise HTTPException(status_code=404, detail="Document not found")
+
+            # Extract text for intelligence
+            from services.extraction.registry import ExtractorRegistry
+
+            extractor = ExtractorRegistry()
+            text = extractor.extract(Path(doc.path), doc.mime_type)
+
+            intelligence_repo = IntelligenceRepository(connection)
+            ollama_client = OllamaClient(
+                base_url=app.state.settings.ollama_url,
+                model=app.state.settings.ollama_model,
+            )
+            es_client = app.state.es_client or ElasticsearchSearchClient(
+                hosts=[app.state.settings.elastic_url]
+            )
+            worker = IntelligenceWorker(
+                repository=intelligence_repo,
+                ollama_client=ollama_client,
+                es_client=es_client,
+            )
+            worker.process_document(doc_id, text)
+
+            return {"doc_id": str(doc_id), "triggered": True}
 
     @app.get("/admin/enrichment-queue")
     def enrichment_queue(
