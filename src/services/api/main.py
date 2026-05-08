@@ -31,6 +31,8 @@ from services.intelligence.worker import IntelligenceWorker
 from services.permissions.enforcer import assert_doc_access, require_admin
 from services.pipeline.worker import PipelineWorker
 from services.preview.service import PreviewService
+from services.rag.models import QuestionRequest
+from services.rag.service import RagService
 from services.search.elastic import ElasticsearchSearchClient
 from services.search.encoder import MockEncoder
 from services.search.hybrid import merge_results
@@ -736,6 +738,68 @@ def create_app(
                 raise HTTPException(status_code=403, detail="Cannot delete this annotation")
 
             repo.delete(annotation_id)
+
+    @app.post("/qa")
+    def qa(
+        request: QuestionRequest,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, Any]:
+        group_ids = [str(g) for g in user.groups]
+        if not group_ids:
+            return {
+                "question": request.question,
+                "answer": "You do not belong to any groups with document access.",
+                "citations": [],
+                "model": "",
+            }
+
+        qdrant_client = app.state.qdrant_client or QdrantSearchClient(
+            url=app.state.settings.qdrant_url
+        )
+        encoder = MockEncoder()
+        ollama_client = OllamaClient(
+            base_url=app.state.settings.ollama_url,
+            model=app.state.settings.ollama_model,
+        )
+
+        with app.state.engine.begin() as connection:
+            # Read system prompt from config
+            prompt_row = (
+                connection.execute(
+                    sa.text("SELECT value FROM system_config WHERE key = :key"),
+                    {"key": "llm.qa_system_prompt"},
+                )
+                .mappings()
+                .first()
+            )
+            system_prompt = str(prompt_row["value"]) if prompt_row else None
+
+            rag = RagService(
+                qdrant_client=qdrant_client,
+                encoder=encoder,
+                ollama_client=ollama_client,
+                connection=connection,
+                system_prompt=system_prompt,
+            )
+            result = rag.answer(
+                question=request.question,
+                group_ids=group_ids,
+                top_k=request.top_k,
+            )
+            return {
+                "question": result.question,
+                "answer": result.answer,
+                "citations": [
+                    {
+                        "doc_id": c.doc_id,
+                        "doc_title": c.doc_title,
+                        "chunk_text": c.chunk_text,
+                        "score": c.score,
+                    }
+                    for c in result.citations
+                ],
+                "model": result.model,
+            }
 
     @app.post("/admin/intelligence/{doc_id}/trigger")
     def trigger_intelligence(
