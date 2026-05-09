@@ -18,7 +18,7 @@ Implement user-facing intelligence workflows.
 
 Detailed document comment plan:
 
-- `docs/implementation/document-comments-plan.md`
+- `docs/implementation/phase-07a-document-comments.md`
 
 ## Validation
 

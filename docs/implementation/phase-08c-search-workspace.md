@@ -12,13 +12,13 @@ This phase can start immediately in parallel with Phase 08f.
 ## Stack
 
 React 19 + TypeScript + Vite + TanStack Router + TanStack Query + React Hook
-Form + Zod + CSS modules. See `docs/implementation/frontend-ui-plan.md` Chosen
+Form + Zod + CSS modules. See `docs/implementation/phase-08b-frontend-ui.md` Chosen
 Stack section for constraints. Do not introduce additional frameworks.
 
 ## API Availability
 
 All endpoints required by this phase are available from the backend. No mock
-adapters are needed. See `docs/implementation/frontend-ui-plan.md` API
+adapters are needed. See `docs/implementation/phase-08b-frontend-ui.md` API
 Availability Map for the full table.
 
 Endpoints used in this phase:
@@ -29,7 +29,7 @@ Endpoints used in this phase:
 
 ## Auth UX Contract
 
-Follow the Auth UX Contract in `docs/implementation/frontend-ui-plan.md`
+Follow the Auth UX Contract in `docs/implementation/phase-08b-frontend-ui.md`
 precisely. Key rules:
 
 - `/login` is the only public route.
@@ -191,7 +191,7 @@ Playwright workflows required:
 
 ## Review Artifacts
 
-Each PR must include (see `docs/implementation/frontend-ui-plan.md` Review
+Each PR must include (see `docs/implementation/phase-08b-frontend-ui.md` Review
 Artifacts Per UI PR for the full checklist):
 
 - Screenshots or Playwright trace links at all four viewports.

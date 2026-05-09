@@ -17,7 +17,7 @@ foundation is available. This should be a separate PR from annotations unless
 the Reviewer approves combining them.
 
 Frontend implementation belongs in `developer/ui-04-comments-annotations`, as
-described in `docs/implementation/frontend-ui-plan.md`.
+described in `docs/implementation/phase-08b-frontend-ui.md`.
 
 ## Dependencies
 

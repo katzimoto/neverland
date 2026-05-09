@@ -27,10 +27,10 @@ on its own branch and reviewed before the next phase starts.
 | 03e | `phase-03e-search-apis.md` | Search, preview, and download APIs |
 | 04 | `phase-04-admin-operations.md` | Admin APIs, DLQ, audit, config |
 | 05 | `phase-05-preview-enrichment.md` | Preview modes and translation enrichment |
-| 05c | `translation-versions-plan.md` | Versioned manual translation history |
+| 05c | `phase-05c-translation-versions.md` | Versioned manual translation history |
 | 06 | `phase-06-intelligence-layer.md` | Ollama intelligence worker |
 | 07 | `phase-07-rag-ui-features.md` | RAG, annotations, subscriptions, UI |
-| 07a | `document-comments-plan.md` | Shared document comments |
+| 07a | `phase-07a-document-comments.md` | Shared document comments |
 | 08 | `phase-08-integrations-hardening.md` | Phase 08 overview and sub-phase index |
 | 08c | `phase-08c-search-workspace.md` | Search workspace (UI Phase 01) |
 | 08d | `phase-08d-document-detail.md` | Document preview, Q&A (UI Phase 02–03) |
@@ -41,9 +41,18 @@ on its own branch and reviewed before the next phase starts.
 | 08f-3 | `phase-08f-3-compose-smoke.md` | No-mock Compose smoke test automation |
 | 08f-4 | `phase-08f-4-smoke-bootstrap-helper.md` | Reusable smoke fixture bootstrap helper |
 | 08f-5 | `phase-08f-5-production-audit.md` | Production audit helper for static checks and optional dependency audits |
-| UI | `frontend-ui-plan.md` | Frontend phases folded into Phase 08 |
-| 09 | `phase-09-optional-integrations.md` | NiFi, optional Atlassian hardening, legacy Office formats |
-| 10 | `phase-10-observability.md` | Metrics, monitoring, readiness, dashboards, alerts, and structured logs |
+| 08b | `phase-08b-frontend-ui.md` | Frontend phases (design system through expertise map) |
+| 09 | `phase-09-optional-integrations.md` | Phase 09 overview and sub-phase index |
+| 09a | `phase-09a-nifi-integration.md` | NiFi event integration and Kafka consumer wiring |
+| 09b | `phase-09b-legacy-office-extraction.md` | `.doc`, `.xls`, `.ppt` binary extraction |
+| 09c | `phase-09c-atlassian-hardening.md` | Optional Atlassian permission sync and redirect hardening |
+| 10 | `phase-10-observability.md` | Phase 10 overview and sub-phase index |
+| 10a | `phase-10a-metrics-foundation.md` | Prometheus `/metrics`, HTTP middleware, request-ID |
+| 10b | `phase-10b-domain-metrics.md` | Instrument auth, pipeline, search, RAG, collaboration |
+| 10c | `phase-10c-admin-readiness.md` | Admin readiness endpoint with dependency probes |
+| 10d | `phase-10d-monitoring-compose.md` | Optional Prometheus + Grafana Compose profile |
+| 10e | `phase-10e-structured-logs.md` | JSON structured logs and OpenTelemetry hooks |
+| 10f | `phase-10f-worker-observability.md` | Worker heartbeats and consumer lag (deferred) |
 
 ## Review Gate
 

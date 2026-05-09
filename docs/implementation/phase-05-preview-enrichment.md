@@ -132,7 +132,7 @@ On failure: log error, set `status = 'failed'`, do **not** add to DLQ
 
 ## Phase 05c: Translation Versions
 
-Detailed plan: `docs/implementation/translation-versions-plan.md`.
+Detailed plan: `docs/implementation/phase-05c-translation-versions.md`.
 
 ### Scope
 
