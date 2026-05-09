@@ -28,6 +28,7 @@ from services.comments.models import CommentCreateRequest, CommentUpdateRequest
 from services.comments.repository import CommentRepository
 from services.documents.repository import DocumentRepository, TranslationVersionRepository
 from services.extraction.registry import ExtractorRegistry
+from services.health import HealthResponse, health
 from services.intelligence.ollama_client import OllamaClient
 from services.intelligence.repository import IntelligenceRepository
 from services.intelligence.worker import IntelligenceWorker
@@ -352,6 +353,10 @@ def create_app(
                 ldap_authenticator=app.state.ldap_authenticator,
             )
             return service.authenticate(request.email, request.password)
+
+    @app.get("/health")
+    def app_health() -> HealthResponse:
+        return health("api")
 
     @app.post("/auth/logout")
     def logout(_: Annotated[TokenPayload, Depends(current_user)]) -> dict[str, bool]:

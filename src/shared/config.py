@@ -14,7 +14,7 @@ class Settings(BaseSettings):
 
     app_env: Literal["dev", "test", "prod"] = "dev"
 
-    postgres_url: str = "postgresql://postgres:postgres@postgres:5432/app"
+    postgres_url: str = "postgresql+psycopg://postgres:changeme@postgres:5432/app"
     kafka_broker: str = "kafka:9092"
     elastic_url: str = "http://elasticsearch:9200"
     qdrant_url: str = "http://qdrant:6333"

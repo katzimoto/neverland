@@ -38,6 +38,8 @@ Branch: `developer/phase-08a-compose-runtime`
   Qdrant, LibreTranslate, Ollama, and Redpanda if still required.
 - Add `.env.example`, service healthchecks, persistent volumes, startup
   ordering, and documented local production commands.
+- Add a public API health endpoint for container healthchecks.
+- Document runtime operation in `docs/operations/production-compose.md`.
 - Do not invent fake long-running worker containers. Only add worker containers
   when a real entrypoint exists.
 
