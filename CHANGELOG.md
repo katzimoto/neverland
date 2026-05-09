@@ -13,6 +13,32 @@ All notable changes to this project will be documented in this file.
   (create/edit dialog with threshold slider, toggle, delete with confirmation), Notifications page
   (mark-read on click, unread accent), History page (recent views list), live unread count in
   NavRail badge, and frontend CI job (lint + typecheck + test + build).
+- Split GitHub Actions into focused backend, frontend, docs, container, and security workflows with path filters, dependency caches, concurrency cancellation, BuildKit caching, and release CD for version tags.
+- Metrics and monitoring design plus Phase 10 observability plan covering
+  Prometheus metrics, admin readiness, structured logs, dashboards, alerts, and
+  future worker observability.
+- Phase 08f-5 production audit helper for static production checks, Compose config validation, tracked secret scanning, and opt-in dependency audits.
+- Phase 08f-4 smoke bootstrap helper for idempotent admin/group/source fixture setup and path-guarded deterministic document creation inside the API container.
+- Phase 08f-3 no-mock Compose smoke test script covering startup, fixture setup, authentication, folder-source ingestion, search, preview, download, frontend reachability, and default volume teardown.
+- Phase 08f-2 operations documentation: fully annotated `.env.example` plus expanded production Compose runbook for setup, reset, backup, restore, health checks, and troubleshooting.
+- Phase 08f-1 production defaults: configurable CORS origins wired into FastAPI, Compose defaults pinned to the local frontend origin, and tracked JWT examples use production-change placeholders.
+- Phase 08f production hardening plan split into five reviewable PRs for production defaults, operations documentation, Compose smoke testing, smoke bootstrap fixtures, and production audit automation.
+- Confluence and Jira Server/Data Center connectors that validate non-cloud
+  Atlassian URLs, expose admin form schemas, poll pages/issues, normalize
+  page/issue text, and download attachments for ingestion.
+- Data source connector abstraction — `src/services/connectors/` package with a
+  `SourceConnector` protocol, `ConnectorField` for self-describing config schemas,
+  `FolderConnector` (extracted from `sync_now`), and `NiFiConnector` stub ready for
+  implementation. Adding a new source type now requires one class and one registry entry.
+- `GET /admin/connector-types` endpoint returning each connector's field schema
+  (label, key, sensitive flag) so the UI can render the correct form dynamically.
+- `POST /admin/sources` now accepts and persists a `config` dict for per-source
+  credentials and settings (e.g. API tokens, base URLs).
+- `PipelineWorker.process_document` accepts optional `pre_extracted_text`, enabling
+  API/network connectors that deliver text directly rather than file paths.
+- Admin Sources page (`/admin`) — React feature using the Phase 08b design system:
+  sources table, Add Source dialog with a form that adapts to the selected connector
+  type (sensitive fields masked), and inline Sync result display.
 - Agent efficiency guidance: canonical uppercase `AGENTS.md` plus `frontend/AGENTS.md` with scoped commands, token-saving workflow, and common mistake checklists.
 - Phase 08b: Frontend foundation — React 19 + TypeScript + Vite scaffold with
   TanStack Router and Query, React Hook Form + Zod auth form, design-token CSS
@@ -44,7 +70,19 @@ All notable changes to this project will be documented in this file.
 - Phase 01: Foundation schema, shared contracts, service skeletons, and tests.
 - Phase 00: Planning, repository hygiene, and GitHub Actions bootstrap.
 
+### Changed
+- Documentation now reflects that Confluence and Jira Server/Data Center polling
+  connectors are implemented; Phase 09 only retains NiFi, legacy Office, Kafka,
+  and optional Atlassian hardening follow-ups.
+
+### Fixed
+- `services/health.py` now uses `typing_extensions.TypedDict` for Python 3.11
+  compatibility (Pydantic 2 rejected `typing.TypedDict` on Python < 3.12).
+- Frontend admin sources integration now passes lint/build checks with type-only
+  imports, matching primitive props, and a Fast Refresh-safe toast context split.
+
 ### Planned
 - Phase 08: Productization, UI, and production Compose.
 - Phase 09: Optional integrations and legacy format support, including NiFi,
-  Atlassian, old Office extraction, and nonessential Kafka consumer wiring.
+  optional Atlassian hardening, old Office extraction, and nonessential Kafka
+  consumer wiring.

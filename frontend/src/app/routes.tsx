@@ -7,6 +7,7 @@ import { QAPage } from "@/features/qa/QAPage";
 import { SubscriptionsPage } from "@/features/subscriptions/SubscriptionsPage";
 import { NotificationsPage } from "@/features/notifications/NotificationsPage";
 import { HistoryPage } from "@/features/history/HistoryPage";
+import { AdminSourcesPage } from "@/features/admin/AdminSourcesPage";
 import { AppLayout } from "./AppLayout";
 import { PlaceholderPage } from "./PlaceholderPage";
 
@@ -86,7 +87,7 @@ const settingsRoute = createRoute({
 const adminRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/admin",
-  component: () => <PlaceholderPage title="Admin" />,
+  component: AdminSourcesPage,
 });
 
 const routeTree = rootRoute.addChildren([
