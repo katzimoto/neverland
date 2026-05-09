@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Split GitHub Actions into focused backend, frontend, docs, container, and security workflows with path filters, dependency caches, concurrency cancellation, BuildKit caching, and release CD for version tags.
 - Metrics and monitoring design plus Phase 10 observability plan covering
   Prometheus metrics, admin readiness, structured logs, dashboards, alerts, and
   future worker observability.
