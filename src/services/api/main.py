@@ -12,7 +12,6 @@ from pydantic import BaseModel, Field
 from sqlalchemy import Engine
 
 from services.alerts.models import SubscriptionCreateRequest, SubscriptionUpdateRequest
-from services.connectors.factory import build_connector, connector_types
 from services.alerts.repository import AlertRepository
 from services.alerts.service import AlertMatcher
 from services.annotations.models import AnnotationCreateRequest, AnnotationUpdateRequest
@@ -25,6 +24,7 @@ from services.auth.repository import AuthRepository
 from services.auth.service import AuthService
 from services.comments.models import CommentCreateRequest, CommentUpdateRequest
 from services.comments.repository import CommentRepository
+from services.connectors.factory import build_connector, connector_types
 from services.documents.repository import DocumentRepository, TranslationVersionRepository
 from services.extraction.registry import ExtractorRegistry
 from services.health import HealthResponse, health
@@ -1357,8 +1357,10 @@ def create_app(
             connection.execute(
                 sa.text(
                     """
-                    INSERT INTO ingestion_sources (id, name, type, path, source_language, enabled, config)
-                    VALUES (:id, :name, :type, :path, :source_language, :enabled, :config)
+                    INSERT INTO ingestion_sources
+                        (id, name, type, path, source_language, enabled, config)
+                    VALUES
+                        (:id, :name, :type, :path, :source_language, :enabled, :config)
                     """
                 ),
                 {

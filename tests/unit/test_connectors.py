@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 from sqlalchemy.engine import RowMapping
 
-from services.connectors.base import ConnectorDocument, ConnectorField, SourceConnector
+from services.connectors.base import ConnectorDocument
 from services.connectors.factory import build_connector, connector_types
 from services.connectors.folder import FolderConnector
 from services.connectors.nifi import NiFiConnector
@@ -104,7 +104,10 @@ def test_factory_returns_folder_connector() -> None:
 
 
 def test_factory_returns_nifi_connector() -> None:
-    row = _make_row(type="nifi", config={"base_url": "http://nifi:8080", "flow_id": "x", "api_token": "t"})
+    row = _make_row(
+        type="nifi",
+        config={"base_url": "http://nifi:8080", "flow_id": "x", "api_token": "t"},
+    )
     assert isinstance(build_connector(row), NiFiConnector)
 
 

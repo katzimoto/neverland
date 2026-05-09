@@ -466,6 +466,7 @@ def test_sync_now_with_pre_extracted_text(
 
     # Patch build_connector in main.py's namespace (it was imported directly)
     from unittest.mock import patch
+
     from services.connectors.base import ConnectorDocument
 
     class _StubConnector:

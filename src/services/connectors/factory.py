@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy.engine import RowMapping
 
@@ -12,7 +12,9 @@ from services.connectors.base import SourceConnector
 from services.connectors.folder import FolderConnector
 from services.connectors.nifi import NiFiConnector
 
-_REGISTRY: dict[str, type] = {
+# Values are connector classes; typed as Any so mypy doesn't reject classmethod
+# calls and constructor calls on a bare `type` without a known signature.
+_REGISTRY: dict[str, Any] = {
     "folder": FolderConnector,
     "nifi": NiFiConnector,
 }
@@ -53,7 +55,7 @@ def build_connector(source_row: RowMapping) -> SourceConnector:
             raise ValueError("Source has no path configured")
         return FolderConnector(path)
 
-    return cls(config)
+    return cast(SourceConnector, cls(config))
 
 
 def _parse_config(raw: Any) -> dict[str, Any]:
