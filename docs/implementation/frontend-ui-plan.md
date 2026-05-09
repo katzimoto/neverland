@@ -87,6 +87,13 @@ frontend/
     `-- e2e/
 ```
 
+## Phase 08 Alignment
+
+Frontend work is now part of Phase 08. The first UI PR should be
+`developer/phase-08b-frontend-foundation`, after the Compose runtime foundation
+exists. UI phases remain reviewable slices, but they should target the
+production Compose product milestone rather than a standalone UI track.
+
 ## API Availability Map
 
 Classify API usage before each UI phase starts.
@@ -98,14 +105,14 @@ Classify API usage before each UI phase starts.
 | Preview metadata/basic preview | Phase 03e, expanded in Phase 05 | Use real API and feature-detect preview mode fields |
 | Download | Available from Phase 03e | Use real API |
 | Translation versions/manual request | Phase 05c | Use selector when versions exist; hide request when disabled |
-| Q&A | Phase 07 | Use adapter with disabled state before backend exists |
-| Annotations | Phase 07 | Use adapter with disabled state before backend exists |
-| Document comments | Phase 07a | Hide comments tab or show disabled state before API exists |
+| Q&A | Available from Phase 07c | Use real API |
+| Annotations | Available from Phase 07b | Use real API |
+| Document comments | Available from Phase 07a | Use real API |
 | Saved searches | No backend in current phases | Store locally by user ID in browser storage for MVP |
-| Subscriptions | Phase 07 | Use adapter with disabled state before backend exists |
-| Notifications | Phase 07 | Use adapter with empty state before backend exists |
-| History | Phase 07 or later | Use adapter with empty state before backend exists |
-| Expertise map | Phase 07 or later | Defer from MVP |
+| Subscriptions | Available from Phase 07d | Use real API |
+| Notifications | Available from Phase 07d | Use real API |
+| History | Partial backend activity APIs exist | Use available activity endpoints; keep unsupported history rows hidden |
+| Expertise map | Available from Phase 07e | Use real API |
 | Admin | Phase 04 and separate admin UI spec | Link only in user shell |
 
 Do not use ad hoc mocks inside production UI code. If a backend endpoint is not
@@ -139,7 +146,7 @@ Authentication is part of the UI foundation, not a page-specific concern.
 
 ## UI Phase 00: Scaffold And Design System
 
-Branch: `developer/ui-00-frontend-foundation`
+Branch: `developer/phase-08b-frontend-foundation`
 
 ### Scope
 
@@ -182,7 +189,7 @@ Stop for Reviewer-agent review.
 
 ## UI Phase 01: Auth And Search Workspace
 
-Branch: `developer/ui-01-search-workspace`
+Branch: `developer/phase-08c-main-product-ui`
 
 ### Scope
 
@@ -222,7 +229,7 @@ Stop for Reviewer-agent review.
 
 ## UI Phase 02: Document Preview
 
-Branch: `developer/ui-02-document-preview`
+Branch: `developer/phase-08c-main-product-ui`
 
 ### Scope
 
@@ -275,7 +282,7 @@ Stop for Reviewer-agent review.
 
 ## UI Phase 03: Q&A With Citations
 
-Branch: `developer/ui-03-qa-citations`
+Branch: `developer/phase-08c-main-product-ui`
 
 ### Scope
 
@@ -306,7 +313,7 @@ Stop for Reviewer-agent review.
 
 ## UI Phase 04: Document Comments And Annotations
 
-Branch: `developer/ui-04-comments-annotations`
+Branch: `developer/phase-08c-main-product-ui`
 
 ### Scope
 
@@ -346,7 +353,7 @@ Stop for Reviewer-agent review.
 
 ## UI Phase 05: Subscriptions, Notifications, And History
 
-Branch: `developer/ui-05-alerts-history`
+Branch: `developer/phase-08c-main-product-ui`
 
 ### Scope
 
@@ -373,7 +380,7 @@ Stop for Reviewer-agent review.
 
 ## UI Phase 06: Expertise Map And Power-User Polish
 
-Branch: `developer/ui-06-expertise-polish`
+Branch: `developer/phase-08c-main-product-ui`
 
 ### Scope
 

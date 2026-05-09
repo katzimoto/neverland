@@ -8,7 +8,8 @@
 **Neverland** is a local-first knowledge intelligence system for private document corpora.
 - **Stack:** Python 3.13, FastAPI, SQLAlchemy, PostgreSQL, Elasticsearch, Qdrant, LibreTranslate, Docker Compose
 - **Architecture:** REST API + background workers (fast/slow/intelligence), air-gapped deployment
-- **Current state:** Phase 06 complete (intelligence layer). Phase 07a (document comments) in review.
+- **Current state:** Phase 07 complete through PR #20. Next up is Phase 08:
+  production Compose + UI productization.
 
 ### Key docs to read first
 1. `docs/logical-spec.md` — What the product does (domain, actors, capabilities)
@@ -273,22 +274,36 @@ null  --manual/auto-->  "pending_high"  --slow worker-->  "high"
 
 ---
 
-## 8. Next Phase (Phase 07)
+## 8. Next Phase (Phase 08)
 
-Phase 06 is complete (intelligence layer). See `docs/implementation/phase-07-rag-ui-features.md`.
+Phase 07 is complete through PR #20. See
+`docs/implementation/phase-08-integrations-hardening.md`.
 
-Phase 07 execution order (sequential, one PR per sub-phase, stop for review after each):
-1. **07a** — Document comments API + backend (PR #16, merged)
-2. **07b** — Annotations API + backend (PR #17, merged)
-3. **07c** — RAG Q&A endpoint + service (PR #18, merged)
-4. **07d** — Subscriptions, notifications, alert matching (PR #19, merged)
-5. **07e** — Related documents + expertise map (in development)
+Phase 08 execution order (sequential, one PR per sub-phase, stop for review after each):
+1. **08a** — Compose runtime foundation (`developer/phase-08a-compose-runtime`)
+2. **08b** — Frontend foundation (`developer/phase-08b-frontend-foundation`)
+3. **08c** — Main user product UI (`developer/phase-08c-main-product-ui`)
+4. **08d** — Production smoke and hardening (`developer/phase-08d-production-smoke`)
+
+Deferred Phase 09 scope:
+- NiFi integration
+- Confluence and Jira polling
+- Old Office binary extraction (`.doc`, `.xls`, `.ppt`)
+- Kafka consumer wiring not needed for the production UI milestone
 
 Key decisions locked in for Phase 07:
 - Alert matching trigger: Both ingest-time + admin trigger
 - RAG chunk source: Qdrant payloads only (Option A)
 - Expertise map: Views + annotations + comments + subscriptions
 - Related documents source: Qdrant chunk vectors, permission-filtered by user groups
+
+Key decisions locked in for Phase 08:
+- Main product readiness means local production Compose plus usable browser UI
+  before optional enterprise integrations.
+- Compose target is single-machine/local-first production, not Kubernetes or
+  cloud deployment.
+- Do not add fake long-running worker containers before real worker entrypoints
+  exist.
 
 ---
 
