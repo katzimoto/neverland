@@ -40,6 +40,10 @@ branches simultaneously.
 | 11 | Atlassian hardening | `phase-09c-atlassian-hardening.md` | `developer/phase-09c-atlassian-hardening` | Conditional |
 | 12 | Worker observability | `phase-10f-worker-observability.md` | `developer/phase-10f-worker-observability` | Deferred |
 
+Branch validation (2026-05-09): local refs contain only the current `work` branch at the
+Phase 10a merge commit; no additional unmerged `developer/*` mission branches were present
+beyond the externally reported in-progress Phase 08 missions marked above.
+
 ## Multi-agent orchestration
 
 Neverland may be worked on by Codex, Claude Code, and human reviewers. This file plus the
