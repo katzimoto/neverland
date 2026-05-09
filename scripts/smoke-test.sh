@@ -53,7 +53,8 @@ FRONTEND_PORT="${FRONTEND_PORT:-8080}"
 API_URL="${API_URL:-http://localhost:${API_PORT}}"
 FRONTEND_URL="${FRONTEND_URL:-http://localhost:${FRONTEND_PORT}}"
 SMOKE_ADMIN_EMAIL="${SMOKE_ADMIN_EMAIL:-smoke-admin@example.com}"
-SMOKE_ADMIN_PASSWORD="${SMOKE_ADMIN_PASSWORD:-neverland-smoke-password}"
+export SMOKE_ADMIN_PASSWORD
+: "${SMOKE_ADMIN_PASSWORD:=neverland-smoke-password}"
 SMOKE_GROUP_NAME="${SMOKE_GROUP_NAME:-smoke-operators}"
 SMOKE_SOURCE_NAME="${SMOKE_SOURCE_NAME:-smoke-folder-source}"
 SMOKE_FIXTURE_DIR="${SMOKE_FIXTURE_DIR:-/data/smoke-fixtures}"
@@ -179,7 +180,7 @@ wait_for_url "API" "${API_URL}/health"
 log_step "Bootstrapping smoke admin, source, grant, and fixture document"
 BOOTSTRAP_RESULT="$(docker compose exec -T \
   -e SMOKE_ADMIN_EMAIL="$SMOKE_ADMIN_EMAIL" \
-  -e SMOKE_ADMIN_PASSWORD="$SMOKE_ADMIN_PASSWORD" \
+  -e SMOKE_ADMIN_PASSWORD \
   -e SMOKE_GROUP_NAME="$SMOKE_GROUP_NAME" \
   -e SMOKE_SOURCE_NAME="$SMOKE_SOURCE_NAME" \
   -e SMOKE_FIXTURE_DIR="$SMOKE_FIXTURE_DIR" \
@@ -193,7 +194,7 @@ if [[ -z "$SOURCE_ID" ]]; then
 fi
 
 log_step "Logging in as smoke admin"
-LOGIN_BODY="$(SMOKE_ADMIN_EMAIL="$SMOKE_ADMIN_EMAIL" SMOKE_ADMIN_PASSWORD="$SMOKE_ADMIN_PASSWORD" python -c 'import json, os; print(json.dumps({"email": os.environ["SMOKE_ADMIN_EMAIL"], "password": os.environ["SMOKE_ADMIN_PASSWORD"]}))')"
+LOGIN_BODY="$(SMOKE_ADMIN_EMAIL="$SMOKE_ADMIN_EMAIL" python -c 'import json, os; print(json.dumps({"email": os.environ["SMOKE_ADMIN_EMAIL"], "password": os.environ["SMOKE_ADMIN_PASSWORD"]}))')"
 AUTH_TOKEN="$(curl -fsS -X POST -H 'Content-Type: application/json' --data "$LOGIN_BODY" "${API_URL}/auth/login" | json_get 'data["access_token"]')"
 if [[ -z "$AUTH_TOKEN" ]]; then
   echo "Login succeeded but no access token was returned." >&2

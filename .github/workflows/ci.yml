@@ -46,6 +46,7 @@ jobs:
             -not -path './.git/*' \
             -not -path './.venv/*' \
             -not -path './node_modules/*' \
+            -not -path '*/node_modules/*' \
             -not -path './dist/*' \
             -print0 |
             xargs -0 -I {} sh -c 'first="$(head -n 1 "$1")"; test "${first#\#}" != "$first" || test "$first" = "---"' sh {}
@@ -80,6 +81,7 @@ jobs:
           set -euo pipefail
           if grep -RInE '(JWT_SECRET|PASSWORD|API_TOKEN|PRIVATE_KEY)=([^c]|c[^h]|ch[^a]|cha[^n]|chan[^g]|chang[^e]|change[^m]|changem[^e])' \
             --exclude-dir=.git \
+            --exclude-dir=node_modules \
             --exclude=.env.example \
             .; then
             echo "Potential committed secret found."

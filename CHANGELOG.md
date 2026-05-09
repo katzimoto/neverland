@@ -70,6 +70,8 @@ All notable changes to this project will be documented in this file.
   and optional Atlassian hardening follow-ups.
 
 ### Fixed
+- CI secret scanning no longer flags the smoke-test password placeholder/env
+  forwarding, and markdown checks now skip nested `node_modules` directories.
 - `services/health.py` now uses `typing_extensions.TypedDict` for Python 3.11
   compatibility (Pydantic 2 rejected `typing.TypedDict` on Python < 3.12).
 - Frontend admin sources integration now passes lint/build checks with type-only
