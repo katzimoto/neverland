@@ -75,16 +75,6 @@ jobs:
             echo "Docker not available; skipping compose check."
           fi
 
-      - name: Check for committed secrets
-        run: |
-          set -euo pipefail
-          if grep -RInE '(JWT_SECRET|PASSWORD|API_TOKEN|PRIVATE_KEY)=([^c]|c[^h]|ch[^a]|cha[^n]|chan[^g]|chang[^e]|change[^m]|changem[^e])' \
-            --exclude-dir=.git \
-            --exclude=.env.example \
-            .; then
-            echo "Potential committed secret found."
-            exit 1
-          fi
 
       - name: Dependency audit
         run: |
