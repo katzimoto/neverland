@@ -25,4 +25,6 @@ All notable changes to this project will be documented in this file.
 - Phase 00: Planning, repository hygiene, and GitHub Actions bootstrap.
 
 ### Planned
-- Phase 08: External integrations (NiFi, Confluence, Jira), old Office extraction, observability.
+- Phase 08: Productization, UI, and production Compose.
+- Phase 09: Optional integrations and legacy format support, including NiFi,
+  Atlassian, old Office extraction, and nonessential Kafka consumer wiring.

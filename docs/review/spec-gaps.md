@@ -60,7 +60,7 @@ These items must be resolved before implementation reaches the affected phase.
 - **Preview positions:** annotation `position` is preview-mode dependent; define
   minimum shapes for HTML, PDF/image, table, and text previews.
 
-## Blockers Before Phase 08
+## Blockers Before Phase 09
 
 - **Atlassian permissions:** manual group mapping is mentioned, but page/project
   permission synchronization is out of scope or undefined.

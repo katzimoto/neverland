@@ -31,8 +31,9 @@ on its own branch and reviewed before the next phase starts.
 | 06 | `phase-06-intelligence-layer.md` | Ollama intelligence worker |
 | 07 | `phase-07-rag-ui-features.md` | RAG, annotations, subscriptions, UI |
 | 07a | `document-comments-plan.md` | Shared document comments |
-| UI | `frontend-ui-plan.md` | Reviewable frontend implementation phases |
-| 08 | `phase-08-integrations-hardening.md` | NiFi, Atlassian, observability, hardening |
+| 08 | `phase-08-integrations-hardening.md` | Productization, UI, production Compose |
+| UI | `frontend-ui-plan.md` | Frontend phases folded into Phase 08 |
+| 09 | `phase-09-optional-integrations.md` | NiFi, Atlassian, legacy Office formats |
 
 ## Review Gate
 
