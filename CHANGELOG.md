@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Phase 08b: Frontend foundation — React 19 + TypeScript + Vite scaffold with
+  TanStack Router and Query, React Hook Form + Zod auth form, design-token CSS
+  system, primitive component library (Button, IconButton, TextInput,
+  SearchInput, Badge, Tabs, Dialog, Skeleton, EmptyState, Toast), AppShell with
+  responsive NavRail, API client with 401 session-expiry handling, auth token
+  storage boundary, Login page, Playwright config at four viewports, Vitest +
+  Testing Library unit tests (18 tests), and multi-stage frontend Dockerfile
+  building the React app.
 - Phase 07e: Related documents and expertise map — backend endpoints for permission-filtered related document surfacing and neutral expertise evidence using Qdrant chunks plus views, comments, shared annotations, and subscriptions.
 - Phase 07d: Subscriptions and notifications — `alert_subscriptions` and `alert_notifications` tables, subscription CRUD endpoints, unread notification listing and read marking, `AlertMatcher` with source-permission filtering, ingest-time matching, admin alert trigger, feature flag enforcement, and integration tests.
 - Phase 07c: RAG Q&A — `RagService` retrieves chunks from Qdrant, assembles context, calls Ollama, returns answer + citations; `POST /qa` endpoint with `question` and `top_k`; `feature.rag_qa` enforcement; source-grant-aligned ES/Qdrant indexing; best-effort fallback on Ollama failure; mocked Qdrant tests.
