@@ -189,7 +189,7 @@ Stop for Reviewer-agent review.
 
 ## UI Phase 01: Auth And Search Workspace
 
-Branch: `developer/phase-08c-main-product-ui`
+Branch: `developer/phase-08c-search-workspace`
 
 ### Scope
 
@@ -229,7 +229,7 @@ Stop for Reviewer-agent review.
 
 ## UI Phase 02: Document Preview
 
-Branch: `developer/phase-08c-main-product-ui`
+Branch: `developer/phase-08d-document-detail`
 
 ### Scope
 
@@ -282,7 +282,7 @@ Stop for Reviewer-agent review.
 
 ## UI Phase 03: Q&A With Citations
 
-Branch: `developer/phase-08c-main-product-ui`
+Branch: `developer/phase-08d-document-detail`
 
 ### Scope
 
@@ -313,7 +313,7 @@ Stop for Reviewer-agent review.
 
 ## UI Phase 04: Document Comments And Annotations
 
-Branch: `developer/phase-08c-main-product-ui`
+Branch: `developer/phase-08e-collaboration-discovery`
 
 ### Scope
 
@@ -353,7 +353,7 @@ Stop for Reviewer-agent review.
 
 ## UI Phase 05: Subscriptions, Notifications, And History
 
-Branch: `developer/phase-08c-main-product-ui`
+Branch: `developer/phase-08e-collaboration-discovery`
 
 ### Scope
 
@@ -380,7 +380,7 @@ Stop for Reviewer-agent review.
 
 ## UI Phase 06: Expertise Map And Power-User Polish
 
-Branch: `developer/phase-08c-main-product-ui`
+Branch: `developer/phase-08e-collaboration-discovery`
 
 ### Scope
 
