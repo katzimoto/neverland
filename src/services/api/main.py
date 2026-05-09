@@ -1,6 +1,4 @@
-import hashlib
 import json
-import mimetypes
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -14,6 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import Engine
 
 from services.alerts.models import SubscriptionCreateRequest, SubscriptionUpdateRequest
+from services.connectors.factory import build_connector, connector_types
 from services.alerts.repository import AlertRepository
 from services.alerts.service import AlertMatcher
 from services.annotations.models import AnnotationCreateRequest, AnnotationUpdateRequest
@@ -198,6 +197,7 @@ class CreateSourceRequest(BaseModel):
     path: str | None = None
     source_language: str | None = "en"
     enabled: bool = True
+    config: dict[str, Any] = Field(default_factory=dict)
 
 
 class GrantPermissionRequest(BaseModel):
@@ -390,13 +390,11 @@ def create_app(
             if source_row is None:
                 raise HTTPException(status_code=404, detail="Source not found")
 
-            source_path = source_row.get("path")
-            if source_path is None:
-                raise HTTPException(status_code=400, detail="Source has no path configured")
-
-            folder = Path(source_path)
-            if not folder.exists():
-                raise HTTPException(status_code=400, detail="Source path does not exist")
+            try:
+                connector = build_connector(source_row)
+                connector.validate()
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
 
             doc_repo = DocumentRepository(connection)
             translator = app.state.translator or LibreTranslateClient(
@@ -427,31 +425,26 @@ def create_app(
                 ),
             )
 
+            source_language = source_row.get("source_language")
             results: dict[str, int] = {"indexed": 0, "skipped": 0, "failed": 0}
-            for file_path in folder.rglob("*"):
-                if not file_path.is_file():
-                    continue
 
-                mime_type, _ = mimetypes.guess_type(str(file_path))
-                if mime_type is None:
-                    mime_type = "application/octet-stream"
-
-                sha256 = hashlib.sha256(file_path.read_bytes()).hexdigest()
+            for item in connector.fetch_documents():
                 doc = doc_repo.create(
                     source_id=source_id,
-                    external_id=f"file:{file_path}",
-                    source="folder",
-                    mime_type=mime_type,
-                    path=str(file_path),
-                    title=file_path.name,
-                    sha256=sha256,
+                    external_id=item.external_id,
+                    source=str(source_row["type"]),
+                    mime_type=item.mime_type,
+                    path=item.path,
+                    title=item.title,
+                    source_language=item.source_language or source_language,
+                    sha256=item.sha256,
                 )
                 if doc is None:
                     results["skipped"] += 1
                     continue
 
                 try:
-                    worker.process_document(doc.id)
+                    worker.process_document(doc.id, pre_extracted_text=item.text_content)
                     results["indexed"] += 1
                 except Exception:
                     results["failed"] += 1
@@ -1319,6 +1312,13 @@ def create_app(
             _audit_log(connection, user.sub, "create", "group", str(group_id))
             return {"id": str(group_id), "name": request.name}
 
+    @app.get("/admin/connector-types")
+    def admin_connector_types(
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> list[dict[str, Any]]:
+        require_admin(user)
+        return connector_types()
+
     @app.get("/admin/sources")
     def admin_list_sources(
         user: Annotated[TokenPayload, Depends(current_user)],
@@ -1357,8 +1357,8 @@ def create_app(
             connection.execute(
                 sa.text(
                     """
-                    INSERT INTO ingestion_sources (id, name, type, path, source_language, enabled)
-                    VALUES (:id, :name, :type, :path, :source_language, :enabled)
+                    INSERT INTO ingestion_sources (id, name, type, path, source_language, enabled, config)
+                    VALUES (:id, :name, :type, :path, :source_language, :enabled, :config)
                     """
                 ),
                 {
@@ -1368,6 +1368,7 @@ def create_app(
                     "path": request.path,
                     "source_language": request.source_language,
                     "enabled": request.enabled,
+                    "config": json.dumps(request.config),
                 },
             )
             _audit_log(
@@ -1385,6 +1386,7 @@ def create_app(
                 "path": request.path,
                 "source_language": request.source_language,
                 "enabled": request.enabled,
+                "config": request.config,
             }
 
     @app.post("/admin/sources/{source_id}/permissions", status_code=201)
