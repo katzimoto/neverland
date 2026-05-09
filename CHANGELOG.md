@@ -59,6 +59,12 @@ All notable changes to this project will be documented in this file.
 - Phase 00: Planning, repository hygiene, and GitHub Actions bootstrap.
 
 ### Changed
+- Reused app-scoped search, translation, extraction, embedding, and LLM clients
+  across API routes to reduce per-request object churn.
+- Folder ingestion now streams SHA-256 hashing and yields files in deterministic
+  order, avoiding whole-file reads during source polling.
+- Pipeline chunk embedding now uses batch encoding so production encoders can
+  amortize model setup across chunks.
 - Documentation now reflects that Confluence and Jira Server/Data Center polling
   connectors are implemented; Phase 09 only retains NiFi, legacy Office, Kafka,
   and optional Atlassian hardening follow-ups.

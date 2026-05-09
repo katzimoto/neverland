@@ -36,18 +36,26 @@ class FolderConnector:
             raise ValueError(f"Source path is not a directory: {self._folder}")
 
     def fetch_documents(self) -> Iterator[ConnectorDocument]:
-        for file_path in self._folder.rglob("*"):
+        for file_path in sorted(self._folder.rglob("*")):
             if not file_path.is_file():
                 continue
             mime_type, _ = mimetypes.guess_type(str(file_path))
             if mime_type is None:
                 mime_type = "application/octet-stream"
-            sha256 = hashlib.sha256(file_path.read_bytes()).hexdigest()
             yield ConnectorDocument(
                 external_id=f"file:{file_path}",
                 title=file_path.name,
                 mime_type=mime_type,
-                sha256=sha256,
+                sha256=_sha256_file(file_path),
                 source_language=None,
                 path=str(file_path),
             )
+
+
+def _sha256_file(path: Path, chunk_size: int = 1024 * 1024) -> str:
+    """Return *path*'s SHA-256 digest without loading the whole file into memory."""
+    digest = hashlib.sha256()
+    with path.open("rb") as file_obj:
+        for chunk in iter(lambda: file_obj.read(chunk_size), b""):
+            digest.update(chunk)
+    return digest.hexdigest()

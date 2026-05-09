@@ -58,6 +58,31 @@ def test_folder_connector_title_is_filename(tmp_path: Path) -> None:
     assert docs[0].title == "report.pdf"
 
 
+def test_folder_connector_yields_files_in_stable_order(tmp_path: Path) -> None:
+    (tmp_path / "b.txt").write_text("second")
+    (tmp_path / "a.txt").write_text("first")
+
+    docs = list(FolderConnector(str(tmp_path)).fetch_documents())
+
+    assert [doc.title for doc in docs] == ["a.txt", "b.txt"]
+
+
+def test_folder_connector_hashes_large_files_without_read_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    file_path = tmp_path / "large.txt"
+    file_path.write_bytes(b"abc" * 1024)
+
+    def fail_read_bytes(_: Path) -> bytes:
+        raise AssertionError("read_bytes loads whole files into memory")
+
+    monkeypatch.setattr(Path, "read_bytes", fail_read_bytes)
+
+    docs = list(FolderConnector(str(tmp_path)).fetch_documents())
+
+    assert docs[0].sha256 == "67b02e475b2c38886a6e385a2819f74b486f3e1226dbbceef63a93ff548c8cd6"
+
+
 def test_folder_connector_validate_ok(tmp_path: Path) -> None:
     FolderConnector(str(tmp_path)).validate()  # must not raise
 

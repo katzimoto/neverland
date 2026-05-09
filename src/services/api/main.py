@@ -251,6 +251,45 @@ def create_app(
     app.state.es_client = es_client
     app.state.qdrant_client = qdrant_client
     app.state.ollama_client = ollama_client
+    app.state.encoder = MockEncoder()
+    app.state.extractor_registry = ExtractorRegistry()
+
+    def translator_client() -> LibreTranslateClient:
+        """Return the app-scoped translation client, creating it lazily once."""
+        if app.state.translator is None:
+            app.state.translator = LibreTranslateClient(
+                base_url=app.state.settings.libretranslate_url
+            )
+        return cast("LibreTranslateClient", app.state.translator)
+
+    def elastic_client() -> ElasticsearchSearchClient:
+        """Return the app-scoped Elasticsearch client, creating it lazily once."""
+        if app.state.es_client is None:
+            app.state.es_client = ElasticsearchSearchClient(hosts=[app.state.settings.elastic_url])
+        return cast("ElasticsearchSearchClient", app.state.es_client)
+
+    def qdrant_search_client() -> QdrantSearchClient:
+        """Return the app-scoped Qdrant client, creating it lazily once."""
+        if app.state.qdrant_client is None:
+            app.state.qdrant_client = QdrantSearchClient(url=app.state.settings.qdrant_url)
+        return cast("QdrantSearchClient", app.state.qdrant_client)
+
+    def encoder() -> MockEncoder:
+        """Return the app-scoped embedding encoder."""
+        return cast("MockEncoder", app.state.encoder)
+
+    def extractor_registry() -> ExtractorRegistry:
+        """Return the app-scoped extractor registry."""
+        return cast("ExtractorRegistry", app.state.extractor_registry)
+
+    def ollama_llm_client() -> OllamaClient:
+        """Return the app-scoped Ollama client, creating it lazily once."""
+        if app.state.ollama_client is None:
+            app.state.ollama_client = OllamaClient(
+                base_url=app.state.settings.ollama_url,
+                model=app.state.settings.ollama_model,
+            )
+        return cast("OllamaClient", app.state.ollama_client)
 
     @contextmanager
     def repository_context() -> Iterator[AuthRepository]:
@@ -406,27 +445,21 @@ def create_app(
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
 
             doc_repo = DocumentRepository(connection)
-            translator = app.state.translator or LibreTranslateClient(
-                base_url=app.state.settings.libretranslate_url
-            )
-            es_client = app.state.es_client or ElasticsearchSearchClient(
-                hosts=[app.state.settings.elastic_url]
-            )
-            qdrant_client = app.state.qdrant_client or QdrantSearchClient(
-                url=app.state.settings.qdrant_url
-            )
+            translator = translator_client()
+            es_client = elastic_client()
+            qdrant_client = qdrant_search_client()
 
             worker = PipelineWorker(
                 document_repository=doc_repo,
-                extractor_registry=ExtractorRegistry(),
+                extractor_registry=extractor_registry(),
                 translator=translator,
-                encoder=MockEncoder(),
+                encoder=encoder(),
                 es_client=es_client,
                 qdrant_client=qdrant_client,
                 alert_matcher=(
                     AlertMatcher(
                         repository=AlertRepository(connection),
-                        encoder=MockEncoder(),
+                        encoder=encoder(),
                         default_threshold=default_alert_threshold(connection),
                     )
                     if alerts_check_on_ingest(connection)
@@ -469,16 +502,12 @@ def create_app(
         if not group_ids:
             return SearchResponse(results=[], total=0)
 
-        es_client = app.state.es_client or ElasticsearchSearchClient(
-            hosts=[app.state.settings.elastic_url]
-        )
-        qdrant_client = app.state.qdrant_client or QdrantSearchClient(
-            url=app.state.settings.qdrant_url
-        )
-        encoder = MockEncoder()
+        es_client = elastic_client()
+        qdrant_client = qdrant_search_client()
+        search_encoder = encoder()
 
         bm25_results = es_client.search(request.query, group_ids=group_ids, size=50)
-        query_vector = encoder.encode(request.query)
+        query_vector = search_encoder.encode(request.query)
         vector_results = qdrant_client.search(vector=query_vector, group_ids=group_ids, limit=50)
 
         # TODO: read weights from system_config in Phase 04
@@ -679,13 +708,11 @@ def create_app(
             if not group_ids:
                 return {"doc_id": str(doc_id), "related": []}
 
-            qdrant_client = app.state.qdrant_client or QdrantSearchClient(
-                url=app.state.settings.qdrant_url
-            )
+            qdrant_client = qdrant_search_client()
             service = RelatedService(
                 repository=RelatedRepository(connection),
                 qdrant_client=qdrant_client,
-                encoder=MockEncoder(),
+                encoder=encoder(),
             )
             return {
                 "doc_id": str(doc_id),
@@ -709,13 +736,11 @@ def create_app(
             group_ids = [str(group_id) for group_id in user.groups]
             if not group_ids:
                 return []
-            qdrant_client = app.state.qdrant_client or QdrantSearchClient(
-                url=app.state.settings.qdrant_url
-            )
+            qdrant_client = qdrant_search_client()
             service = RelatedService(
                 repository=RelatedRepository(connection),
                 qdrant_client=qdrant_client,
-                encoder=MockEncoder(),
+                encoder=encoder(),
             )
             return service.expertise(topic=topic, group_ids=group_ids)
 
@@ -1055,10 +1080,10 @@ def create_app(
             if doc is None or doc.path is None:
                 raise HTTPException(status_code=404, detail="Document not found")
 
-            content = ExtractorRegistry().extract(Path(doc.path), doc.mime_type)
+            content = extractor_registry().extract(Path(doc.path), doc.mime_type)
             matcher = AlertMatcher(
                 repository=AlertRepository(connection),
-                encoder=MockEncoder(),
+                encoder=encoder(),
                 default_threshold=default_alert_threshold(connection),
             )
             created = matcher.match_document(doc, content)
@@ -1093,14 +1118,9 @@ def create_app(
             if flag_row and not _config_bool(flag_row["value"], default=True):
                 raise HTTPException(status_code=404, detail="RAG Q&A is disabled")
 
-            qdrant_client = app.state.qdrant_client or QdrantSearchClient(
-                url=app.state.settings.qdrant_url
-            )
-            encoder = MockEncoder()
-            ollama_client = app.state.ollama_client or OllamaClient(
-                base_url=app.state.settings.ollama_url,
-                model=app.state.settings.ollama_model,
-            )
+            qdrant_client = qdrant_search_client()
+            search_encoder = encoder()
+            ollama_client = ollama_llm_client()
 
             # Read system prompt from config
             prompt_row = (
@@ -1115,7 +1135,7 @@ def create_app(
 
             rag = RagService(
                 qdrant_client=qdrant_client,
-                encoder=encoder,
+                encoder=search_encoder,
                 ollama_client=ollama_client,
                 connection=connection,
                 system_prompt=system_prompt,
@@ -1153,19 +1173,11 @@ def create_app(
                 raise HTTPException(status_code=404, detail="Document not found")
 
             # Extract text for intelligence
-            from services.extraction.registry import ExtractorRegistry
-
-            extractor = ExtractorRegistry()
-            text = extractor.extract(Path(doc.path), doc.mime_type)
+            text = extractor_registry().extract(Path(doc.path), doc.mime_type)
 
             intelligence_repo = IntelligenceRepository(connection)
-            ollama_client = OllamaClient(
-                base_url=app.state.settings.ollama_url,
-                model=app.state.settings.ollama_model,
-            )
-            es_client = app.state.es_client or ElasticsearchSearchClient(
-                hosts=[app.state.settings.elastic_url]
-            )
+            ollama_client = ollama_llm_client()
+            es_client = elastic_client()
             worker = IntelligenceWorker(
                 repository=intelligence_repo,
                 ollama_client=ollama_client,

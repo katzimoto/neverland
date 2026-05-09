@@ -90,20 +90,20 @@ class PipelineWorker:
             str(group_id) for group_id in self._doc_repo.source_group_ids(doc.source_id)
         ]
 
-        # 4. Encode + build Qdrant points
-        qdrant_chunks: list[dict[str, Any]] = []
-        for idx, chunk_text_content in enumerate(chunks):
-            vector = self._encoder.encode(chunk_text_content)
-            qdrant_chunks.append(
-                {
-                    "chunk_id": f"{doc_id}-{idx}",
-                    "doc_id": str(doc_id),
-                    "group_id": allowed_group_ids,
-                    "chunk_index": idx,
-                    "text": chunk_text_content,
-                    "vector": vector,
-                }
-            )
+        # 4. Encode chunks in one call so production encoders can batch model
+        #    inference instead of paying per-chunk setup overhead.
+        vectors = self._encoder.encode_batch(chunks)
+        qdrant_chunks: list[dict[str, Any]] = [
+            {
+                "chunk_id": f"{doc_id}-{idx}",
+                "doc_id": str(doc_id),
+                "group_id": allowed_group_ids,
+                "chunk_index": idx,
+                "text": chunk_text_content,
+                "vector": vectors[idx],
+            }
+            for idx, chunk_text_content in enumerate(chunks)
+        ]
 
         # 5. Index full document in Elasticsearch
         self._es.index_document(
