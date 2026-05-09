@@ -98,6 +98,18 @@ pytest
   authorizes the refactor.
 - Do not update `spec.md` or `spec-v4.pdf` as implementation notes.
 
+## Documentation structure rules
+
+- Every implementation plan in `docs/implementation/` must follow the `phase-XX-name.md`
+  naming convention. Never create loosely named plan files (e.g. `my-feature-plan.md`).
+- When a phase covers multiple independent features, split it: one overview index file
+  plus one `phase-XXa-feature.md` per feature. See phases 03, 08f, 09, and 10 as patterns.
+- Every feature that has a UX spec or metric catalog must have a matching design document in
+  `docs/design/`. Link the design file in the implementation plan under `## Design source`.
+- Update `docs/README.md` and `docs/implementation/README.md` in the same commit whenever
+  a new plan file is added or an existing file is renamed.
+- After completing a phase, update its status to `Done` in both README files in the same PR.
+
 ## Review and PR expectations
 
 - PRs should map to one phase or one named subtask.

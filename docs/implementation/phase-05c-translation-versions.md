@@ -16,7 +16,7 @@ Branch: `developer/phase-05c-translation-versions`
 Status: In progress (follows completed Phase 05b).
 
 Frontend implementation belongs in `developer/ui-02-document-preview`, as
-described in `docs/implementation/frontend-ui-plan.md`.
+described in `docs/implementation/phase-08b-frontend-ui.md`.
 
 ## Dependencies
 

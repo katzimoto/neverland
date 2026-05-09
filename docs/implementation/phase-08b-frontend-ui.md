@@ -15,8 +15,8 @@ grounded in source documents.
 - `docs/logical-spec.md`
 - `docs/implementation/phase-03e-search-apis.md`
 - `docs/implementation/phase-05-preview-enrichment.md`
-- `docs/implementation/translation-versions-plan.md`
-- `docs/implementation/document-comments-plan.md`
+- `docs/implementation/phase-05c-translation-versions.md`
+- `docs/implementation/phase-07a-document-comments.md`
 - `docs/implementation/phase-07-rag-ui-features.md`
 
 ## Chosen Stack

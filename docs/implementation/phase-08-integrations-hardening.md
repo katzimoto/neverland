@@ -35,7 +35,7 @@ Status: Complete. See `docs/operations/production-compose.md`.
 
 ## Phase 08b: Frontend Foundation
 
-Status: Complete. See `docs/implementation/frontend-ui-plan.md` UI Phase 00.
+Status: Complete. See `docs/implementation/phase-08b-frontend-ui.md` UI Phase 00.
 
 ## Phase 08c: Search Workspace
 
