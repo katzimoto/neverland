@@ -15,6 +15,31 @@ narrowest command that proves your change.
 - Current implementation history lives in `CHANGELOG.md`; read the latest
   `[Unreleased]` bullets before assuming a phase is missing.
 
+## Mission queue
+
+Work in priority order. Pick the highest-ranked **Next** or **parallel-safe** mission,
+read its single plan file, create the branch, and work until the plan's
+"Stop after opening PR" instruction. Mark the row **In progress** in this file when you
+claim it. All plan files live in `docs/implementation/`.
+
+Parallel-safe missions share no state with other in-flight work and can run on independent
+branches simultaneously.
+
+| # | Mission | Plan | Branch | Status |
+|---|---|---|---|---|
+| 1 | UI: search workspace | `phase-08c-search-workspace.md` | `developer/phase-08c-search-workspace` | **Next** |
+| 2 | Metrics foundation | `phase-10a-metrics-foundation.md` | `developer/phase-10a-metrics-foundation` | **Next** (parallel-safe) |
+| 3 | Legacy Office extraction | `phase-09b-legacy-office-extraction.md` | `developer/phase-09b-legacy-office-extraction` | **Next** (parallel-safe) |
+| 4 | UI: document detail + Q&A | `phase-08d-document-detail.md` | `developer/phase-08d-document-detail` | Blocked by #1 |
+| 5 | Domain metrics | `phase-10b-domain-metrics.md` | `developer/phase-10b-domain-metrics` | Blocked by #2 |
+| 6 | Admin readiness endpoint | `phase-10c-admin-readiness.md` | `developer/phase-10c-admin-readiness` | Blocked by #2 |
+| 7 | UI: collaboration + discovery | `phase-08e-collaboration-discovery.md` | `developer/phase-08e-collaboration-discovery` | Blocked by #4 |
+| 8 | Structured logs + tracing | `phase-10e-structured-logs.md` | `developer/phase-10e-structured-logs` | Blocked by #2 |
+| 9 | Monitoring Compose profile | `phase-10d-monitoring-compose.md` | `developer/phase-10d-monitoring-compose` | Blocked by #5 |
+| 10 | NiFi + Kafka integration | `phase-09a-nifi-integration.md` | `developer/phase-09a-nifi-integration` | **Next** (parallel-safe) |
+| 11 | Atlassian hardening | `phase-09c-atlassian-hardening.md` | `developer/phase-09c-atlassian-hardening` | Conditional |
+| 12 | Worker observability | `phase-10f-worker-observability.md` | `developer/phase-10f-worker-observability` | Deferred |
+
 ## Token-efficient workflow
 
 1. Start with `git status --short` and inspect only files relevant to the task.
