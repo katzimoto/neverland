@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import time
 from collections.abc import Awaitable, Callable, Iterator
@@ -53,6 +55,16 @@ from shared.metrics import MetricsRegistry, route_template_for_request, status_c
 from shared.request_context import reset_request_id, set_request_id
 
 AUTH_SCHEME = "Bearer "
+
+
+def current_user(request: Request) -> TokenPayload:
+    """Decode the bearer token for the current request."""
+    authorization = request.headers.get("authorization")
+    if authorization is None or not authorization.startswith(AUTH_SCHEME):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = authorization.removeprefix(AUTH_SCHEME)
+    jwt_service = JwtService(secret=request.app.state.settings.jwt_secret)
+    return jwt_service.decode(token)
 
 
 def _fmt_dt(value: Any) -> str | None:
@@ -269,13 +281,6 @@ def create_app(
     def jwt_service() -> JwtService:
         return JwtService(secret=app.state.settings.jwt_secret)
 
-    def current_user(request: Request) -> TokenPayload:
-        authorization = request.headers.get("authorization")
-        if authorization is None or not authorization.startswith(AUTH_SCHEME):
-            raise HTTPException(status_code=401, detail="Missing bearer token")
-        token = authorization.removeprefix(AUTH_SCHEME)
-        return jwt_service().decode(token)
-
     @app.middleware("http")
     async def request_observability_middleware(
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
@@ -304,7 +309,12 @@ def create_app(
             metrics.http_request_duration_seconds.labels(request.method, route).observe(elapsed)
             metrics.http_requests_total.labels(request.method, route, "5xx").inc()
             metrics.http_exceptions_total.labels(route, error_type).inc()
-            raise
+            return Response(
+                content="Internal Server Error",
+                status_code=500,
+                media_type="text/plain",
+                headers={"X-Request-ID": request_id},
+            )
         finally:
             reset_request_id(token)
 

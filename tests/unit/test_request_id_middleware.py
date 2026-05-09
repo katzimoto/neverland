@@ -41,3 +41,24 @@ def test_request_id_header_is_echoed_on_auth_errors() -> None:
 
     assert response.status_code == 401
     assert response.headers["X-Request-ID"] == "auth-debug"
+
+
+def test_request_id_header_is_echoed_on_unhandled_errors() -> None:
+    engine = sa.create_engine("sqlite:///:memory:")
+    app = create_app(engine, Settings(app_env="test", auth_provider="local", jwt_secret="x" * 32))
+
+    @app.get("/boom")
+    def boom() -> None:
+        raise RuntimeError("boom")
+
+    client = TestClient(app)
+
+    response = client.get("/boom", headers={"X-Request-ID": "boom-debug"})
+
+    assert response.status_code == 500
+    assert response.headers["X-Request-ID"] == "boom-debug"
+    assert response.text == "Internal Server Error"
+    assert (
+        'neverland_http_exceptions_total{error_type="RuntimeError",route="/boom"} 1.0'
+        in client.get("/metrics").text
+    )
