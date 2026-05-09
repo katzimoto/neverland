@@ -7,7 +7,7 @@ import { SearchInput } from "@/components/primitives/SearchInput";
 import { Button } from "@/components/primitives/Button";
 import { SkeletonRow } from "@/components/primitives/Skeleton";
 import { EmptyState } from "@/components/primitives/EmptyState";
-import { useToast } from "@/components/primitives/Toast";
+import { useToast } from "@/components/primitives/ToastContext";
 import { FilterPanel } from "./FilterPanel";
 import { ResultRow } from "./ResultRow";
 import styles from "./SearchPage.module.css";

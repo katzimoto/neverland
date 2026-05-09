@@ -7,7 +7,7 @@ import { Button } from "@/components/primitives/Button";
 import { Dialog } from "@/components/primitives/Dialog";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { TextInput } from "@/components/primitives/TextInput";
-import { useToast } from "@/components/primitives/Toast";
+import { useToast } from "@/components/primitives/ToastContext";
 import styles from "./SubscriptionsPage.module.css";
 
 const DEFAULT_FORM: SubscriptionWrite = { name: "", query: "", similarity_threshold: 0.75, enabled: true };

@@ -11,7 +11,7 @@ import { Badge } from "@/components/primitives/Badge";
 import { Button } from "@/components/primitives/Button";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { Tabs } from "@/components/primitives/Tabs";
-import { useToast } from "@/components/primitives/Toast";
+import { useToast } from "@/components/primitives/ToastContext";
 import styles from "./DetailsPanel.module.css";
 
 const TABS = [

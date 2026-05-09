@@ -4,7 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { askQuestion, type QAResponse } from "@/api/qa";
 import { Button } from "@/components/primitives/Button";
 import { EmptyState } from "@/components/primitives/EmptyState";
-import { useToast } from "@/components/primitives/Toast";
+import { useToast } from "@/components/primitives/ToastContext";
 import styles from "./QAPage.module.css";
 
 export function QAPage() {

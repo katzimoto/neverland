@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { listNotifications, markRead } from "@/api/notifications";
 import { Badge } from "@/components/primitives/Badge";
 import { EmptyState } from "@/components/primitives/EmptyState";
-import { useToast } from "@/components/primitives/Toast";
+import { useToast } from "@/components/primitives/ToastContext";
 import styles from "./NotificationsPage.module.css";
 
 export function NotificationsPage() {

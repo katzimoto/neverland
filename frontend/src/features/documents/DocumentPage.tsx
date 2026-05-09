@@ -6,7 +6,7 @@ import { Badge } from "@/components/primitives/Badge";
 import { Button } from "@/components/primitives/Button";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { SkeletonRow } from "@/components/primitives/Skeleton";
-import { useToast } from "@/components/primitives/Toast";
+import { useToast } from "@/components/primitives/ToastContext";
 import { PreviewPane } from "./PreviewPane";
 import { DetailsPanel } from "./DetailsPanel";
 import styles from "./DocumentPage.module.css";
