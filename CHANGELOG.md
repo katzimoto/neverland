@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Phase 08f-2 operations documentation: fully annotated `.env.example` plus expanded production Compose runbook for setup, reset, backup, restore, health checks, and troubleshooting.
 - Phase 08f-1 production defaults: configurable CORS origins wired into FastAPI, Compose defaults pinned to the local frontend origin, and tracked JWT examples use production-change placeholders.
 - Phase 08f production hardening plan split into three reviewable PRs for production defaults, operations documentation, and Compose smoke testing.
 - Confluence and Jira Server/Data Center connectors that validate non-cloud

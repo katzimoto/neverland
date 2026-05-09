@@ -5,7 +5,7 @@ corpora. The canonical product spec is `spec-v4.pdf`.
 
 ## How To Run
 
-Phase 08a adds a production-style Docker Compose runtime. It starts the API,
+Neverland includes a production-style Docker Compose runtime. It starts the API,
 frontend container, migration job, and required infrastructure as separate
 services.
 
@@ -44,5 +44,6 @@ docker compose down -v
 ```
 
 See `docs/operations/production-compose.md` for the full operations guide,
-including service layout, volume notes, reset behavior, and current Phase 08a
+including service layout, annotated environment variables, reset behavior,
+backup and restore guidance, health checks, troubleshooting, and current
 limitations.
