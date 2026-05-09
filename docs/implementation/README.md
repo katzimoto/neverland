@@ -31,7 +31,11 @@ on its own branch and reviewed before the next phase starts.
 | 06 | `phase-06-intelligence-layer.md` | Ollama intelligence worker |
 | 07 | `phase-07-rag-ui-features.md` | RAG, annotations, subscriptions, UI |
 | 07a | `document-comments-plan.md` | Shared document comments |
-| 08 | `phase-08-integrations-hardening.md` | Productization, UI, production Compose |
+| 08 | `phase-08-integrations-hardening.md` | Phase 08 overview and sub-phase index |
+| 08c | `phase-08c-search-workspace.md` | Search workspace (UI Phase 01) |
+| 08d | `phase-08d-document-detail.md` | Document preview, Q&A (UI Phase 02–03) |
+| 08e | `phase-08e-collaboration-discovery.md` | Comments, annotations, subscriptions, expertise (UI Phase 04–06) |
+| 08f | `phase-08f-production-smoke.md` | Production smoke test, ops docs, security review |
 | UI | `frontend-ui-plan.md` | Frontend phases folded into Phase 08 |
 | 09 | `phase-09-optional-integrations.md` | NiFi, Atlassian, legacy Office formats |
 

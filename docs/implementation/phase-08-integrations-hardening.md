@@ -29,88 +29,48 @@ These optional integration items move to Phase 09.
 
 ## Phase 08a: Compose Runtime Foundation
 
-Branch: `developer/phase-08a-compose-runtime`
-
-### Scope
-
-- Add production-oriented backend and frontend Dockerfiles.
-- Add Compose services for API, frontend, migrations, Postgres, Elasticsearch,
-  Qdrant, LibreTranslate, Ollama, and Redpanda if still required.
-- Add `.env.example`, service healthchecks, persistent volumes, startup
-  ordering, and documented local production commands.
-- Add a public API health endpoint for container healthchecks.
-- Document runtime operation in `docs/operations/production-compose.md`.
-- Do not invent fake long-running worker containers. Only add worker containers
-  when a real entrypoint exists.
-
-### Validation
-
-- `docker compose config`
-- Clean-volume migration smoke.
-- API healthcheck through Compose.
-- Frontend container healthcheck through Compose.
-- Existing backend validation remains green.
+Status: Complete. See `docs/operations/production-compose.md`.
 
 ## Phase 08b: Frontend Foundation
 
-Branch: `developer/phase-08b-frontend-foundation`
+Status: Complete. See `docs/implementation/frontend-ui-plan.md` UI Phase 00.
 
-### Scope
+## Phase 08c: Search Workspace
 
-- Scaffold React + TypeScript + Vite frontend using
-  `docs/implementation/frontend-ui-plan.md`.
-- Implement auth shell, API client, route setup, design tokens, app shell, and
-  reusable primitives.
-- Wire the frontend container to the API through Compose.
+Plan: `docs/implementation/phase-08c-search-workspace.md`
+Branch: `developer/phase-08c-search-workspace`
 
-### Validation
+Auth shell wiring, `/search` route, search results and filters, saved searches.
+Can start immediately in parallel with Phase 08f.
 
-- `npm --prefix frontend run lint`
-- `npm --prefix frontend run typecheck`
-- `npm --prefix frontend run test`
-- `npm --prefix frontend run build`
-- Responsive screenshot smoke for shell-level routes.
+## Phase 08d: Document Detail And Q&A
 
-## Phase 08c: Main User Product UI
+Plan: `docs/implementation/phase-08d-document-detail.md`
+Branch: `developer/phase-08d-document-detail`
+Prerequisite: Phase 08c review gate passed.
 
-Branch: `developer/phase-08c-main-product-ui`
+Document route `/doc/:doc_id`, all preview mode renderers, translation version
+selector, download, intelligence display, related documents, and the `/qa` route
+with citations.
 
-### Scope
+## Phase 08e: Collaboration And Discovery
 
-- Implement search workspace.
-- Implement document preview and download.
-- Implement Q&A, comments, annotations, subscriptions/notifications, related
-  documents, and expertise views against real backend APIs.
-- Keep admin UI out of scope unless needed for smoke setup.
+Plan: `docs/implementation/phase-08e-collaboration-discovery.md`
+Branch: `developer/phase-08e-collaboration-discovery`
+Prerequisite: Phase 08c review gate passed; `insightPaneTabs.ts` contract
+committed by the 08d agent.
 
-### Validation
+Comments, annotations, subscriptions, notifications, history, expertise map,
+command menu, and final visual polish sweep. Can run in parallel with Phase 08d.
 
-- Component tests for each feature surface.
-- Playwright workflows for login, search, preview/download, Q&A, annotations,
-  comments, subscriptions, related documents, and expertise.
-- Permission-safe states do not reveal inaccessible document metadata.
-- Responsive screenshot checks at the standard UI plan viewports.
+## Phase 08f: Production Smoke And Hardening
 
-## Phase 08d: Production Smoke And Hardening
+Plan: `docs/implementation/phase-08f-production-smoke.md`
+Branch: `developer/phase-08f-production-smoke`
+Prerequisite: None — fully independent of all frontend work.
 
-Branch: `developer/phase-08d-production-smoke`
-
-### Scope
-
-- Add a no-mock Compose smoke test:
-  authenticate, ingest a fixture document, search it, preview it, download it,
-  and load the UI.
-- Add local production docs for startup, shutdown, reset, backup, environment
-  variables, and common troubleshooting.
-- Review security and operational defaults for local production use.
-
-### Validation
-
-- Full backend CI.
-- Full frontend CI.
-- `docker compose config`
-- No-mock Compose smoke test using real local services.
-- Dependency audit and secret scan.
+No-mock Compose smoke test, production operations documentation, and security
+and operational defaults review. Can start at any point after Phase 08b.
 
 ## Acceptance Criteria
 
