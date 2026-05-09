@@ -5,6 +5,9 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Confluence and Jira Server/Data Center connectors that validate non-cloud
+  Atlassian URLs, expose admin form schemas, poll pages/issues, normalize
+  page/issue text, and download attachments for ingestion.
 - Data source connector abstraction — `src/services/connectors/` package with a
   `SourceConnector` protocol, `ConnectorField` for self-describing config schemas,
   `FolderConnector` (extracted from `sync_now`), and `NiFiConnector` stub ready for
