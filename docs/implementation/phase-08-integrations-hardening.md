@@ -38,6 +38,8 @@ Branch: `developer/phase-08a-compose-runtime`
   Qdrant, LibreTranslate, Ollama, and Redpanda if still required.
 - Add `.env.example`, service healthchecks, persistent volumes, startup
   ordering, and documented local production commands.
+- Add a public API health endpoint for container healthchecks.
+- Document runtime operation in `docs/operations/production-compose.md`.
 - Do not invent fake long-running worker containers. Only add worker containers
   when a real entrypoint exists.
 
@@ -80,6 +82,10 @@ Branch: `developer/phase-08c-main-product-ui`
 - Implement Q&A, comments, annotations, subscriptions/notifications, related
   documents, and expertise views against real backend APIs.
 - Keep admin UI out of scope unless needed for smoke setup.
+- Wire keyboard shortcut `/` to focus the search input from any authenticated
+  route (append to the global key handler in AppShell or a top-level
+  `useEffect`; must not trigger inside `<input>`, `<textarea>`, or
+  `[contenteditable]` elements).
 
 ### Validation
 

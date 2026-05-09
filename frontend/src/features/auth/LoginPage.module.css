@@ -11,18 +11,20 @@
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-panel);
-  padding: var(--space-8) var(--space-8);
+  padding: var(--space-8);
   width: 100%;
   max-width: 380px;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  /* Left-align all content — reads like an internal tool, not a consumer app */
+  align-items: flex-start;
   gap: var(--space-5);
 }
 
 .mark {
-  width: 44px;
-  height: 44px;
+  /* Logo stays centered relative to itself; content around it is left-aligned */
+  width: 40px;
+  height: 40px;
   border-radius: var(--radius-panel);
   background: var(--color-primary);
   color: var(--color-primary-fg);
@@ -30,14 +32,15 @@
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 22px;
+  font-size: 20px;
 }
 
 .heading {
   font-size: var(--font-size-section-title);
   font-weight: var(--font-weight-section-title);
-  text-align: center;
+  line-height: var(--line-height-section-title);
   color: var(--color-text-primary);
+  /* Intentionally left-aligned */
 }
 
 .alert {
@@ -48,7 +51,6 @@
   border-radius: var(--radius-panel);
   color: var(--color-warning);
   font-size: var(--font-size-body);
-  text-align: center;
 }
 
 .form {
@@ -61,5 +63,4 @@
 .rootError {
   color: var(--color-danger);
   font-size: var(--font-size-body);
-  text-align: center;
 }

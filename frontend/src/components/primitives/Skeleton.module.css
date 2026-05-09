@@ -11,11 +11,43 @@
   border-radius: 50%;
 }
 
+/* Result row skeleton — height is pinned to the same token real rows use */
 .row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  /* Exact reserved height prevents layout jump when content loads */
+  height: var(--result-row-height);
+  padding: 0 var(--page-padding-desktop);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+.compact {
+  height: var(--result-row-height-compact);
+}
+
+.rowIcon {
+  flex-shrink: 0;
+}
+
+.rowLines {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--row-padding-y) 0;
+  min-width: 0;
+}
+
+.rowMeta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.rowBadge {
+  border-radius: var(--radius-chip);
 }
 
 @keyframes shimmer {
