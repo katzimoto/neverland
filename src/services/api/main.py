@@ -1,5 +1,6 @@
 import json
-from collections.abc import Iterator
+import time
+from collections.abc import Awaitable, Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Annotated, Any, Literal, cast
@@ -8,7 +9,8 @@ from uuid import UUID, uuid4
 import sqlalchemy as sa
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from pydantic import BaseModel, Field
 from sqlalchemy import Engine
 
@@ -47,6 +49,8 @@ from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient
 from shared.config import Settings
 from shared.db import to_uuid
+from shared.metrics import MetricsRegistry, route_template_for_request, status_class
+from shared.request_context import reset_request_id, set_request_id
 
 AUTH_SCHEME = "Bearer "
 
@@ -239,6 +243,11 @@ def create_app(
     app = FastAPI(title="Neverland API")
     app.state.engine = engine
     app.state.settings = settings or Settings()
+    app.state.metrics = MetricsRegistry(
+        version=app.state.settings.app_version,
+        commit=app.state.settings.build_commit,
+        environment=app.state.settings.app_env,
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=app.state.settings.cors_origin_list,
@@ -266,6 +275,38 @@ def create_app(
             raise HTTPException(status_code=401, detail="Missing bearer token")
         token = authorization.removeprefix(AUTH_SCHEME)
         return jwt_service().decode(token)
+
+    @app.middleware("http")
+    async def request_observability_middleware(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        """Attach request IDs and record low-cardinality HTTP metrics."""
+        request_id = request.headers.get("x-request-id") or str(uuid4())
+        token = set_request_id(request_id)
+        start = time.perf_counter()
+        route = "__unknown__"
+        try:
+            response = await call_next(request)
+            route = route_template_for_request(request)
+            elapsed = time.perf_counter() - start
+            metrics: MetricsRegistry = request.app.state.metrics
+            metrics.http_request_duration_seconds.labels(request.method, route).observe(elapsed)
+            metrics.http_requests_total.labels(
+                request.method, route, status_class(response.status_code)
+            ).inc()
+            response.headers["X-Request-ID"] = request_id
+            return response
+        except Exception as exc:
+            route = route_template_for_request(request)
+            elapsed = time.perf_counter() - start
+            metrics = request.app.state.metrics
+            error_type = exc.__class__.__name__
+            metrics.http_request_duration_seconds.labels(request.method, route).observe(elapsed)
+            metrics.http_requests_total.labels(request.method, route, "5xx").inc()
+            metrics.http_exceptions_total.labels(route, error_type).inc()
+            raise
+        finally:
+            reset_request_id(token)
 
     def require_subscriptions_enabled(connection: sa.Connection) -> None:
         """Raise 404 when subscriptions are disabled."""
@@ -366,6 +407,13 @@ def create_app(
     @app.get("/health")
     def app_health() -> HealthResponse:
         return health("api")
+
+    @app.get("/metrics")
+    def metrics() -> Response:
+        return Response(
+            content=generate_latest(app.state.metrics.registry),
+            media_type=CONTENT_TYPE_LATEST,
+        )
 
     @app.post("/auth/logout")
     def logout(_: Annotated[TokenPayload, Depends(current_user)]) -> dict[str, bool]:
