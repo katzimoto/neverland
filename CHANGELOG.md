@@ -58,6 +58,11 @@ All notable changes to this project will be documented in this file.
 - Phase 01: Foundation schema, shared contracts, service skeletons, and tests.
 - Phase 00: Planning, repository hygiene, and GitHub Actions bootstrap.
 
+### Changed
+- Documentation now reflects that Confluence and Jira Server/Data Center polling
+  connectors are implemented; Phase 09 only retains NiFi, legacy Office, Kafka,
+  and optional Atlassian hardening follow-ups.
+
 ### Fixed
 - `services/health.py` now uses `typing_extensions.TypedDict` for Python 3.11
   compatibility (Pydantic 2 rejected `typing.TypedDict` on Python < 3.12).
@@ -67,4 +72,5 @@ All notable changes to this project will be documented in this file.
 ### Planned
 - Phase 08: Productization, UI, and production Compose.
 - Phase 09: Optional integrations and legacy format support, including NiFi,
-  Atlassian, old Office extraction, and nonessential Kafka consumer wiring.
+  optional Atlassian hardening, old Office extraction, and nonessential Kafka
+  consumer wiring.

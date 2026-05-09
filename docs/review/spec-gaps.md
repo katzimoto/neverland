@@ -62,10 +62,14 @@ These items must be resolved before implementation reaches the affected phase.
 
 ## Blockers Before Phase 09
 
-- **Atlassian permissions:** manual group mapping is mentioned, but page/project
-  permission synchronization is out of scope or undefined.
-- **Atlassian URL validation:** `*.atlassian.net` rejection should define exact
-  hostname matching and whether redirects are followed.
+- **Atlassian permissions:** resolved for the implemented Confluence/Jira
+  Server/Data Center connectors by using Neverland's source-grant access model.
+  Page/project permission synchronization remains an optional hardening feature,
+  not a blocker for the shipped polling connectors.
+- **Atlassian URL validation:** resolved for the implemented connector baseline:
+  reject `atlassian.net` and any subdomain ending in `.atlassian.net`; accept
+  non-cloud `http(s)` Server/Data Center base URLs. Redirect-host allowlisting is
+  still a future hardening decision only if operators require it.
 
 ## Default Decisions For Planning
 

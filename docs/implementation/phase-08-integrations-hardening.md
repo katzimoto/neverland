@@ -19,13 +19,15 @@ mocked services.
 
 ## Out Of Scope
 
-- NiFi integration.
-- Confluence Server/Data Center polling.
-- Jira Server/Data Center polling.
+- NiFi integration beyond the registered connector stub.
 - Old Microsoft Office binary extraction (`.doc`, `.xls`, `.ppt`).
 - Kafka consumer wiring that is not required for the production UI milestone.
+- Atlassian page/project permission synchronization beyond Neverland's existing
+  source-grant access model.
 
-These optional integration items move to Phase 09.
+Confluence and Jira Server/Data Center polling are already implemented in the
+connector registry and are part of the current backend capability set. Remaining
+optional integration items move to Phase 09.
 
 ## Phase 08a: Compose Runtime Foundation
 

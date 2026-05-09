@@ -422,5 +422,10 @@ the repository root and that the variable names match `.env.example` exactly.
 
 - Long-running worker containers are not present yet; ingestion and intelligence
   work are synchronous or API-triggered in the current runtime.
-- Optional NiFi, Atlassian, and legacy Office support remain deferred to Phase
+- NiFi remains a registered connector stub; event integration is deferred to
+  Phase 09.
+- Confluence and Jira Server/Data Center connectors are implemented, but
+  Atlassian page/project permission synchronization is not present; access is
+  governed by Neverland source grants.
+- Legacy Office support for `.doc`, `.xls`, and `.ppt` remains deferred to Phase
   09.
