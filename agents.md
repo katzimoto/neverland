@@ -280,7 +280,7 @@ Phase 07 is complete through PR #20. See
 `docs/implementation/phase-08-integrations-hardening.md`.
 
 Phase 08 execution order (sequential, one PR per sub-phase, stop for review after each):
-1. **08a** — Compose runtime foundation (`developer/phase-08a-compose-runtime`)
+1. **08a** — Compose runtime foundation (`developer/phase-08a-compose-runtime`, in development)
 2. **08b** — Frontend foundation (`developer/phase-08b-frontend-foundation`)
 3. **08c** — Main user product UI (`developer/phase-08c-main-product-ui`)
 4. **08d** — Production smoke and hardening (`developer/phase-08d-production-smoke`)
