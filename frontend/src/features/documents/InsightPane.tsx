@@ -42,7 +42,7 @@ export function InsightPane({ docId }: InsightPaneProps) {
       />
       <div className={styles.content}>
         {activeTab === "summary" && <SummaryTab docId={docId} />}
-        {activeTab === "qa" && <QAPanel docId={docId} />}
+        {activeTab === "qa" && <QAPanel />}
         {activeTab === "related" && <RelatedTab docId={docId} />}
         {activeTab === "annotations" && <AnnotationsTab docId={docId} />}
         {activeTab === "comments" && <CommentsTab docId={docId} />}
@@ -60,7 +60,8 @@ function SummaryTab({ docId }: { docId: string }) {
   });
 
   if (isLoading) return <p className={styles.muted}>Loading…</p>;
-  if (isError || !data) return <EmptyState title="No summary" body="AI summary not yet available for this document." />;
+  if (isError) return <EmptyState title="Failed to load summary" body="Could not reach the server." />;
+  if (!data) return <EmptyState title="No summary" body="AI summary not yet available for this document." />;
 
   return (
     <div className={styles.summaryBlock}>
@@ -85,8 +86,8 @@ function EntitiesSection({ docId }: { docId: string }) {
     <div className={styles.section}>
       <h3 className={styles.sectionHeading}>Entities</h3>
       <ul className={styles.entityList}>
-        {data.entities.map((e, i) => (
-          <li key={i} className={styles.entityRow}>
+        {data.entities.map((e) => (
+          <li key={`${e.label}-${e.type}`} className={styles.entityRow}>
             <span className={styles.entityLabel}>{e.label}</span>
             <Badge variant="neutral">{e.type}</Badge>
             <span className={styles.entityCount}>×{e.count}</span>

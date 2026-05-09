@@ -9,7 +9,6 @@ import { AnswerPanel } from "./AnswerPanel";
 import styles from "./QAPanel.module.css";
 
 interface QAPanelProps {
-  docId?: string;
   returnPath?: string;
 }
 
