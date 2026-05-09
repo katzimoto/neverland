@@ -7,6 +7,9 @@ All notable changes to this project will be documented in this file.
 ### Added
 - Phase 08f-1 production defaults: configurable CORS origins wired into FastAPI, Compose defaults pinned to the local frontend origin, and tracked JWT examples use production-change placeholders.
 - Phase 08f production hardening plan split into three reviewable PRs for production defaults, operations documentation, and Compose smoke testing.
+- Confluence and Jira Server/Data Center connectors that validate non-cloud
+  Atlassian URLs, expose admin form schemas, poll pages/issues, normalize
+  page/issue text, and download attachments for ingestion.
 - Data source connector abstraction — `src/services/connectors/` package with a
   `SourceConnector` protocol, `ConnectorField` for self-describing config schemas,
   `FolderConnector` (extracted from `sync_now`), and `NiFiConnector` stub ready for
