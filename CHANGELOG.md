@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Phase 10a: Metrics foundation — `prometheus-client` dependency, `GET /metrics` endpoint
+  returning Prometheus/OpenMetrics text format with standard process and GC metrics,
+  `neverland_build_info` gauge (version/commit/environment labels), HTTP request counter
+  (`neverland_http_requests_total`), request duration histogram
+  (`neverland_http_request_duration_seconds`, 12-bucket), and exception counter
+  (`neverland_http_exceptions_total`). Route labels are normalised to templates so no raw IDs
+  appear in metrics. `X-Request-ID` middleware echoes caller-supplied IDs or generates a UUID v4
+  when absent. `app_version` and `app_commit` settings added to `shared/config.py`.
 - Phase 08c: Main product UI — search workspace (SearchPage with URL-synced `?q=&mode=` params,
   keyboard `/` shortcut, skeleton loading, mode toggle, filter panel, result rows with MIME icon
   and "Why" tooltip), document preview page (split-pane PreviewPane + DetailsPanel with Summary,

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -8,7 +10,8 @@ from uuid import UUID, uuid4
 import sqlalchemy as sa
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
+from prometheus_client import CONTENT_TYPE_LATEST, REGISTRY, generate_latest
 from pydantic import BaseModel, Field
 from sqlalchemy import Engine
 
@@ -17,6 +20,7 @@ from services.alerts.repository import AlertRepository
 from services.alerts.service import AlertMatcher
 from services.annotations.models import AnnotationCreateRequest, AnnotationUpdateRequest
 from services.annotations.repository import AnnotationRepository
+from services.api.middleware import MetricsMiddleware, RequestIdMiddleware
 from services.auth.jwt import JwtService
 from services.auth.ldap import LdapAuthenticator
 from services.auth.models import LoginRequest, LoginResponse, TokenPayload, UserResponse
@@ -47,6 +51,7 @@ from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient
 from shared.config import Settings
 from shared.db import to_uuid
+from shared.metrics import make_metrics
 
 AUTH_SCHEME = "Bearer "
 
@@ -236,16 +241,34 @@ def create_app(
     ollama_client: OllamaClient | None = None,
 ) -> FastAPI:
     """Create the API app with Phase 02 auth routes."""
+    cfg = settings or Settings()
     app = FastAPI(title="Neverland API")
     app.state.engine = engine
-    app.state.settings = settings or Settings()
+    app.state.settings = cfg
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=app.state.settings.cors_origin_list,
+        allow_origins=cfg.cors_origin_list,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Metrics instruments (use the shared global registry).
+    build_info, requests_total, request_duration_seconds, exceptions_total = make_metrics()
+    build_info.labels(
+        version=cfg.app_version,
+        commit=cfg.app_commit,
+        environment=cfg.app_env,
+    ).set(1)
+
+    app.add_middleware(
+        MetricsMiddleware,
+        requests_total=requests_total,
+        request_duration_seconds=request_duration_seconds,
+        exceptions_total=exceptions_total,
+    )
+    app.add_middleware(RequestIdMiddleware)
+
     app.state.ldap_authenticator = ldap_authenticator
     app.state.translator = translator
     app.state.es_client = es_client
@@ -366,6 +389,11 @@ def create_app(
     @app.get("/health")
     def app_health() -> HealthResponse:
         return health("api")
+
+    @app.get("/metrics", include_in_schema=False)
+    def metrics() -> Response:
+        """Expose Prometheus metrics (bind to internal network in production)."""
+        return Response(generate_latest(REGISTRY), media_type=CONTENT_TYPE_LATEST)
 
     @app.post("/auth/logout")
     def logout(_: Annotated[TokenPayload, Depends(current_user)]) -> dict[str, bool]:
