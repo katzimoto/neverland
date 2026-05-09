@@ -88,6 +88,14 @@ One clear deliverable.
 ## Context
 Relevant files, phase plan, constraints, and prior decisions.
 
+## Relationships
+Parent: #<issue> or None
+Blocked by: #<issue-or-pr> or None
+Blocks: #<issue-or-pr> or None
+Depends on: #<issue-or-pr> or None
+Related: #<issue-or-pr> or None
+Follow-ups: #<issue> or None
+
 ## Allowed Changes
 Directories/files the agent may edit.
 
@@ -113,9 +121,114 @@ status:planning
 status:implementation
 status:review
 status:blocked
+status:parallel-safe
+status:needs-human
 risk:high
 risk:low
 ```
+
+### Issue relationships and dependency graph
+
+When issues are used, maintain explicit relationships in the issue body and update them as
+work changes. Prefer plain issue/PR references so GitHub backlinks stay visible.
+
+Relationship meanings:
+
+- **Parent**: an umbrella issue or phase-level tracker. Parent issues describe intent and
+  aggregate status; child issues contain executable work.
+- **Child mission**: an independently executable issue created from a parent. Child issues
+  must have their own objective, scope, owner, and acceptance criteria.
+- **Blocked by**: work must not start, or must not merge, until the referenced issue or PR is
+  complete. Agents may only do planning/review on blocked work unless the user explicitly
+  authorizes implementation.
+- **Blocks**: this issue prevents another issue from starting or merging. When completing
+  this issue, notify every blocked issue with a short unblocking comment.
+- **Depends on**: work may begin in parallel, but final validation or merge depends on the
+  referenced issue, PR, interface, migration, or decision.
+- **Related**: useful context only. No scheduling or merge constraint.
+- **Duplicate**: close the duplicate and link to the canonical issue.
+- **Follow-up**: new work discovered during implementation or review that should not expand
+  the current mission scope.
+
+Rules for dependency handling:
+
+- Before claiming an issue, inspect its `Relationships` section and linked PRs.
+- If `Blocked by` is not `None`, add `status:blocked` and do not implement beyond planning
+  unless explicitly instructed.
+- If this issue blocks others, list them under `Blocks` and mention them in the PR handoff.
+- When a blocker merges or closes, comment on blocked issues with `Unblocked by #<number>`
+  and replace `status:blocked` with `status:planning` or `status:implementation`.
+- Parent issues should remain open until all child missions are complete or intentionally
+  deferred.
+- Do not use dependencies to justify scope creep. Create follow-up issues instead.
+
+### Parallel multi-agent execution
+
+Multiple agents may work at the same time only when their missions are explicitly
+parallel-safe or their issue relationships show no blocking dependency.
+
+Parallel work is allowed when all of these are true:
+
+- Each agent has a different branch.
+- Each agent has a different mission queue row or GitHub Issue.
+- The `Allowed Changes` sections do not overlap except for coordination files.
+- No issue is marked `Blocked by` another in-flight mission.
+- Shared files such as `CHANGELOG.md`, `docs/README.md`, implementation indexes, migrations,
+  generated files, and package lockfiles are either assigned to one owner or updated during
+  the final integration pass.
+
+Parallel work is not allowed when any of these are true:
+
+- Two agents need to edit the same source file, migration chain, API contract, or shared
+  frontend state model.
+- One mission changes interfaces another mission consumes.
+- One mission depends on database schema, config, route, permission, or event changes from
+  another unmerged PR.
+- The phase plan says to serialize the work.
+
+Use this claim comment when starting parallel work:
+
+```md
+## Agent Claim
+
+Owner: Codex | Claude | Human
+Mission: #<issue> or `<phase-plan>.md`
+Branch: `<branch>`
+Parallel-safe: yes/no
+Allowed paths:
+- ...
+Expected shared-file touches:
+- None, or list files
+Blocked by: None, or #<issue-or-pr>
+```
+
+Use this handoff comment when transferring ownership between agents:
+
+```md
+## Ownership Transfer
+
+From: Codex | Claude | Human
+To: Codex | Claude | Human
+Branch: `<branch>`
+Reason: planning complete | implementation complete | review fixes needed | CI repair needed
+Current status:
+- ...
+Files already changed:
+- ...
+Do not touch:
+- ...
+Next action:
+- ...
+```
+
+Merge order for parallel PRs:
+
+1. Merge schema/config/API-contract PRs first.
+2. Rebase or update dependent branches after upstream merges.
+3. Run targeted tests for touched areas again after rebasing.
+4. Merge leaf UI/docs/test-only PRs last unless they are independent.
+5. If two PRs conflict, stop and assign one integration owner instead of letting both agents
+   resolve the same conflict independently.
 
 ### Branch and PR coordination
 
