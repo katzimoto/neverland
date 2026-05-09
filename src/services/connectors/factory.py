@@ -8,6 +8,7 @@ from typing import Any, cast
 
 from sqlalchemy.engine import RowMapping
 
+from services.connectors.atlassian import ConfluenceConnector, JiraConnector
 from services.connectors.base import SourceConnector
 from services.connectors.folder import FolderConnector
 from services.connectors.nifi import NiFiConnector
@@ -17,6 +18,8 @@ from services.connectors.nifi import NiFiConnector
 _REGISTRY: dict[str, Any] = {
     "folder": FolderConnector,
     "nifi": NiFiConnector,
+    "confluence": ConfluenceConnector,
+    "jira": JiraConnector,
 }
 
 
