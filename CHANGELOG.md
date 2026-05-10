@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Issue #107: Air-gapped translation language pack for English, Hebrew, Chinese Simplified, Korean, Thai, Arabic, French, Russian, and Spanish, bundled into the Docker artifact with validation. Adds a pinned `neverland/libretranslate:airgap` image with Argos Translate packs pre-installed at build time, `SUPPORTED_TRANSLATION_SOURCE/TARGET_LANGUAGES` env config, a `scripts/validate-translation-languages.sh` validation script, and updated air-gapped deployment and upgrade documentation.
 - Issue #86: Large list and lazy panel performance — paged history loading, paged document comments in the insight pane, deferred hidden document-panel fetch coverage, and memoized high-churn rows for search results, notifications, and admin sources without backend API or route changes.
 - Issue #64: Optional `monitoring` Compose profile with loopback-bound Prometheus/Grafana, tracked Prometheus scrape and alert rules, provisioned Grafana datasource and five starter dashboards, separate monitoring volumes, and unchanged default `docker compose up` behavior.
 - Issue #65: NiFi event integration with a typed Kafka event envelope, inline text and staged-file payload normalization, bounded fake-testable Kafka drain, event-level DLQ routing, post-processing/post-DLQ offset commits, source-grant preservation, and deterministic NiFi/Kafka tests without live services.

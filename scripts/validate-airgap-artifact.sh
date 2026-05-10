@@ -45,6 +45,7 @@ required_files=(
   "images/neverland-images.tar"
   "scripts/load-airgap-images.sh"
   "scripts/validate-airgap-artifact.sh"
+  "scripts/validate-translation-languages.sh"
   "scripts/preflight-upgrade-check.sh"
   "scripts/backup-airgap-data.sh"
   "scripts/restore-airgap-data.sh"

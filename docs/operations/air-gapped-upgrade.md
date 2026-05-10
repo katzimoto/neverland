@@ -48,6 +48,29 @@ default. This includes:
 - Optional monitoring data when the operator backs up monitoring volumes.
 - `.env` and local Compose overrides.
 
+## Translation language pack upgrade notes
+
+The `neverland/libretranslate:airgap` image bundles Argos Translate language packs
+at build time. When upgrading to a new release artifact:
+
+- The new `neverland/libretranslate:airgap` image in the artifact may include
+  additional or updated language packs compared to the previous release.
+- The `libretranslate_data` named volume persists across upgrades and retains
+  packages from the previous image. On first startup after image replacement,
+  Docker does not automatically merge new image packages into an existing volume.
+- If you need to apply updated packages from the new image to an existing volume,
+  stop the stack, remove only the `libretranslate_data` volume (this deletes
+  cached translations but not document metadata), and restart. Docker will then
+  copy the new image's packages into the empty volume.
+- Before removing the volume, confirm that `postgres_data`, `files_data`,
+  `elasticsearch_data`, and `qdrant_data` are all intact. Never use
+  `docker compose down -v` during an upgrade.
+- After startup, validate language support with:
+
+  ```bash
+  LIBRETRANSLATE_URL=http://localhost:5000 bash scripts/validate-translation-languages.sh
+  ```
+
 The scripts do not intentionally delete or recreate these volumes.
 
 ## What the backup script captures

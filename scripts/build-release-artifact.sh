@@ -45,19 +45,22 @@ backend_version_image="neverland/backend:${safe_version}"
 frontend_version_image="neverland/frontend:${safe_version}"
 backend_airgap_image="neverland/backend:airgap"
 frontend_airgap_image="neverland/frontend:airgap"
+libretranslate_version_image="neverland/libretranslate:${safe_version}"
+libretranslate_airgap_image="neverland/libretranslate:airgap"
 third_party_images=(
   "postgres:16-alpine"
   "redpandadata/redpanda:v24.1.9"
   "docker.elastic.co/elasticsearch/elasticsearch:8.14.3"
   "qdrant/qdrant:v1.10.1"
-  "libretranslate/libretranslate:latest"
   "ollama/ollama:latest"
 )
 all_images=(
   "$backend_airgap_image"
   "$frontend_airgap_image"
+  "$libretranslate_airgap_image"
   "$backend_version_image"
   "$frontend_version_image"
+  "$libretranslate_version_image"
   "${third_party_images[@]}"
 )
 
@@ -67,6 +70,7 @@ required_files=(
   ".env.airgap.example"
   "scripts/load-airgap-images.sh"
   "scripts/validate-airgap-artifact.sh"
+  "scripts/validate-translation-languages.sh"
   "scripts/preflight-upgrade-check.sh"
   "scripts/backup-airgap-data.sh"
   "scripts/restore-airgap-data.sh"
@@ -98,6 +102,12 @@ if [[ "${SKIP_DOCKER_BUILD:-0}" != "1" ]]; then
     -t "$frontend_airgap_image" \
     .
 
+  log "Building translation image with bundled language packs: $libretranslate_version_image and $libretranslate_airgap_image"
+  docker build -f docker/libretranslate.Dockerfile \
+    -t "$libretranslate_version_image" \
+    -t "$libretranslate_airgap_image" \
+    .
+
   for image in "${third_party_images[@]}"; do
     log "Pulling third-party runtime image: $image"
     docker pull "$image"
@@ -119,6 +129,7 @@ sed \
   .env.airgap.example > "$release_dir/.env.airgap.example"
 cp scripts/load-airgap-images.sh "$release_dir/scripts/load-airgap-images.sh"
 cp scripts/validate-airgap-artifact.sh "$release_dir/scripts/validate-airgap-artifact.sh"
+cp scripts/validate-translation-languages.sh "$release_dir/scripts/validate-translation-languages.sh"
 cp scripts/preflight-upgrade-check.sh "$release_dir/scripts/preflight-upgrade-check.sh"
 cp scripts/backup-airgap-data.sh "$release_dir/scripts/backup-airgap-data.sh"
 cp scripts/restore-airgap-data.sh "$release_dir/scripts/restore-airgap-data.sh"
@@ -174,6 +185,7 @@ MANIFEST
     images/neverland-images.tar \
     scripts/load-airgap-images.sh \
     scripts/validate-airgap-artifact.sh \
+    scripts/validate-translation-languages.sh \
     scripts/preflight-upgrade-check.sh \
     scripts/backup-airgap-data.sh \
     scripts/restore-airgap-data.sh \
