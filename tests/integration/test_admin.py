@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from uuid import uuid4
 
 import sqlalchemy as sa
@@ -538,8 +540,88 @@ def test_admin_create_source_persists_config(migrated_engine: Engine) -> None:
     assert response.status_code == 201
     data = response.json()
     assert data["type"] == "nifi"
-    assert data["config"]["api_token"] == "secret"
-    assert data["config"]["base_url"] == "http://nifi:8080"
+    assert "config" not in data
+
+    with migrated_engine.connect() as connection:
+        row = connection.execute(
+            sa.text("SELECT config FROM ingestion_sources WHERE id = :id"),
+            {"id": data["id"].replace("-", "")},
+        ).scalar_one()
+    stored_config = json.loads(row) if isinstance(row, str) else row
+    assert stored_config["api_token"] == "secret"
+    assert stored_config["base_url"] == "http://nifi:8080"
+
+
+def test_admin_test_source_connection_validates_without_leaking_config(
+    migrated_engine: Engine, tmp_path: Path
+) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+    missing_folder = tmp_path / "missing"
+    response = client.post(
+        "/admin/sources",
+        json={
+            "name": "Folder",
+            "type": "folder",
+            "path": str(missing_folder),
+            "source_language": "en",
+            "config": {"path": str(missing_folder), "api_token": "secret-token"},
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 201
+    source_id = response.json()["id"]
+    assert "config" not in response.json()
+
+    test_response = client.post(
+        f"/admin/sources/{source_id}/test-connection",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert test_response.status_code == 400
+    detail = test_response.json()["detail"]
+    assert "does not exist" in detail
+    assert "secret-token" not in detail
+
+
+def test_admin_list_sources_returns_last_sync_state(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    source_id = uuid4()
+    with migrated_engine.begin() as connection:
+        connection.execute(
+            sa.text(
+                """
+                INSERT INTO ingestion_sources (
+                    id, name, type, source_language, last_sync_status,
+                    last_sync_indexed, last_sync_skipped, last_sync_failed, last_sync_error
+                )
+                VALUES (
+                    :id, 'Synced', 'folder', 'en', 'failed', 2, 1, 1,
+                    'Source path does not exist'
+                )
+                """
+            ),
+            {"id": source_id.hex},
+        )
+
+    response = client.get("/admin/sources", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    data = response.json()[0]
+    assert data["last_sync_status"] == "failed"
+    assert data["last_sync_indexed"] == 2
+    assert data["last_sync_skipped"] == 1
+    assert data["last_sync_failed"] == 1
+    assert data["last_sync_error"] == "Source path does not exist"
+    assert "config" not in data
 
 
 def test_admin_list_sources_omits_config(migrated_engine: Engine) -> None:

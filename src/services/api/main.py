@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from collections.abc import Awaitable, Callable, Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal, cast
 from uuid import UUID, uuid4
@@ -106,6 +108,67 @@ def _config_bool(value: Any, default: bool) -> bool:
     if isinstance(value, str):
         return value.lower() in {"1", "true", "yes", "on"}
     return bool(value)
+
+
+_SENSITIVE_CONFIG_KEYS = {"api_token", "password", "token", "secret", "client_secret"}
+
+
+def _source_config(value: Any) -> dict[str, Any]:
+    """Return a source config dict without exposing invalid JSON to callers."""
+    try:
+        parsed = _parse_json(value)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _sanitize_source_error(message: str, source_row: Any | None = None) -> str:
+    """Redact connector secrets from an operator-facing source error message."""
+    sanitized = message or "Source operation failed"
+    if source_row is not None:
+        config = _source_config(source_row.get("config"))
+        for key, value in config.items():
+            if key.lower() in _SENSITIVE_CONFIG_KEYS and value not in (None, ""):
+                sanitized = sanitized.replace(str(value), "[redacted]")
+    sanitized = re.sub(r"//([^:/\s]+):([^@/\s]+)@", r"//[redacted]:[redacted]@", sanitized)
+    return sanitized
+
+
+def _record_source_sync_state(
+    connection: sa.Connection,
+    source_id: UUID,
+    *,
+    status: str,
+    indexed: int = 0,
+    skipped: int = 0,
+    failed: int = 0,
+    error: str | None = None,
+) -> None:
+    """Persist the latest admin sync summary for an ingestion source."""
+    connection.execute(
+        sa.text(
+            """
+            UPDATE ingestion_sources
+            SET last_sync_status = :status,
+                last_sync_indexed = :indexed,
+                last_sync_skipped = :skipped,
+                last_sync_failed = :failed,
+                last_sync_error = :error,
+                last_sync_at = :synced_at,
+                updated_at = :synced_at
+            WHERE id = :id
+            """
+        ),
+        {
+            "id": source_id.hex,
+            "status": status,
+            "indexed": indexed,
+            "skipped": skipped,
+            "failed": failed,
+            "error": error,
+            "synced_at": datetime.now(UTC),
+        },
+    )
 
 
 def _audit_log(
@@ -499,7 +562,11 @@ def create_app(
                 connector = build_connector(source_row)
                 connector.validate()
             except ValueError as exc:
-                raise HTTPException(status_code=400, detail=str(exc)) from exc
+                detail = _sanitize_source_error(str(exc), source_row)
+                _record_source_sync_state(
+                    connection, source_id, status="failed", failed=1, error=detail
+                )
+                raise HTTPException(status_code=400, detail=detail) from exc
 
             doc_repo = DocumentRepository(connection)
             translator = app.state.translator or LibreTranslateClient(
@@ -535,7 +602,26 @@ def create_app(
             results: dict[str, int] = {"indexed": 0, "skipped": 0, "failed": 0}
 
             connector_type = str(source_row["type"])
-            for item in connector.fetch_documents():
+            try:
+                documents = connector.fetch_documents()
+            except NotImplementedError as exc:
+                detail = _sanitize_source_error(str(exc), source_row)
+                _record_source_sync_state(
+                    connection, source_id, status="failed", failed=1, error=detail
+                )
+                raise HTTPException(status_code=400, detail=detail) from exc
+            except Exception as exc:
+                detail = _sanitize_source_error(
+                    "Sync failed while reading source documents. "
+                    "Check connector settings and source availability.",
+                    source_row,
+                )
+                _record_source_sync_state(
+                    connection, source_id, status="failed", failed=1, error=detail
+                )
+                raise HTTPException(status_code=502, detail=detail) from exc
+
+            for item in documents:
                 app.state.metrics.ingestion_documents_total.labels(
                     safe_label_value(connector_type), "discovered"
                 ).inc()
@@ -571,16 +657,16 @@ def create_app(
                         ).inc()
                 finally:
                     if connector_type == "smb" and item.path:
-                        try:
+                        with suppress(OSError):
                             os.unlink(item.path)
-                        except OSError:
-                            pass
 
             sync_outcome = "failure" if results["failed"] else "success"
             app.state.metrics.ingestion_syncs_total.labels(
                 safe_label_value(connector_type), sync_outcome
             ).inc()
-            return results
+            status = "failed" if results["failed"] else "success"
+            _record_source_sync_state(connection, source_id, status=status, **results)
+            return {"status": status, **results}
 
     @app.post("/search", response_model=SearchResponse)
     def search(
@@ -1489,6 +1575,34 @@ def create_app(
         require_admin(user)
         return connector_types()
 
+    @app.post("/admin/sources/{source_id}/test-connection")
+    def admin_test_source_connection(
+        source_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, str]:
+        """Validate a source configuration without fetching documents."""
+        require_admin(user)
+        with app.state.engine.begin() as connection:
+            source_row = (
+                connection.execute(
+                    sa.text("SELECT * FROM ingestion_sources WHERE id = :id"),
+                    {"id": source_id.hex},
+                )
+                .mappings()
+                .first()
+            )
+            if source_row is None:
+                raise HTTPException(status_code=404, detail="Source not found")
+
+            try:
+                connector = build_connector(source_row)
+                connector.validate()
+            except ValueError as exc:
+                detail = _sanitize_source_error(str(exc), source_row)
+                raise HTTPException(status_code=400, detail=detail) from exc
+
+            return {"status": "ok", "message": "Source configuration is valid."}
+
     @app.get("/admin/sources")
     def admin_list_sources(
         user: Annotated[TokenPayload, Depends(current_user)],
@@ -1498,7 +1612,9 @@ def create_app(
             rows = connection.execute(
                 sa.text(
                     """
-                    SELECT id, name, type, path, source_language, enabled, created_at
+                    SELECT id, name, type, path, source_language, enabled, created_at,
+                           last_sync_status, last_sync_indexed, last_sync_skipped,
+                           last_sync_failed, last_sync_error, last_sync_at
                     FROM ingestion_sources ORDER BY created_at DESC
                     """
                 )
@@ -1512,6 +1628,12 @@ def create_app(
                     "source_language": row["source_language"],
                     "enabled": row["enabled"],
                     "created_at": _fmt_dt(row["created_at"]),
+                    "last_sync_status": row.get("last_sync_status"),
+                    "last_sync_indexed": row.get("last_sync_indexed"),
+                    "last_sync_skipped": row.get("last_sync_skipped"),
+                    "last_sync_failed": row.get("last_sync_failed"),
+                    "last_sync_error": row.get("last_sync_error"),
+                    "last_sync_at": _fmt_dt(row.get("last_sync_at")),
                 }
                 for row in rows
             ]
@@ -1558,7 +1680,13 @@ def create_app(
                 "path": request.path,
                 "source_language": request.source_language,
                 "enabled": request.enabled,
-                "config": request.config,
+                "created_at": None,
+                "last_sync_status": None,
+                "last_sync_indexed": None,
+                "last_sync_skipped": None,
+                "last_sync_failed": None,
+                "last_sync_error": None,
+                "last_sync_at": None,
             }
 
     @app.post("/admin/sources/{source_id}/permissions", status_code=201)
