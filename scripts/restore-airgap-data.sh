@@ -118,13 +118,13 @@ log "starting PostgreSQL only for database restore"
 postgres_user="$(env_value POSTGRES_USER postgres)"
 postgres_db="$(env_value POSTGRES_DB app)"
 log "restoring PostgreSQL database $postgres_db"
-cat "$backup_dir/postgres/postgres.dump" | "${compose_cmd[@]}" exec -T postgres pg_restore \
+"${compose_cmd[@]}" exec -T postgres pg_restore \
   -U "$postgres_user" \
   -d "$postgres_db" \
   --clean \
   --if-exists \
   --no-owner \
-  --no-privileges
+  --no-privileges < "$backup_dir/postgres/postgres.dump"
 
 project_name="$(env_value COMPOSE_PROJECT_NAME "$(basename "$(pwd)")")"
 files_volume="${project_name}_files_data"
