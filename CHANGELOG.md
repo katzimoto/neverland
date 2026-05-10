@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Documented host-mounted SMB/CIFS share ingestion through the existing `folder` connector, including read-only host mounts, read-only `api` bind mounts, source setup, security guidance, air-gapped notes, upgrade path stability, and troubleshooting for Issue #78.
 - Air-gapped upgrade workflow with read-only preflight checks, fail-closed backup, explicit restore, upgrade orchestration, release manifest safety metadata, and operator documentation that preserves data volumes while loading local images and running migrations.
 - Release artifact and air-gapped Compose deployment path with prebuilt image bundling, offline validation/loading scripts, air-gapped environment template, GitHub Actions workflow, and operator runbook for download-to-first-use installs.
 - Added an admin-only `/admin/readiness` endpoint with cached dependency probes and Prometheus dependency health metrics.

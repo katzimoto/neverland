@@ -192,6 +192,31 @@ The upgrade script starts PostgreSQL, runs this migration job, and refuses to
 start the upgraded stack if migrations fail. This prevents the API and frontend
 from running against a partially migrated database.
 
+
+## Host-mounted SMB shares during upgrades
+
+Host-mounted SMB/CIFS shares are external host state; they are not packaged
+inside Neverland release artifacts and are not recreated by the upgrade scripts.
+If an existing deployment uses an SMB share through the `folder` connector, keep
+both the host mount path, such as `/mnt/neverland-smb/legal`, and the container
+path, such as `/data/smb/legal`, stable across upgrades so existing source
+configuration continues to work.
+
+Before starting the upgraded stack in the #75 upgrade flow, remount or verify the
+SMB share on the host:
+
+```bash
+mount | grep /mnt/neverland-smb/legal
+ls -la /mnt/neverland-smb/legal
+```
+
+Back up `/etc/fstab` or the equivalent systemd mount configuration and the
+root-owned SMB credential file outside Neverland. Do not store real SMB
+credentials in `.env`, release artifacts, Compose examples, documentation, or
+screenshots. Do not use destructive volume commands to fix SMB mount issues;
+repair the host mount, verify the `api` service bind mount, and then restart the
+stack without deleting Neverland volumes.
+
 ## Post-upgrade validation checklist
 
 Complete this checklist before declaring the upgrade successful:
