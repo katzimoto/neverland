@@ -67,6 +67,134 @@ On a clean volume, Compose waits for PostgreSQL, runs the `migrate` job, waits
 for Elasticsearch, Qdrant, LibreTranslate, and Ollama health checks, then starts
 the API and frontend.
 
+
+## Host-Mounted SMB Share Ingestion
+
+Use a host-mounted SMB/CIFS share when operators already manage Windows or Samba
+shares at the operating-system layer and Neverland only needs a read-only file
+view for ingestion. This deployment path keeps SMB credentials on the Docker
+host instead of storing them in Neverland source configuration, and it works when
+a read-only ingestion path is enough.
+
+This path uses the existing `folder` connector: the Docker host mounts the SMB
+share, Docker Compose bind-mounts that host path into the `api` container, and
+Neverland reads the in-container path as local files. It is independent from the
+native SMB connector work tracked in #77 and does not mirror NTFS ACLs into
+Neverland permissions.
+
+### Linux SMB/CIFS host mount
+
+Install the CIFS client package for your Linux distribution before mounting a
+share. Many distributions package it as `cifs-utils`.
+
+Create a host mount point and mount the share read-only:
+
+```bash
+sudo mkdir -p /mnt/neverland-smb/legal
+sudo mount -t cifs //fileserver/department /mnt/neverland-smb/legal \
+  -o credentials=/etc/neverland/smb-legal.credentials,ro,vers=3.0,iocharset=utf8
+```
+
+Store generic SMB credentials in a root-owned host file. Keep real credentials
+out of Git, `.env`, Compose examples, documentation, and screenshots:
+
+```ini
+username=neverland-reader
+password=REPLACE_WITH_SECRET
+domain=CORP
+```
+
+Lock down the credential file:
+
+```bash
+sudo chown root:root /etc/neverland/smb-legal.credentials
+sudo chmod 600 /etc/neverland/smb-legal.credentials
+```
+
+Optional `/etc/fstab` entry for remounting after reboot:
+
+```fstab
+//fileserver/department /mnt/neverland-smb/legal cifs credentials=/etc/neverland/smb-legal.credentials,ro,vers=3.0,iocharset=utf8,nofail 0 0
+```
+
+Verify the host can see the mounted files before starting Compose:
+
+```bash
+mount | grep /mnt/neverland-smb/legal
+ls -la /mnt/neverland-smb/legal
+```
+
+### Docker Compose bind mount
+
+Bind-mount the verified host mount into the `api` service as read-only. The host
+source path must exist before `docker compose up`, and the container destination
+should remain stable across upgrades, for example `/data/smb/<source-name>`:
+
+```yaml
+services:
+  api:
+    volumes:
+      - files_data:/data
+      - /mnt/neverland-smb/legal:/data/smb/legal:ro
+```
+
+Use `:ro` on the Docker bind mount even when the SMB mount is already read-only.
+Keep both the host path and container path stable across upgrades so existing
+Neverland source definitions continue to point at the same in-container path. In
+air-gapped deployments, this path does not require internet access after host
+prerequisites such as CIFS tooling are installed.
+
+### Neverland source setup
+
+Create the source from the admin UI or admin API with:
+
+```text
+Source type: folder
+Path: /data/smb/legal
+```
+
+The `folder` connector sees the mounted SMB share as local files. The source
+path must be the container path, not the host path. Neverland source permissions
+control which groups can search and preview indexed documents after ingestion;
+the SMB service account controls which files are visible to the host mount.
+
+### Security guidance
+
+- Use a dedicated read-only SMB service account.
+- Scope that account only to the intended shares or subtrees.
+- Store SMB credentials in a root-owned host credential file, not in Git.
+- Do not put real SMB credentials in `.env`, Compose examples, docs, or
+  screenshots.
+- Prefer both a read-only SMB mount and a read-only Docker bind mount.
+- Neverland does not mirror NTFS ACLs in this host-mounted SMB path.
+- Do not rely on Windows ACLs for per-user Neverland authorization after
+  ingestion; use Neverland source permissions and group grants.
+
+### Limitations
+
+- Mount lifecycle, reconnect behavior, DFS, and failover are host/operator
+  responsibilities.
+- Neverland sees the share as local files through the `folder` connector.
+- NTFS ACLs are not mirrored into Neverland permissions.
+- File locking and partial writes are not deeply handled by this path.
+- If files change while syncing, behavior depends on mounted filesystem timing.
+- Native SMB connector UX is tracked separately in #77.
+- Optional NTFS ACL sync is tracked separately in #79.
+
+### Troubleshooting host-mounted SMB sources
+
+| Symptom | Checks |
+| --- | --- |
+| Container cannot see files | Verify `mount | grep /mnt/neverland-smb/legal`, confirm the bind mount is under the `api` service, and run `docker compose config` to confirm the rendered path. |
+| Permission denied | Confirm the SMB service account can read the share, the host mount is readable, the credential file is root-owned with mode `600`, and the Docker bind mount uses the intended source path. |
+| Empty ingestion | Confirm the Neverland source path is `/data/smb/legal` or another container path, not `/mnt/neverland-smb/legal`; also confirm the mounted subtree contains regular files. |
+| Mount disappears after reboot | Add and validate an `/etc/fstab` or equivalent systemd mount entry, then remount and verify before starting Neverland. |
+| Slow scans | Narrow the SMB account/share scope, use a smaller mounted subtree per source, verify network and SMB server performance, and schedule syncs outside peak file-server usage. |
+
+SMB mount state is external host state. Back up the mount configuration and
+credential file outside Neverland, keep paths stable across upgrades, and do not
+use destructive volume commands to fix host mount issues.
+
 ## Air-Gapped Release Artifact
 
 For offline deployments, use the versioned release archive generated by the

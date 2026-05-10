@@ -168,6 +168,98 @@ When adding a folder source in Neverland, use the container path from `.env`, fo
 example `/sources/folder`. Do not use the host path in the source definition;
 the API runs inside the container.
 
+
+### Host-Mounted SMB Shares
+
+For Windows or Samba file shares, the recommended interim deployment path is to
+mount the SMB/CIFS share on the Docker host and expose it to Neverland as a
+read-only `folder` source. Use this path when operators already manage SMB
+mounts at the OS level, SMB credentials should remain on the host instead of in
+Neverland source configuration, a read-only ingestion path is sufficient, or the
+native SMB connector tracked in #77 is unavailable or not preferred. This path is
+independent from #77 and does not mirror NTFS ACLs; optional NTFS ACL sync is
+tracked separately in #79.
+
+On the air-gapped host, install CIFS tooling such as `cifs-utils` from approved
+offline packages, then create and verify the host mount before starting
+Neverland:
+
+```bash
+sudo mkdir -p /mnt/neverland-smb/legal
+sudo mount -t cifs //fileserver/department /mnt/neverland-smb/legal \
+  -o credentials=/etc/neverland/smb-legal.credentials,ro,vers=3.0,iocharset=utf8
+```
+
+Example credential file format, with placeholders only:
+
+```ini
+username=neverland-reader
+password=REPLACE_WITH_SECRET
+domain=CORP
+```
+
+Secure the host credential file and keep real SMB secrets out of the release
+artifact, `.env`, Compose files, Git, docs, and screenshots:
+
+```bash
+sudo chown root:root /etc/neverland/smb-legal.credentials
+sudo chmod 600 /etc/neverland/smb-legal.credentials
+```
+
+Optional `/etc/fstab` entry:
+
+```fstab
+//fileserver/department /mnt/neverland-smb/legal cifs credentials=/etc/neverland/smb-legal.credentials,ro,vers=3.0,iocharset=utf8,nofail 0 0
+```
+
+Verify the mount before starting or upgrading the stack:
+
+```bash
+mount | grep /mnt/neverland-smb/legal
+ls -la /mnt/neverland-smb/legal
+```
+
+Add a read-only bind mount to the `api` service in a local Compose override,
+using a stable container path such as `/data/smb/<source-name>`:
+
+```yaml
+services:
+  api:
+    volumes:
+      - /mnt/neverland-smb/legal:/data/smb/legal:ro
+```
+
+The host source path must exist before `docker compose up`. Keep the host mount
+path and container path stable across upgrades; the SMB mount is external host
+state and is not packaged inside Neverland release artifacts.
+
+Create the Neverland source with:
+
+```text
+Source type: folder
+Path: /data/smb/legal
+```
+
+The `folder` connector sees the mounted SMB share as local files. The Neverland
+source path must be the container path, not `/mnt/neverland-smb/legal` on the
+host. Neverland source permissions control which groups can search and preview
+indexed documents, while the SMB service account controls which files are visible
+to the mount. Do not rely on Windows ACLs for per-user Neverland authorization
+after ingestion.
+
+Troubleshooting notes:
+
+- If the container cannot see files, verify the host mount, the `api` service
+  bind mount, and the rendered Compose config.
+- If ingestion is empty, confirm the source uses the container path and that the
+  mounted subtree contains regular files.
+- If permission is denied, confirm the SMB service account, host mount
+  permissions, and root-owned credential file permissions.
+- If the mount disappears after reboot, validate `/etc/fstab` or the equivalent
+  systemd mount before starting Neverland.
+- If scans are slow, narrow the mounted subtree or source scope and check network
+  and SMB server performance.
+
 ### Confluence Server/Data Center
 
 Add a Confluence source with:
