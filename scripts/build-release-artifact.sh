@@ -67,7 +67,12 @@ required_files=(
   ".env.airgap.example"
   "scripts/load-airgap-images.sh"
   "scripts/validate-airgap-artifact.sh"
+  "scripts/preflight-upgrade-check.sh"
+  "scripts/backup-airgap-data.sh"
+  "scripts/restore-airgap-data.sh"
+  "scripts/upgrade-airgap.sh"
   "docs/operations/air-gapped-deployment.md"
+  "docs/operations/air-gapped-upgrade.md"
   "docs/operations/production-compose.md"
 )
 for file in "${required_files[@]}"; do
@@ -114,9 +119,41 @@ sed \
   .env.airgap.example > "$release_dir/.env.airgap.example"
 cp scripts/load-airgap-images.sh "$release_dir/scripts/load-airgap-images.sh"
 cp scripts/validate-airgap-artifact.sh "$release_dir/scripts/validate-airgap-artifact.sh"
-chmod +x "$release_dir/scripts/load-airgap-images.sh" "$release_dir/scripts/validate-airgap-artifact.sh"
+cp scripts/preflight-upgrade-check.sh "$release_dir/scripts/preflight-upgrade-check.sh"
+cp scripts/backup-airgap-data.sh "$release_dir/scripts/backup-airgap-data.sh"
+cp scripts/restore-airgap-data.sh "$release_dir/scripts/restore-airgap-data.sh"
+cp scripts/upgrade-airgap.sh "$release_dir/scripts/upgrade-airgap.sh"
+chmod +x "$release_dir/scripts/"*.sh
 cp docs/operations/air-gapped-deployment.md "$release_dir/docs/air-gapped-deployment.md"
+cp docs/operations/air-gapped-upgrade.md "$release_dir/docs/air-gapped-upgrade.md"
 cp docs/operations/production-compose.md "$release_dir/docs/production-compose.md"
+
+git_commit="unknown"
+if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  git_commit="$(git rev-parse HEAD 2>/dev/null || printf unknown)"
+fi
+created_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+cat > "$release_dir/release-manifest.json" <<MANIFEST
+{
+  "release_version": "$safe_version",
+  "git_commit": "$git_commit",
+  "created_at": "$created_at",
+  "images": [
+$(printf '    "%s"' "${all_images[0]}")
+$(for image in "${all_images[@]:1}"; do printf ',\n    "%s"' "$image"; done)
+
+  ],
+  "compose_files": ["docker-compose.yml", "docker-compose.airgap.yml"],
+  "minimum_docker_version": "24.0",
+  "minimum_compose_version": "2.20",
+  "migrations": {"expected": true, "service": "migrate", "command": "alembic upgrade head"},
+  "persistent_data": {
+    "volumes": ["files_data", "postgres_data", "kafka_data", "elasticsearch_data", "qdrant_data", "libretranslate_data", "ollama_data"],
+    "paths": ["NEVERLAND_FOLDER_SOURCE_HOST_PATH"]
+  },
+  "backup_restore_script_version": "1.0"
+}
+MANIFEST
 
 {
   printf 'Neverland release artifact %s\n\n' "$version"
@@ -124,6 +161,8 @@ cp docs/operations/production-compose.md "$release_dir/docs/production-compose.m
   printf -- '- %s\n' "${all_images[@]}"
   printf '\nStart command:\n'
   printf 'docker compose --env-file .env -f docker-compose.airgap.yml up -d\n'
+  printf '\nUpgrade existing deployment from that deployment directory:\n'
+  printf '../%s/scripts/upgrade-airgap.sh --artifact-dir ../%s\n' "$release_name" "$release_name"
 } > "$release_dir/README-airgap.txt"
 
 (
@@ -135,8 +174,14 @@ cp docs/operations/production-compose.md "$release_dir/docs/production-compose.m
     images/neverland-images.tar \
     scripts/load-airgap-images.sh \
     scripts/validate-airgap-artifact.sh \
+    scripts/preflight-upgrade-check.sh \
+    scripts/backup-airgap-data.sh \
+    scripts/restore-airgap-data.sh \
+    scripts/upgrade-airgap.sh \
     docs/air-gapped-deployment.md \
+    docs/air-gapped-upgrade.md \
     docs/production-compose.md \
+    release-manifest.json \
     README-airgap.txt > checksums.txt
 )
 

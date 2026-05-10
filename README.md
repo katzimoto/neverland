@@ -40,6 +40,7 @@ docker compose config
 docker compose run --rm migrate
 docker compose logs -f api frontend migrate
 docker compose down
+# Destructive reset only; never use during upgrades because it deletes volumes.
 docker compose down -v
 ```
 
@@ -77,4 +78,6 @@ docker compose --env-file .env -f docker-compose.airgap.yml up -d
 
 See `docs/operations/air-gapped-deployment.md` for the complete
 download-to-first-use guide, including connector setup, local users/groups, LDAP,
-health checks, backup, restore, and current limitations.
+health checks, backup, restore, and current limitations. For existing offline
+deployments, follow `docs/operations/air-gapped-upgrade.md` to load a newer
+release, run migrations, and preserve data volumes.

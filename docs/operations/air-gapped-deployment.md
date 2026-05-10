@@ -20,12 +20,20 @@ neverland-release-<version>/
   scripts/
     load-airgap-images.sh
     validate-airgap-artifact.sh
+    preflight-upgrade-check.sh
+    backup-airgap-data.sh
+    restore-airgap-data.sh
+    upgrade-airgap.sh
   docs/
     air-gapped-deployment.md
+    air-gapped-upgrade.md
     production-compose.md
+  release-manifest.json
   checksums.txt
   README-airgap.txt
 ```
+
+`release-manifest.json` records the release version, commit, Compose files, image tags, minimum Docker/Compose versions, migration expectation, persistent data locations, and backup/restore script version.
 
 Use `docker-compose.airgap.yml` for offline hosts. It contains only `image:`
 references and does not require Docker builds. The root `docker-compose.yml` is
@@ -274,6 +282,10 @@ After the stack is healthy:
 9. Add a comment or annotation if those feature flags remain enabled.
 10. Review `/admin/readiness` and service logs for degraded dependencies.
 
+## Upgrade Existing Deployments
+
+For an existing air-gapped deployment, do not reinstall from scratch and do not recreate volumes. Follow `docs/air-gapped-upgrade.md` from the release artifact, or `docs/operations/air-gapped-upgrade.md` in the source tree. The upgrade flow preserves `.env`, backs up PostgreSQL and files, loads images from the local artifact, runs migrations, and repeatedly warns against `docker compose down -v`.
+
 ## Stop, Reset, Backup, And Restore
 
 Stop without deleting data:
@@ -283,7 +295,7 @@ docker compose --env-file .env -f docker-compose.airgap.yml down
 ```
 
 Reset all named volumes, deleting metadata, files, indexes, caches, and Kafka
-data:
+data. This is a destructive first-run reset command only; never use it for upgrades:
 
 ```bash
 docker compose --env-file .env -f docker-compose.airgap.yml down -v
@@ -292,7 +304,7 @@ docker compose --env-file .env -f docker-compose.airgap.yml down -v
 Back up `postgres_data`, `files_data`, `elasticsearch_data`, and `qdrant_data`
 together while the stack is stopped, or from a storage snapshot that captures
 them at the same point in time. Keep a logical PostgreSQL dump with volume
-backups when possible. See `docs/production-compose.md` for detailed volume copy
+backups when possible. For upgrades, prefer `scripts/backup-airgap-data.sh` and `scripts/restore-airgap-data.sh`; see `docs/air-gapped-upgrade.md`. See `docs/production-compose.md` for detailed volume copy
 commands and restore sequencing.
 
 Restore all consistency-sensitive volumes from the same backup set. Do not mix a

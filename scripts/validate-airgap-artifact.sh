@@ -45,7 +45,13 @@ required_files=(
   "images/neverland-images.tar"
   "scripts/load-airgap-images.sh"
   "scripts/validate-airgap-artifact.sh"
+  "scripts/preflight-upgrade-check.sh"
+  "scripts/backup-airgap-data.sh"
+  "scripts/restore-airgap-data.sh"
+  "scripts/upgrade-airgap.sh"
   "docs/air-gapped-deployment.md"
+  "docs/air-gapped-upgrade.md"
+  "release-manifest.json"
   "docs/production-compose.md"
   "checksums.txt"
 )
@@ -60,6 +66,13 @@ log "Required files are present"
 
 sha256sum -c checksums.txt
 log "Checksums are valid"
+
+for key in release_version git_commit created_at images compose_files minimum_docker_version minimum_compose_version migrations persistent_data backup_restore_script_version; do
+  if ! grep -Eq "\"${key}\"[[:space:]]*:" release-manifest.json; then
+    fail "release-manifest.json is missing required key: $key"
+  fi
+done
+log "Release manifest includes required upgrade safety keys"
 
 tmp_dir="$(mktemp -d)"
 cleanup() { rm -rf "$tmp_dir"; }
