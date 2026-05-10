@@ -249,3 +249,62 @@ def test_smb_failures_are_sanitized(monkeypatch: pytest.MonkeyPatch, failure: st
     assert "SMB" in message
     assert SECRET not in message
     assert "svc-neverland" not in message
+
+
+def test_acl_data_included_in_metadata_when_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake = _FakeSmbClient()
+    root = r"\\fileserver.local\department\legal\contracts"
+    report = r"\\fileserver.local\department\legal\contracts\report.txt"
+    fake.directories[root] = [_FakeEntry("report.txt", is_dir=False, size=11)]
+    fake.files[report] = b"hello world"
+    _install_fake(monkeypatch, fake)
+    acl_data = [{"type": "allow", "sid": "S-1-5-21-1", "access_mask": 1}]
+    monkeypatch.setattr(SmbConnector, "_read_acl", lambda self, path: acl_data)
+
+    docs = list(SmbConnector(_config(acl_sync_enabled="true")).fetch_documents())
+
+    assert docs[0].metadata["acl_data"] == acl_data
+
+
+def test_acl_read_failure_sets_none_in_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake = _FakeSmbClient()
+    root = r"\\fileserver.local\department\legal\contracts"
+    report = r"\\fileserver.local\department\legal\contracts\report.txt"
+    fake.directories[root] = [_FakeEntry("report.txt", is_dir=False, size=11)]
+    fake.files[report] = b"hello world"
+    _install_fake(monkeypatch, fake)
+    monkeypatch.setattr(SmbConnector, "_read_acl", lambda self, path: None)
+
+    docs = list(SmbConnector(_config(acl_sync_enabled="true")).fetch_documents())
+
+    assert docs[0].metadata["acl_data"] is None
+
+
+def test_acl_read_failure_is_sanitized(caplog: pytest.LogCaptureFixture) -> None:
+    connector = SmbConnector(_config(acl_sync_enabled="true"))
+
+    assert connector._read_acl(r"\\fileserver.local\department\secret.txt") is None
+    assert SECRET not in caplog.text
+    assert "secret.txt" not in caplog.text
+
+
+def test_query_acl_normalizes_descriptor(monkeypatch: pytest.MonkeyPatch) -> None:
+    class _Sid:
+        def to_str(self) -> str:
+            return "S-1-5-21-1"
+
+    descriptor = SimpleNamespace(dacl=[SimpleNamespace(type="allow", sid=_Sid(), access_mask=7)])
+    fake = SimpleNamespace(query_security_descriptor=lambda _path: descriptor)
+    monkeypatch.setattr(smb_module, "smbclient", fake)
+
+    assert SmbConnector(_config())._query_acl("ignored") == [
+        {"type": "allow", "sid": "S-1-5-21-1", "access_mask": 7}
+    ]
+
+
+def test_query_acl_rejects_unsupported_descriptor(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake = SimpleNamespace(query_security_descriptor=lambda _path: SimpleNamespace(dacl=None))
+    monkeypatch.setattr(smb_module, "smbclient", fake)
+
+    with pytest.raises(ValueError, match="acl_dacl_missing"):
+        SmbConnector(_config())._query_acl("ignored")

@@ -10,6 +10,7 @@ from sqlalchemy.engine import Connection
 
 from services.documents.repository import DocumentRepository
 from services.intelligence.ollama_client import OllamaClient
+from services.permissions.acl_repository import SmbAclRepository
 from services.search.encoder import MockEncoder
 from services.search.qdrant import QdrantSearchClient
 from shared.metrics import current_metrics
@@ -31,6 +32,8 @@ class RagService:
         ollama_client: OllamaClient,
         connection: Connection,
         system_prompt: str | None = None,
+        acl_repository: SmbAclRepository | None = None,
+        user_group_ids: list[UUID] | None = None,
     ) -> None:
         self._qdrant = qdrant_client
         self._encoder = encoder
@@ -40,6 +43,8 @@ class RagService:
             "You are a knowledge assistant. Answer based only on the context provided. "
             "If the context does not contain the answer, say so."
         )
+        self._acl_repository = acl_repository
+        self._user_group_ids = user_group_ids or []
 
     def answer(
         self,
@@ -61,7 +66,7 @@ class RagService:
         request_start = time.perf_counter()
         # 1. Retrieve relevant chunks
         phase_start = time.perf_counter()
-        chunks = self._retrieve_chunks(question, group_ids, top_k)
+        chunks = self._filter_chunks_by_acl(self._retrieve_chunks(question, group_ids, top_k))
         if metrics is not None:
             metrics.rag_duration_seconds.labels("retrieval").observe(
                 time.perf_counter() - phase_start
@@ -166,6 +171,14 @@ class RagService:
 
         # Return sorted by score descending
         return sorted(seen.values(), key=lambda c: c["score"], reverse=True)
+
+    def _filter_chunks_by_acl(self, chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Remove chunks for documents denied by enabled SMB ACLs before prompt assembly."""
+        if self._acl_repository is None or not self._acl_repository.global_enabled():
+            return chunks
+        doc_ids = [UUID(str(chunk["doc_id"])) for chunk in chunks]
+        allowed_doc_ids = self._acl_repository.filter_allowed_doc_ids(doc_ids, self._user_group_ids)
+        return [chunk for chunk in chunks if UUID(str(chunk["doc_id"])) in allowed_doc_ids]
 
     def _assemble_context(self, chunks: list[dict[str, Any]]) -> str:
         """Build a context string from retrieved chunks."""

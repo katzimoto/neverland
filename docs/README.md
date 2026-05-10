@@ -76,6 +76,7 @@ Located in `operations/`. Production operations and infrastructure guides.
 | File | Purpose |
 |------|---------|
 | `production-compose.md` | Compose service layout, first-run setup, reset, backup, troubleshooting |
+| `smb-acl-sync.md` | Disabled-by-default NTFS ACL sync configuration, mapping, fail-closed behavior, and rollback |
 
 ## 5. Review And Decisions
 

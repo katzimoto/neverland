@@ -16,6 +16,7 @@ SYSTEM_CONFIG_DEFAULTS: Final[MappingProxyType[str, JsonValue]] = MappingProxyTy
         "feature.expertise_map": True,
         "feature.related_docs": True,
         "feature.auto_tagging": True,
+        "feature.smb_acl_sync": False,
         "llm.model": "mistral",
         "llm.qa_system_prompt": (
             "You are a knowledge assistant. Answer based only on the context provided."
@@ -47,6 +48,7 @@ ENV_FEATURE_TO_CONFIG_KEY: Final[MappingProxyType[str, str]] = MappingProxyType(
         "FEATURE_EXPERTISE_MAP": "feature.expertise_map",
         "FEATURE_RELATED_DOCS": "feature.related_docs",
         "FEATURE_AUTO_TAGGING": "feature.auto_tagging",
+        "FEATURE_SMB_ACL_SYNC": "feature.smb_acl_sync",
         "AUTO_ENRICH_THRESHOLD": "auto_enrich.threshold",
     }
 )

@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import mimetypes
 import tempfile
 from collections.abc import Iterator
+from contextlib import suppress
 from dataclasses import dataclass
 from fnmatch import fnmatch
 from pathlib import PurePosixPath
@@ -17,6 +19,7 @@ from services.connectors.base import ConnectorDocument, ConnectorField
 
 _CHUNK_SIZE = 1024 * 1024
 _DEFAULT_RECURSIVE = True
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,7 +35,7 @@ class _RemoteFile:
 class SmbConnector:
     """List and download documents from an SMB share using service-account credentials."""
 
-    label = "SMB"
+    label = "Smb"
 
     @classmethod
     def fields(cls) -> list[ConnectorField]:
@@ -73,6 +76,12 @@ class SmbConnector:
                 required=False,
                 placeholder="100",
             ),
+            ConnectorField(
+                key="acl_sync_enabled",
+                label="NTFS ACL sync enabled",
+                required=False,
+                placeholder="false",
+            ),
         ]
 
     def __init__(self, config: dict[str, Any]) -> None:
@@ -87,6 +96,7 @@ class SmbConnector:
         self._include_globs = _parse_globs(config.get("include_globs"))
         self._exclude_globs = _parse_globs(config.get("exclude_globs"))
         self._max_file_size_bytes = self._parse_max_size(config.get("max_file_size_mb"))
+        self._acl_sync_enabled = _parse_bool(str(config.get("acl_sync_enabled", "false"))) is True
 
     def validate(self) -> None:
         """Raise ``ValueError`` when required SMB configuration is missing or invalid."""
@@ -130,10 +140,8 @@ class SmbConnector:
                     continue
                 yield self._download(remote_file)
         finally:
-            try:
+            with suppress(Exception):
                 smbclient.close_session(self._server)
-            except Exception:
-                pass
 
     def _list_files(self) -> Iterator[_RemoteFile]:
         base_unc = self._unc_path(self._base_path)
@@ -206,6 +214,16 @@ class SmbConnector:
         if mime_type is None:
             mime_type = "application/octet-stream"
 
+        metadata: dict[str, Any] = {
+            "server": self._server,
+            "share": self._share,
+            "remote_path": remote_file.remote_path,
+            "size": remote_file.size,
+            "mtime": remote_file.mtime,
+        }
+        if self._acl_sync_enabled:
+            metadata["acl_data"] = self._read_acl(remote_file.unc_path)
+
         return ConnectorDocument(
             external_id=self._external_id(remote_file.remote_path),
             title=title,
@@ -213,14 +231,69 @@ class SmbConnector:
             sha256=digest.hexdigest(),
             source_language=None,
             path=local_path,
-            metadata={
-                "server": self._server,
-                "share": self._share,
-                "remote_path": remote_file.remote_path,
-                "size": remote_file.size,
-                "mtime": remote_file.mtime,
-            },
+            metadata=metadata,
         )
+
+    def _read_acl(self, unc_path: str) -> list[dict[str, Any]] | None:
+        """Return sanitized allow/deny ACE metadata or ``None`` on any ACL failure.
+
+        The high-level ``smbclient`` API does not expose NTFS security descriptors
+        directly. This method attempts the lower-level security-descriptor path
+        when the installed ``smbprotocol`` build supports it, but never raises or
+        logs raw paths, SIDs, credentials, or ACE payloads.
+        """
+        try:
+            return self._query_acl(unc_path)
+        except Exception as exc:
+            logger.warning("SMB ACL read failed (%s)", type(exc).__name__)
+            return None
+
+    def _query_acl(self, unc_path: str) -> list[dict[str, Any]]:
+        """Query and normalize a file security descriptor.
+
+        This implementation intentionally accepts multiple smbprotocol object
+        shapes so unit tests can monkeypatch deterministic descriptors without a
+        live SMB server. Unsupported descriptor shapes raise ``ValueError`` so
+        callers fail closed.
+        """
+        try:
+            from smbprotocol.security_descriptor import AceType  # type: ignore[import-untyped]
+        except Exception as exc:  # pragma: no cover - dependency capability guard
+            raise ValueError("acl_support_unavailable") from exc
+
+        query_security_descriptor = getattr(smbclient, "query_security_descriptor", None)
+        if not callable(query_security_descriptor):
+            raise ValueError("acl_query_unavailable")
+
+        descriptor = query_security_descriptor(unc_path)
+        entries = getattr(descriptor, "dacl", None)
+        aces = getattr(entries, "aces", entries)
+        if aces is None:
+            raise ValueError("acl_dacl_missing")
+
+        normalized: list[dict[str, Any]] = []
+        for ace in aces:
+            ace_type = getattr(ace, "ace_type", getattr(ace, "type", None))
+            if ace_type in {getattr(AceType, "ACCESS_ALLOWED_ACE_TYPE", object()), "allow", 0}:
+                normalized_type = "allow"
+            elif ace_type in {getattr(AceType, "ACCESS_DENIED_ACE_TYPE", object()), "deny", 1}:
+                normalized_type = "deny"
+            else:
+                raise ValueError("acl_ace_type_unsupported")
+            sid = getattr(ace, "sid", None)
+            if sid is None:
+                sid_text = ""
+            elif hasattr(sid, "to_str"):
+                sid_text = sid.to_str()
+            else:
+                sid_text = str(sid)
+            if not sid_text:
+                raise ValueError("acl_sid_missing")
+            access_mask = getattr(ace, "mask", getattr(ace, "access_mask", 0))
+            normalized.append(
+                {"type": normalized_type, "sid": sid_text, "access_mask": int(access_mask)}
+            )
+        return normalized
 
     def _unc_path(self, remote_path: str) -> str:
         base = f"\\\\{self._server}\\{self._share}"

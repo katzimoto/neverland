@@ -52,6 +52,7 @@ queue first.
 | 09a | `phase-09a-nifi-integration.md` | NiFi event integration and Kafka consumer wiring | **Next** (parallel-safe) |
 | 09b | `phase-09b-legacy-office-extraction.md` | `.doc`, `.xls`, `.ppt` binary extraction | **Next** (parallel-safe) |
 | 09c | `phase-09c-atlassian-hardening.md` | Optional Atlassian permission sync and redirect hardening | Conditional |
+| 09d | `../operations/smb-acl-sync.md` | SMB NTFS ACL sync operator guide and fail-closed release notes | Done ✅ |
 | 10 | `phase-10-observability.md` | Phase 10 overview and sub-phase index | Planned |
 | 10a | `phase-10a-metrics-foundation.md` | Prometheus `/metrics`, HTTP middleware, request-ID | Done ✅ |
 | 10b | `phase-10b-domain-metrics.md` | Instrument auth, pipeline, search, RAG, collaboration | Done ✅ |

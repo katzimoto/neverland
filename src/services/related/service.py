@@ -10,6 +10,7 @@ from uuid import UUID
 
 from services.documents.models import DocumentRow
 from services.extraction.registry import ExtractorRegistry
+from services.permissions.acl_repository import SmbAclRepository
 from services.related.repository import RelatedRepository
 from services.search.encoder import MockEncoder
 from services.search.hybrid import SearchResult
@@ -47,11 +48,15 @@ class RelatedService:
         qdrant_client: QdrantSearchClient,
         encoder: MockEncoder,
         extractor_registry: ExtractorRegistry | None = None,
+        acl_repository: SmbAclRepository | None = None,
+        user_group_ids: list[UUID] | None = None,
     ) -> None:
         self._repository = repository
         self._qdrant = qdrant_client
         self._encoder = encoder
         self._extractor = extractor_registry or ExtractorRegistry()
+        self._acl_repository = acl_repository
+        self._user_group_ids = user_group_ids or []
 
     def related_documents(
         self,
@@ -72,10 +77,12 @@ class RelatedService:
             group_ids=group_ids,
             limit=max(limit * RELATED_SEARCH_MULTIPLIER, limit + 1),
         )
-        related = _dedupe_results(
-            results,
-            exclude_doc_id=str(doc.id),
-            limit=max(limit * RELATED_SEARCH_MULTIPLIER, limit + 1),
+        related = self._filter_results_by_acl(
+            _dedupe_results(
+                results,
+                exclude_doc_id=str(doc.id),
+                limit=max(limit * RELATED_SEARCH_MULTIPLIER, limit + 1),
+            )
         )
         metadata = self._repository.document_metadata(
             [result.doc_id for result in related], group_ids
@@ -98,7 +105,9 @@ class RelatedService:
             group_ids=group_ids,
             limit=EXPERTISE_SEARCH_LIMIT,
         )
-        matching_docs = _dedupe_results(results, exclude_doc_id=None, limit=EXPERTISE_SEARCH_LIMIT)
+        matching_docs = self._filter_results_by_acl(
+            _dedupe_results(results, exclude_doc_id=None, limit=EXPERTISE_SEARCH_LIMIT)
+        )
         doc_ids = [result.doc_id for result in matching_docs]
         doc_scores = {result.doc_id: result.score for result in matching_docs}
 
@@ -154,6 +163,14 @@ class RelatedService:
             aggregate.score += SIGNAL_WEIGHTS["subscription"] * similarity
 
         return [_expertise_response(aggregate) for aggregate in _rank_aggregates(aggregates)]
+
+    def _filter_results_by_acl(self, results: list[SearchResult]) -> list[SearchResult]:
+        """Remove related/expertise evidence documents denied by enabled SMB ACLs."""
+        if self._acl_repository is None or not self._acl_repository.global_enabled():
+            return results
+        doc_ids = [UUID(result.doc_id) for result in results]
+        allowed_doc_ids = self._acl_repository.filter_allowed_doc_ids(doc_ids, self._user_group_ids)
+        return [result for result in results if UUID(result.doc_id) in allowed_doc_ids]
 
 
 def _dedupe_results(

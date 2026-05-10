@@ -4,7 +4,7 @@ import json
 import os
 import time
 from collections.abc import Awaitable, Callable, Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Annotated, Any, Literal, cast
 from uuid import UUID, uuid4
@@ -39,7 +39,8 @@ from services.health import HealthResponse, health
 from services.intelligence.ollama_client import OllamaClient
 from services.intelligence.repository import IntelligenceRepository
 from services.intelligence.worker import IntelligenceWorker
-from services.permissions.enforcer import assert_doc_access, require_admin
+from services.permissions.acl_repository import SmbAclRepository
+from services.permissions.enforcer import assert_doc_access, assert_doc_acl_access, require_admin
 from services.pipeline.worker import PipelineWorker
 from services.preview.service import PreviewService
 from services.rag.models import QuestionRequest
@@ -108,6 +109,39 @@ def _config_bool(value: Any, default: bool) -> bool:
     return bool(value)
 
 
+def _document_source_or_404(auth_repo: AuthRepository, doc_id: UUID) -> UUID:
+    source_id = auth_repo.document_source_id(doc_id)
+    if source_id is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return source_id
+
+
+def _assert_doc_access_with_acl(
+    doc_id: UUID,
+    user: TokenPayload,
+    auth_repo: AuthRepository,
+    connection: sa.Connection,
+) -> None:
+    """Require source access, then apply enabled SMB ACL restrictions."""
+    assert_doc_access(doc_id, user, auth_repo)
+    source_id = _document_source_or_404(auth_repo, doc_id)
+    assert_doc_acl_access(doc_id, source_id, user, connection)
+
+
+def _filter_results_by_smb_acl(
+    results: list[Any],
+    user: TokenPayload,
+    connection: sa.Connection,
+) -> list[Any]:
+    """Post-filter search-like results by enabled SMB ACLs."""
+    acl_repo = SmbAclRepository(connection)
+    if not acl_repo.global_enabled():
+        return results
+    doc_ids = [UUID(str(result.doc_id)) for result in results if result.doc_id]
+    allowed_doc_ids = acl_repo.filter_allowed_doc_ids(doc_ids, user.groups)
+    return [result for result in results if UUID(str(result.doc_id)) in allowed_doc_ids]
+
+
 def _audit_log(
     connection: sa.Connection,
     user_id: UUID | None,
@@ -138,6 +172,17 @@ def _audit_log(
             "details": json.dumps(details or {}),
         },
     )
+
+
+def _acl_mapping_response(row: Any) -> dict[str, Any]:
+    """Serialize a sanitized ACL principal mapping row."""
+    return {
+        "id": str(to_uuid(row["id"])),
+        "source_id": str(to_uuid(row["source_id"])),
+        "windows_principal": row["windows_principal"],
+        "group_id": str(to_uuid(row["group_id"])),
+        "created_at": _fmt_dt(row["created_at"]),
+    }
 
 
 def _subscription_response(row: dict[str, Any]) -> dict[str, Any]:
@@ -177,6 +222,13 @@ class SearchRequest(BaseModel):
     query: str
     page: int = 1
     page_size: int = Field(default=10, ge=1, le=100)
+
+
+class AclMappingRequest(BaseModel):
+    """Admin request to map one Windows principal to a Neverland group."""
+
+    windows_principal: str = Field(min_length=1)
+    group_id: UUID
 
 
 class SearchResultItem(BaseModel):
@@ -476,6 +528,42 @@ def create_app(
         require_admin(user)
         return {"status": "ok"}
 
+    @app.post("/admin/sources/{source_id}/acl-mappings", status_code=201)
+    def create_acl_mapping(
+        source_id: UUID,
+        request: AclMappingRequest,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, Any]:
+        require_admin(user)
+        with app.state.engine.begin() as connection:
+            row = SmbAclRepository(connection).create_mapping(
+                source_id, request.windows_principal, request.group_id
+            )
+            return _acl_mapping_response(row)
+
+    @app.get("/admin/sources/{source_id}/acl-mappings")
+    def list_acl_mappings(
+        source_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> list[dict[str, Any]]:
+        require_admin(user)
+        with app.state.engine.begin() as connection:
+            return [
+                _acl_mapping_response(row)
+                for row in SmbAclRepository(connection).list_mappings(source_id)
+            ]
+
+    @app.delete("/admin/sources/{source_id}/acl-mappings/{mapping_id}", status_code=204)
+    def delete_acl_mapping(
+        source_id: UUID,
+        mapping_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> None:
+        require_admin(user)
+        with app.state.engine.begin() as connection:
+            if not SmbAclRepository(connection).delete_mapping(source_id, mapping_id):
+                raise HTTPException(status_code=404, detail="ACL mapping not found")
+
     @app.post("/admin/ingestion/{source_id}/sync-now")
     def sync_now(
         source_id: UUID,
@@ -494,6 +582,14 @@ def create_app(
             )
             if source_row is None:
                 raise HTTPException(status_code=404, detail="Source not found")
+
+            smb_acl_globally_enabled = SmbAclRepository(connection).global_enabled()
+            if str(source_row["type"]) == "smb" and not smb_acl_globally_enabled:
+                source_row = dict(source_row)
+                config = _parse_json(source_row.get("config")) or {}
+                if isinstance(config, dict):
+                    config = {**config, "acl_sync_enabled": False}
+                source_row["config"] = config
 
             try:
                 connector = build_connector(source_row)
@@ -540,6 +636,9 @@ def create_app(
                     safe_label_value(connector_type), "discovered"
                 ).inc()
                 try:
+                    document_metadata = {
+                        key: value for key, value in item.metadata.items() if key != "acl_data"
+                    }
                     doc = doc_repo.create(
                         source_id=source_id,
                         external_id=item.external_id,
@@ -549,7 +648,7 @@ def create_app(
                         title=item.title,
                         source_language=item.source_language or source_language,
                         sha256=item.sha256,
-                        metadata=item.metadata,
+                        metadata=document_metadata,
                     )
                     if doc is None:
                         results["skipped"] += 1
@@ -557,6 +656,14 @@ def create_app(
                             safe_label_value(connector_type), "skipped"
                         ).inc()
                         continue
+
+                    if "acl_data" in item.metadata:
+                        acl_repo = SmbAclRepository(connection)
+                        acl_data = item.metadata.get("acl_data")
+                        if isinstance(acl_data, list):
+                            acl_repo.upsert_document_acl(doc.id, acl_data)
+                        else:
+                            acl_repo.upsert_document_acl(doc.id, None, error="acl_read_failed")
 
                     try:
                         worker.process_document(doc.id, pre_extracted_text=item.text_content)
@@ -571,10 +678,8 @@ def create_app(
                         ).inc()
                 finally:
                     if connector_type == "smb" and item.path:
-                        try:
+                        with suppress(OSError):
                             os.unlink(item.path)
-                        except OSError:
-                            pass
 
             sync_outcome = "failure" if results["failed"] else "success"
             app.state.metrics.ingestion_syncs_total.labels(
@@ -625,6 +730,9 @@ def create_app(
             bm25_weight=0.3,
         )
 
+        with app.state.engine.begin() as connection:
+            merged = _filter_results_by_smb_acl(merged, user, connection)
+
         start = (request.page - 1) * request.page_size
         end = start + request.page_size
         page = merged[start:end]
@@ -655,7 +763,7 @@ def create_app(
     ) -> PreviewResponse:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            _assert_doc_access_with_acl(doc_id, user, auth_repo, connection)
 
             preview_service = PreviewService(connection)
             result = preview_service.get_preview(
@@ -695,7 +803,7 @@ def create_app(
     ) -> dict[str, Any]:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            _assert_doc_access_with_acl(doc_id, user, auth_repo, connection)
 
             doc_repo = DocumentRepository(connection)
             doc = doc_repo.get_by_id(doc_id)
@@ -734,7 +842,7 @@ def create_app(
     ) -> list[dict[str, Any]]:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            _assert_doc_access_with_acl(doc_id, user, auth_repo, connection)
 
             version_repo = TranslationVersionRepository(connection)
             versions = version_repo.list_versions(doc_id)
@@ -758,7 +866,7 @@ def create_app(
     ) -> dict[str, Any]:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            _assert_doc_access_with_acl(doc_id, user, auth_repo, connection)
 
             intelligence_repo = IntelligenceRepository(connection)
             summary = intelligence_repo.get_summary(doc_id)
@@ -778,7 +886,7 @@ def create_app(
     ) -> list[dict[str, Any]]:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            _assert_doc_access_with_acl(doc_id, user, auth_repo, connection)
 
             intelligence_repo = IntelligenceRepository(connection)
             entities = intelligence_repo.get_entities(doc_id)
@@ -799,7 +907,7 @@ def create_app(
     ) -> dict[str, Any]:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            _assert_doc_access_with_acl(doc_id, user, auth_repo, connection)
 
             intelligence_repo = IntelligenceRepository(connection)
             tags = intelligence_repo.get_tags(doc_id)
@@ -813,7 +921,7 @@ def create_app(
         with app.state.engine.begin() as connection:
             require_related_docs_enabled(connection)
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            _assert_doc_access_with_acl(doc_id, user, auth_repo, connection)
 
             doc_repo = DocumentRepository(connection)
             doc = doc_repo.get_by_id(doc_id)
@@ -831,6 +939,8 @@ def create_app(
                 repository=RelatedRepository(connection),
                 qdrant_client=qdrant_client,
                 encoder=MockEncoder(),
+                acl_repository=SmbAclRepository(connection),
+                user_group_ids=user.groups,
             )
             return {
                 "doc_id": str(doc_id),
@@ -861,6 +971,8 @@ def create_app(
                 repository=RelatedRepository(connection),
                 qdrant_client=qdrant_client,
                 encoder=MockEncoder(),
+                acl_repository=SmbAclRepository(connection),
+                user_group_ids=user.groups,
             )
             return service.expertise(topic=topic, group_ids=group_ids)
 
@@ -874,7 +986,7 @@ def create_app(
     ) -> dict[str, Any]:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            _assert_doc_access_with_acl(doc_id, user, auth_repo, connection)
 
             repo = CommentRepository(connection)
             comments = repo.list_comments(doc_id, skip=skip, limit=limit, sort=sort)
@@ -909,7 +1021,7 @@ def create_app(
     ) -> dict[str, Any]:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            _assert_doc_access_with_acl(doc_id, user, auth_repo, connection)
 
             repo = CommentRepository(connection)
             comment = repo.create(doc_id, user.sub, request.body)
@@ -931,7 +1043,7 @@ def create_app(
     ) -> dict[str, Any]:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            _assert_doc_access_with_acl(doc_id, user, auth_repo, connection)
 
             repo = CommentRepository(connection)
             comment = repo.get_by_id(comment_id)
@@ -965,7 +1077,7 @@ def create_app(
     ) -> None:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            _assert_doc_access_with_acl(doc_id, user, auth_repo, connection)
 
             repo = CommentRepository(connection)
             comment = repo.get_by_id(comment_id)
@@ -984,7 +1096,7 @@ def create_app(
     ) -> dict[str, Any]:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            _assert_doc_access_with_acl(doc_id, user, auth_repo, connection)
 
             repo = AnnotationRepository(connection)
             annotations = repo.list_annotations(doc_id, user.sub, is_admin=user.is_admin)
@@ -1013,7 +1125,7 @@ def create_app(
     ) -> dict[str, Any]:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            _assert_doc_access_with_acl(doc_id, user, auth_repo, connection)
 
             repo = AnnotationRepository(connection)
             annotation = repo.create(
@@ -1051,7 +1163,7 @@ def create_app(
 
             # Verify doc access
             auth_repo = AuthRepository(connection)
-            assert_doc_access(to_uuid(annotation["doc_id"]), user, auth_repo)
+            _assert_doc_access_with_acl(to_uuid(annotation["doc_id"]), user, auth_repo, connection)
 
             if not repo.can_modify(annotation_id, user.sub, user.is_admin):
                 raise HTTPException(status_code=403, detail="Cannot modify this annotation")
@@ -1093,7 +1205,7 @@ def create_app(
 
             # Verify doc access
             auth_repo = AuthRepository(connection)
-            assert_doc_access(to_uuid(annotation["doc_id"]), user, auth_repo)
+            _assert_doc_access_with_acl(to_uuid(annotation["doc_id"]), user, auth_repo, connection)
 
             if not repo.can_modify(annotation_id, user.sub, user.is_admin):
                 raise HTTPException(status_code=403, detail="Cannot delete this annotation")
@@ -1277,6 +1389,8 @@ def create_app(
                 ollama_client=ollama_client,
                 connection=connection,
                 system_prompt=system_prompt,
+                acl_repository=SmbAclRepository(connection),
+                user_group_ids=user.groups,
             )
             result = rag.answer(
                 question=request.question,
@@ -1358,7 +1472,7 @@ def create_app(
     ) -> StreamingResponse:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            _assert_doc_access_with_acl(doc_id, user, auth_repo, connection)
 
             doc_repo = DocumentRepository(connection)
             doc = doc_repo.get_by_id(doc_id)
