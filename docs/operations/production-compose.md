@@ -75,7 +75,10 @@ target host. The archive contains `docker-compose.airgap.yml`, `.env.airgap.exam
 `images/neverland-images.tar`, loading and validation scripts, checksums, and the
 air-gapped deployment guide. See `docs/operations/air-gapped-deployment.md` for
 the full download, transfer, image loading, configuration, first-use, backup, and
-restore workflow.
+restore workflow. For an existing offline deployment, use
+`docs/operations/air-gapped-upgrade.md`; upgrades must preserve `.env` and named
+volumes, load images from the local artifact, and run migrations without
+`docker compose down -v`.
 
 ## Metrics Scraping
 
@@ -145,13 +148,18 @@ Stop services without deleting named volumes:
 docker compose down
 ```
 
-Stop services and remove Compose-managed named volumes:
+Stop services and remove Compose-managed named volumes. This is destructive reset
+guidance only; never use it during upgrades:
 
 ```bash
 docker compose down -v
 ```
 
 ## Reset And Clean-Volume Migration
+
+These commands are not upgrade commands. Never use `docker compose down -v` when
+installing a newer release over an existing deployment; follow
+`docs/operations/air-gapped-upgrade.md` instead.
 
 Use a full reset only when you intend to delete local documents, metadata,
 search indexes, vector indexes, model cache, translation cache, and Kafka data:
@@ -227,6 +235,11 @@ or re-indexing operation rather than mixing indexes from a different backup
 point.
 
 ## Restore Guidance
+
+For air-gapped upgrade rollback, prefer `scripts/restore-airgap-data.sh` with the
+backup created by `scripts/backup-airgap-data.sh`. The generic volume recreation
+example below is for deliberate disaster recovery or clean lab restoration, not
+normal upgrades.
 
 Restore all consistency-sensitive volumes from the same backup set. A typical
 local restore is:
@@ -305,7 +318,7 @@ After fixing credentials, connectivity, or migration conflicts, re-run:
 docker compose run --rm migrate
 ```
 
-If a clean environment is acceptable, reset volumes and start again:
+If a clean environment is acceptable outside an upgrade window, reset volumes and start again:
 
 ```bash
 docker compose down -v
