@@ -108,10 +108,12 @@ Run preflight from the existing deployment directory:
 
 The preflight check is read-only. It validates the deployment directory, `.env`,
 Compose files, Docker Engine, Docker Compose plugin, current service state,
-current image tags, artifact checksums, required artifact files,
+current image tags, expected persistent volume names, configured folder-source
+host path existence, artifact checksums, required artifact files,
 `release-manifest.json`, air-gapped Compose rendering, absence of required
 `build:` steps, and that every image referenced by the artifact Compose file is
-bundled or already present locally.
+bundled or already present locally. Artifact validation also rejects obvious
+non-placeholder secrets in packaged environment templates.
 
 Stop and resolve any preflight failure before continuing.
 

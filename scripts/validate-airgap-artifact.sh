@@ -74,6 +74,13 @@ for key in release_version git_commit created_at images compose_files minimum_do
 done
 log "Release manifest includes required upgrade safety keys"
 
+if grep -Eiq '(password|secret|token|private[_-]?key)[[:space:]]*=[[:space:]]*([^#[:space:]]+)' .env.airgap.example; then
+  if grep -Eiv '(changeme|change-me|replace-me|example|placeholder|<.*>|^#)' .env.airgap.example | grep -Eiq '(password|secret|token|private[_-]?key)[[:space:]]*='; then
+    fail ".env.airgap.example appears to contain a non-placeholder secret value"
+  fi
+fi
+log "Packaged environment template contains no obvious non-placeholder secrets"
+
 tmp_dir="$(mktemp -d)"
 cleanup() { rm -rf "$tmp_dir"; }
 trap cleanup EXIT

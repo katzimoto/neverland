@@ -77,10 +77,23 @@ if [[ -z "$artifact_dir" ]]; then
   fi
 fi
 
-[[ -f .env ]] && pass "deployment .env exists" || fail_msg "run from an existing deployment directory containing .env"
-[[ ${#compose_files[@]} -gt 0 ]] && pass "detected compose files: ${compose_files[*]}" || fail_msg "no compose file detected; pass --compose-file"
+info "preflight script version: $SCRIPT_VERSION"
+if [[ -f .env ]]; then
+  pass "deployment .env exists"
+else
+  fail_msg "run from an existing deployment directory containing .env"
+fi
+if [[ ${#compose_files[@]} -gt 0 ]]; then
+  pass "detected compose files: ${compose_files[*]}"
+else
+  fail_msg "no compose file detected; pass --compose-file"
+fi
 for file in "${compose_files[@]}"; do
-  [[ -f "$file" ]] && pass "compose file exists: $file" || fail_msg "compose file missing: $file"
+  if [[ -f "$file" ]]; then
+    pass "compose file exists: $file"
+  else
+    fail_msg "compose file missing: $file"
+  fi
 done
 
 if command -v docker >/dev/null 2>&1; then
@@ -116,6 +129,14 @@ if command -v docker >/dev/null 2>&1 && [[ ${#compose_files[@]} -gt 0 && -f .env
   fi
   rm -f /tmp/neverland-compose-ps.$$ /tmp/neverland-compose-ps-err.$$
 
+  if [[ -f release-manifest.json ]]; then
+    current_version="$(awk -F'"' '/"release_version"[[:space:]]*:/ {print $4; exit}' release-manifest.json)"
+    [[ -n "$current_version" ]] && info "current release-manifest version: $current_version"
+  elif [[ -f .env ]]; then
+    current_version="$(awk -F= '$1 == "APP_VERSION" {print $2; exit}' .env)"
+    [[ -n "$current_version" ]] && info "current APP_VERSION from .env: $current_version"
+  fi
+
   if "${compose_cmd[@]}" config --images >/tmp/neverland-current-images.$$ 2>/tmp/neverland-current-images-err.$$; then
     info "current image references:"
     sed 's/^/[preflight-upgrade-check]   /' /tmp/neverland-current-images.$$
@@ -123,12 +144,45 @@ if command -v docker >/dev/null 2>&1 && [[ ${#compose_files[@]} -gt 0 && -f .env
     warn "could not render current image references: $(cat /tmp/neverland-current-images-err.$$)"
   fi
   rm -f /tmp/neverland-current-images.$$ /tmp/neverland-current-images-err.$$
+
+  if "${compose_cmd[@]}" config --volumes >/tmp/neverland-current-volumes.$$ 2>/tmp/neverland-current-volumes-err.$$; then
+    info "current expected named volumes:"
+    sed 's/^/[preflight-upgrade-check]   /' /tmp/neverland-current-volumes.$$
+    project_name="$(awk -F= '$1 == "COMPOSE_PROJECT_NAME" {print $2; exit}' .env)"
+    project_name="${project_name:-$(basename "$(pwd)")}"
+    while IFS= read -r volume; do
+      [[ -n "$volume" ]] || continue
+      if docker volume inspect "${project_name}_${volume}" >/dev/null 2>&1; then
+        pass "persistent volume exists: ${project_name}_${volume}"
+      elif docker volume inspect "$volume" >/dev/null 2>&1; then
+        pass "persistent volume exists: $volume"
+      else
+        warn "persistent volume not found yet: ${project_name}_${volume} (or $volume); verify project name before upgrade"
+      fi
+    done < /tmp/neverland-current-volumes.$$
+  else
+    warn "could not render current volume references: $(cat /tmp/neverland-current-volumes-err.$$)"
+  fi
+  rm -f /tmp/neverland-current-volumes.$$ /tmp/neverland-current-volumes-err.$$
+
+  folder_path="$(awk -F= '$1 == "NEVERLAND_FOLDER_SOURCE_HOST_PATH" {print $2; exit}' .env)"
+  if [[ -n "$folder_path" ]]; then
+    if [[ -e "$folder_path" ]]; then
+      pass "folder source host path exists: $folder_path"
+    else
+      warn "folder source host path is configured but not present: $folder_path"
+    fi
+  fi
 fi
 
 if [[ -z "$artifact_dir" ]]; then
   fail_msg "new release artifact directory not provided; pass --artifact-dir"
 else
-  [[ -d "$artifact_dir" ]] && pass "artifact directory exists: $artifact_dir" || fail_msg "artifact directory missing: $artifact_dir"
+  if [[ -d "$artifact_dir" ]]; then
+    pass "artifact directory exists: $artifact_dir"
+  else
+    fail_msg "artifact directory missing: $artifact_dir"
+  fi
 fi
 
 if [[ -n "$artifact_dir" && -d "$artifact_dir" ]]; then
@@ -142,7 +196,11 @@ if [[ -n "$artifact_dir" && -d "$artifact_dir" ]]; then
     "release-manifest.json"
   )
   for file in "${required_artifact_files[@]}"; do
-    [[ -f "${artifact_dir}/${file}" ]] && pass "artifact contains $file" || fail_msg "artifact missing required file: $file"
+    if [[ -f "${artifact_dir}/${file}" ]]; then
+      pass "artifact contains $file"
+    else
+      fail_msg "artifact missing required file: $file"
+    fi
   done
 
   if [[ -f "${artifact_dir}/checksums.txt" ]]; then
@@ -166,6 +224,7 @@ if [[ -n "$artifact_dir" && -d "$artifact_dir" ]]; then
 
   if command -v docker >/dev/null 2>&1 && [[ -f "${artifact_dir}/docker-compose.airgap.yml" && -f "${artifact_dir}/.env.airgap.example" ]]; then
     tmp_dir="$(mktemp -d)"
+    # shellcheck disable=SC2317 # invoked by EXIT trap
     cleanup() { rm -rf "$tmp_dir"; }
     trap cleanup EXIT
 
