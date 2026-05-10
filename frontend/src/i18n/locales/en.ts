@@ -49,6 +49,10 @@ export interface Translations {
     emptyTitle: string;
     emptyBody: string;
     failedToast: string;
+    keyboardHelp: string;
+    quickPreviewTitle: string;
+    openSelected: string;
+    closePreview: string;
   };
   filters: {
     panel: string;
@@ -308,6 +312,10 @@ export const en: Translations = {
     emptyTitle: "Start searching",
     emptyBody: "Type a query above and press Enter or Search.",
     failedToast: "Search failed. Check that the backend is reachable.",
+    keyboardHelp: "Use ↑/↓ or j/k to choose a result, Enter to open, Space to preview, and Esc to close preview.",
+    quickPreviewTitle: "Quick preview",
+    openSelected: "Open document",
+    closePreview: "Close preview",
   },
   filters: {
     panel: "Search filters",
