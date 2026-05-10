@@ -72,7 +72,7 @@ export function NavRail({ isAdmin, unreadCount = 0 }: NavRailProps) {
       aria-label={t.nav.primary}
     >
       <div className={styles.top}>
-        <div className={styles.mark} aria-label="Neverland">N</div>
+        <div className={styles.mark} aria-label="Tomorrowland">T</div>
         <button
           className={styles.toggle}
           onClick={() => setExpanded((e) => !e)}
