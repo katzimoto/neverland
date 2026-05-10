@@ -598,10 +598,11 @@ Supported payload strategies:
 - `{"type":"inline_text","text":"..."}` for pre-extracted text. The text is
   passed to the standard pipeline as `pre_extracted_text`; it is never logged.
 - `{"type":"staged_file","path":"/..."}` for local files already staged into
-  the API runtime. If the source config contains `staging_root`, the file must
-  resolve under that root. The file path is validated, but operators should keep
-  staged paths non-sensitive because paths are persisted on document rows for
-  extraction.
+  the API runtime. The source config **must** contain `staging_root`; events
+  using this strategy are rejected (DLQ-routed) when `staging_root` is not
+  configured. The file path must resolve under `staging_root`. Operators should
+  keep staged paths non-sensitive because paths are persisted on document rows
+  for extraction.
 
 Checksum validation is enforced when `sha256` is present. Malformed JSON,
 invalid envelopes, unknown/disabled/non-NiFi sources, inaccessible staged files,

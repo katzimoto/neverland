@@ -324,8 +324,10 @@ Events must include `source_id` or `source_key`, `external_id`, `title` or
 `filename`, `mime_type`, and either an `inline_text` payload or a `staged_file`
 payload. Optional fields are `source_language`, lowercase hex `sha256`,
 JSON-object `metadata`, `event_timestamp`, `correlation_id`, and `dlq_id`.
-Staged files must already be present inside the API runtime, and when
-`config.staging_root` is set the staged path must resolve under that root.
+Staged files must already be present inside the API runtime. `staged_file`
+payloads require `config.staging_root` to be set; events using this strategy
+are rejected when `staging_root` is not configured, and the staged path must
+resolve under that root.
 
 NiFi documents are inserted with the normal `ingestion_sources` linkage and go
 through the standard pipeline. DLQ routing handles malformed events, unknown or

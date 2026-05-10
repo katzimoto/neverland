@@ -94,6 +94,15 @@ def test_nifi_connector_normalizes_staged_file(tmp_path: Path) -> None:
     assert document.sha256 == sha256
 
 
+def test_nifi_connector_rejects_staged_file_without_staging_root(tmp_path: Path) -> None:
+    staged = tmp_path / "flow-file.txt"
+    staged.write_text("secret")
+    event = parse_nifi_event(_event(payload={"type": "staged_file", "path": str(staged)}))
+
+    with pytest.raises(NiFiEventError, match="staging_root to be configured"):
+        NiFiConnector({}).normalize_event(event)
+
+
 def test_nifi_connector_rejects_staged_file_outside_root(tmp_path: Path) -> None:
     outside = tmp_path.parent / "outside-nifi.txt"
     outside.write_text("secret")

@@ -206,10 +206,12 @@ class NiFiConnector:
             raise NiFiEventError("NiFi event source_key does not match configured source")
 
     def _resolve_staged_path(self, raw_path: str | None) -> str:
+        if self._staging_root is None:
+            raise NiFiEventError("NiFi staged_file payload requires staging_root to be configured")
         if raw_path is None:
             raise NiFiEventError("NiFi staged payload path is missing")
         candidate = Path(raw_path).resolve()
-        if self._staging_root is not None and not candidate.is_relative_to(self._staging_root):
+        if not candidate.is_relative_to(self._staging_root):
             raise NiFiEventError("NiFi staged payload path is outside staging_root")
         if not candidate.is_file():
             raise NiFiEventError("NiFi staged payload file is inaccessible")
