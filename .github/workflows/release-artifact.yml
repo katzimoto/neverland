@@ -1,0 +1,85 @@
+name: Release Artifact
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version to package (defaults to ref name or short SHA)"
+        required: false
+        type: string
+      attach_to_release:
+        description: "Attach archive and checksums to a GitHub Release"
+        required: false
+        default: false
+        type: boolean
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-artifact-${{ github.ref }}-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  build-artifact:
+    name: Build air-gapped release artifact
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "${{ inputs.version }}" ]]; then
+            version="${{ inputs.version }}"
+          elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            version="${GITHUB_REF_NAME}"
+          else
+            version="${GITHUB_SHA::12}"
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "safe_version=${version//\//-}" >> "$GITHUB_OUTPUT"
+
+      - name: Build release archive with offline images
+        run: bash scripts/build-release-artifact.sh "${{ steps.version.outputs.version }}"
+
+      - name: Validate packaged artifact metadata and image bundle
+        run: bash scripts/validate-airgap-artifact.sh --load-images "dist/neverland-release-${{ steps.version.outputs.safe_version }}"
+
+      - name: Prove air-gapped compose image references are bundled
+        run: |
+          set -euo pipefail
+          release_dir="dist/neverland-release-${{ steps.version.outputs.safe_version }}"
+          docker compose --env-file "$release_dir/.env.airgap.example" \
+            -f "$release_dir/docker-compose.airgap.yml" config --images | tee "$release_dir/compose-images.txt"
+          if grep -Eq '^[[:space:]]+build:' "$release_dir/docker-compose.airgap.yml"; then
+            echo "Forbidden build step found in docker-compose.airgap.yml" >&2
+            exit 1
+          fi
+
+      - name: Upload release archive artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: neverland-release-${{ steps.version.outputs.safe_version }}
+          path: |
+            dist/neverland-release-${{ steps.version.outputs.safe_version }}.tar.gz
+            dist/neverland-release-${{ steps.version.outputs.safe_version }}.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Attach archive to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.attach_to_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          files: |
+            dist/neverland-release-${{ steps.version.outputs.safe_version }}.tar.gz
+            dist/neverland-release-${{ steps.version.outputs.safe_version }}.tar.gz.sha256
