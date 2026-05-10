@@ -57,7 +57,7 @@ queue first.
 | 10b | `phase-10b-domain-metrics.md` | Instrument auth, pipeline, search, RAG, collaboration | Done ✅ |
 | 10c | `phase-10c-admin-readiness.md` | Admin readiness endpoint with dependency probes | **Next** |
 | 10d | `phase-10d-monitoring-compose.md` | Optional Prometheus + Grafana Compose profile | **Next** |
-| 10e | `phase-10e-structured-logs.md` | JSON structured logs and OpenTelemetry hooks | Blocked by 10a |
+| 10e | `phase-10e-structured-logs.md` | JSON structured logs and OpenTelemetry hooks | **Next** |
 | 10f | `phase-10f-worker-observability.md` | Worker heartbeats and consumer lag | Deferred |
 
 ## Review Gate
