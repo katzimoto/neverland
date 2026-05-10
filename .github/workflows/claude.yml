@@ -49,8 +49,8 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           trigger_phrase: "@claude"
-          allowed_tools: >-
-            Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git branch:*),Bash(git checkout:*),Bash(git switch:*),Bash(git fetch:*),Bash(git pull:*),Bash(git remote:*),Bash(git config:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(gh auth status:*),Bash(gh issue:*),Bash(gh pr:*),Bash(gh api:*),Bash(gh label:*)
+          claude_args: |
+            --allowedTools "Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git branch:*),Bash(git checkout:*),Bash(git switch:*),Bash(git fetch:*),Bash(git pull:*),Bash(git remote:*),Bash(git config:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(gh auth status:*),Bash(gh issue:*),Bash(gh pr:*),Bash(gh api:*),Bash(gh label:*)"
           additional_permissions: |
             actions: read
             checks: read
