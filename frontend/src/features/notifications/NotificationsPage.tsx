@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { listNotifications } from "@/api/notifications";
 import { EmptyState } from "@/components/primitives/EmptyState";
@@ -8,8 +9,8 @@ import styles from "./NotificationsPage.module.css";
 export function NotificationsPage() {
   const t = useT();
   const { data = [], isLoading, isError } = useQuery({ queryKey: ["notifications"], queryFn: () => listNotifications(false) });
-  const unread = data.filter((notification) => !notification.read);
-  const read = data.filter((notification) => notification.read);
+  const unread = useMemo(() => data.filter((notification) => !notification.read), [data]);
+  const read = useMemo(() => data.filter((notification) => notification.read), [data]);
 
   return (
     <div className={styles.page}>

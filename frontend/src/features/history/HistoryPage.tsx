@@ -1,7 +1,9 @@
+import { useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { FileText } from "lucide-react";
 import { getActivity } from "@/api/history";
+import { Button } from "@/components/primitives/Button";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { useT, type Translations } from "@/i18n/index";
 import styles from "./HistoryPage.module.css";
@@ -18,11 +20,26 @@ function mimeShortLabel(mime: string, t: Translations): string {
   return t.history.mimeFile;
 }
 
+const HISTORY_PAGE_SIZE = 50;
+
 export function HistoryPage() {
   const t = useT();
   const navigate = useNavigate();
-  const { data, isLoading, isError } = useQuery({ queryKey: ["history"], queryFn: () => getActivity() });
-  const items = data ?? [];
+  const {
+    data,
+    isLoading,
+    isError,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useInfiniteQuery({
+    queryKey: ["history"],
+    queryFn: ({ pageParam }) => getActivity(HISTORY_PAGE_SIZE, pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.length === HISTORY_PAGE_SIZE ? allPages.length * HISTORY_PAGE_SIZE : undefined,
+  });
+  const items = useMemo(() => data?.pages.flat() ?? [], [data]);
 
   return (
     <div className={styles.page}>
@@ -56,6 +73,15 @@ export function HistoryPage() {
               </li>
             ))}
           </ul>
+        )}
+        {hasNextPage && (
+          <Button
+            variant="secondary"
+            onClick={() => void fetchNextPage()}
+            disabled={isFetchingNextPage}
+          >
+            {isFetchingNextPage ? t.history.loadingMore : t.history.loadMore}
+          </Button>
         )}
       </div>
     </div>

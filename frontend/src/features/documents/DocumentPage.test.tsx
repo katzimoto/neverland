@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { render } from "@/test/render";
 import { DocumentPage } from "./DocumentPage";
 import * as documentsApi from "@/api/documents";
@@ -68,6 +68,24 @@ describe("DocumentPage", () => {
     await waitFor(() => {
       const link = screen.getByRole("link", { name: /download/i });
       expect(link).toHaveAttribute("href", "/api/download/doc-123");
+    });
+  });
+
+  it("defers hidden insight panel API work until the panel is opened", async () => {
+    render(<DocumentPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Vendor Risk Assessment 2024" })).toBeInTheDocument();
+    });
+
+    expect(documentsApi.getRelated).not.toHaveBeenCalled();
+    expect(documentsApi.listAnnotations).not.toHaveBeenCalled();
+    expect(documentsApi.listComments).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Comments" }));
+
+    await waitFor(() => {
+      expect(documentsApi.listComments).toHaveBeenCalledWith("doc-123", 0, 20);
     });
   });
 

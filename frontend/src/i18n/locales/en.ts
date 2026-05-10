@@ -109,6 +109,8 @@ export interface Translations {
     annotationDeleteError: string;
     commentsLoading: string;
     commentsEmpty: string;
+    commentsLoadMore: string;
+    commentsLoadingMore: string;
     commentEditLabel: string;
     commentDeleteLabel: string;
     commentSaveBtn: string;
@@ -179,6 +181,8 @@ export interface Translations {
     failedBody: string;
     emptyTitle: string;
     emptyBody: string;
+    loadMore: string;
+    loadingMore: string;
     untitled: string;
     mimeImage: string;
     mimePdf: string;
@@ -364,6 +368,8 @@ export const en: Translations = {
     annotationDeleteError: "Failed to delete annotation.",
     commentsLoading: "Loading…",
     commentsEmpty: "No comments yet.",
+    commentsLoadMore: "Load more comments",
+    commentsLoadingMore: "Loading more comments…",
     commentEditLabel: "Edit comment",
     commentDeleteLabel: "Delete comment",
     commentSaveBtn: "Save",
@@ -434,6 +440,8 @@ export const en: Translations = {
     failedBody: "Could not reach the server.",
     emptyTitle: "No history",
     emptyBody: "Documents you view will appear here.",
+    loadMore: "Load more history",
+    loadingMore: "Loading more history…",
     untitled: "Untitled document",
     mimeImage: "Image",
     mimePdf: "PDF",
