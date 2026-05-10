@@ -11,9 +11,8 @@ Required pairs: all supported non-English languages must translate to and from
 English. Direct non-English-to-non-English pairs use LibreTranslate's English
 pivot at runtime.
 
-Optional: zt (Traditional Chinese) is installed if available in the Argos index.
-If absent from the index the build succeeds with a warning; document this as a
-known limitation in the release notes if zt support is required.
+RC supported languages: en, he, zh, ko, th, ar, fr, ru, es.
+Chinese support means Chinese Simplified (zh) only.
 """
 
 import sys
@@ -37,13 +36,6 @@ REQUIRED_PAIRS: list[tuple[str, str]] = [
     ("en", "th"),
     ("he", "en"),
     ("en", "he"),
-]
-
-# zt (Traditional Chinese): install if present in the Argos package index.
-# If the index does not include zt packages the build continues without them.
-OPTIONAL_PAIRS: list[tuple[str, str]] = [
-    ("zt", "en"),
-    ("en", "zt"),
 ]
 
 
@@ -72,20 +64,6 @@ def main() -> None:
             missing_required.append(pair)
         else:
             print(f"Installing {pair[0]}->{pair[1]} ...")
-            pkg.install()
-
-    for pair in OPTIONAL_PAIRS:
-        pkg = available.get(pair)
-        if pkg is None:
-            print(
-                f"NOTE: zt (Traditional Chinese) package {pair[0]}->{pair[1]} is not "
-                "available in the Argos Translate index; zt translation will be "
-                "unavailable in this build. Document as a known limitation if zt "
-                "support is required for this release.",
-                file=sys.stderr,
-            )
-        else:
-            print(f"Installing optional {pair[0]}->{pair[1]} ...")
             pkg.install()
 
     if missing_required:

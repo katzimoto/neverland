@@ -464,7 +464,6 @@ target host does not download translation models at startup.
 | `ko` | Korean               | Yes        | Yes          |
 | `th` | Thai                 | Yes        | Yes          |
 | `he` | Hebrew               | Yes        | Yes          |
-| `zt` | Chinese Traditional  | If bundled | If bundled   |
 
 ### Direct non-English pairs
 
@@ -473,14 +472,10 @@ English pivot (e.g., Arabic to French is translated as Arabic → English → Fr
 Direct non-English pairs are not installed; quality for indirect pairs depends on
 the intermediate English translation step.
 
-### Chinese Traditional (`zt`) availability
+### Chinese language support
 
-`zt` packages are installed during image build if they are present in the Argos
-Translate package index at build time. If the index did not include `zt` at build
-time, the `neverland/libretranslate:airgap` image will not serve `zt` translation.
-Run `scripts/validate-translation-languages.sh` after startup to confirm whether
-`zt` is available. If `zt` is required for a release, the release owner must
-explicitly accept this limitation if `zt` is absent.
+Chinese support in this RC means Chinese Simplified (`zh`) only. Chinese
+Traditional (`zt`) is out of scope for this RC.
 
 ### Validating language support after startup
 
@@ -497,7 +492,6 @@ The script checks:
 2. Required language codes (`en`, `ar`, `fr`, `ru`, `es`, `zh`, `ko`, `th`, `he`)
    are present.
 3. Each required non-English language can translate to and from English.
-4. `zt` is tested if present; a warning (not a failure) is emitted if absent.
 
 ### Adding languages in future releases
 
@@ -541,6 +535,5 @@ bundle. See `Host Prerequisites` above for overall disk guidance.
   source grants and groups.
 - Direct non-English translation pairs are not installed; non-English-to-non-English
   translation uses an English pivot via LibreTranslate's built-in routing.
-- `zt` (Traditional Chinese) availability depends on the Argos Translate package
-  index at image build time; run `scripts/validate-translation-languages.sh` to
-  confirm after startup.
+- Chinese support in this RC means Chinese Simplified (`zh`) only; Chinese
+  Traditional (`zt`) is out of scope for this RC.

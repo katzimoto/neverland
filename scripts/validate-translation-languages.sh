@@ -9,16 +9,14 @@
 #   0  All required language pairs are present and reachable.
 #   1  One or more required pairs are missing or the service is unreachable.
 #
-# zt (Traditional Chinese) is optional: the script warns but does not fail if zt
-# is absent from the /languages response. If zt is required for this release,
-# the release owner must explicitly accept the limitation noted in the output.
+# Required RC languages: en, he, zh, ko, th, ar, fr, ru, es.
+# Chinese support means Chinese Simplified (zh) only.
 set -Eeuo pipefail
 
 LIBRETRANSLATE_URL="${LIBRETRANSLATE_URL:-http://localhost:5000}"
 TIMEOUT="${VALIDATE_TIMEOUT:-15}"
 
 log()  { printf '[validate-translation] %s\n' "$*"; }
-warn() { printf '[validate-translation] WARN: %s\n' "$*" >&2; }
 fail() { printf '[validate-translation] ERROR: %s\n' "$*" >&2; exit 1; }
 
 # ---------------------------------------------------------------------------
@@ -42,18 +40,6 @@ for code in "${required_codes[@]}"; do
   fi
   log "Language code present: ${code}"
 done
-
-# zt (Traditional Chinese) is optional
-zt_available=0
-if printf '%s' "$languages_json" | grep -qF '"code":"zt"'; then
-  log "Optional language code present: zt (Traditional Chinese)"
-  zt_available=1
-else
-  warn "Optional language code 'zt' (Traditional Chinese) not found in /languages response"
-  warn "The Argos Translate index may not have included zt packages at image build time."
-  warn "If zt support is required for this release, the release owner must explicitly"
-  warn "accept this limitation before marking the artifact as approved."
-fi
 
 # ---------------------------------------------------------------------------
 # 3. Test required translation pairs (to and from English)
@@ -97,13 +83,5 @@ do_translate zh en "hello"
 do_translate ko en "hello"
 do_translate th en "hello"
 do_translate he en "hello"
-
-# zt (Traditional Chinese) — optional pair test
-if [[ "${zt_available}" -eq 1 ]]; then
-  do_translate en zt "hello"
-  do_translate zt en "hello"
-else
-  warn "Skipping zt (Traditional Chinese) translation pair test — language not available"
-fi
 
 log "All required translation language pairs validated successfully"
