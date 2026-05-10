@@ -47,3 +47,34 @@ See `docs/operations/production-compose.md` for the full operations guide,
 including service layout, annotated environment variables, reset behavior,
 backup and restore guidance, health checks, troubleshooting, and current
 limitations.
+
+## Air-Gapped Release Artifact
+
+Neverland also publishes a versioned release archive for offline Compose
+deployments. The archive includes prebuilt first-party images, required
+third-party runtime images, an air-gapped Compose file with no build steps, an
+operator `.env` template, validation/loading scripts, checksums, and deployment
+documentation.
+
+Connected release operator flow:
+
+```bash
+# Download neverland-release-<version>.tar.gz and its .sha256 from GitHub
+sha256sum -c neverland-release-<version>.tar.gz.sha256
+```
+
+Air-gapped host flow:
+
+```bash
+tar xzf neverland-release-<version>.tar.gz
+cd neverland-release-<version>
+bash scripts/validate-airgap-artifact.sh .
+bash scripts/load-airgap-images.sh .
+cp .env.airgap.example .env
+# edit .env secrets, ports, storage paths, LDAP, and connector mount settings
+docker compose --env-file .env -f docker-compose.airgap.yml up -d
+```
+
+See `docs/operations/air-gapped-deployment.md` for the complete
+download-to-first-use guide, including connector setup, local users/groups, LDAP,
+health checks, backup, restore, and current limitations.
