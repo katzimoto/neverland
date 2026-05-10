@@ -89,7 +89,7 @@ text, source names, group names, exception messages, or file contents.
 The endpoint includes default Python GC and process metrics, `neverland_build_info`,
 HTTP request totals, request-duration histograms, and exception totals. The API
 also accepts `X-Request-ID` from trusted callers, generates one when absent, and
-echoes it back on all responses including 4xx/5xx errors.
+echoes it on responses for support correlation.
 
 ## Startup, Shutdown, And Logs
 
