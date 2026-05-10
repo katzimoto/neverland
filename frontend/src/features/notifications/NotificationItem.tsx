@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { markRead, type Notification } from "@/api/notifications";
@@ -8,7 +9,7 @@ interface NotificationItemProps {
   notification: Notification;
 }
 
-export function NotificationItem({ notification }: NotificationItemProps) {
+export const NotificationItem = memo(function NotificationItem({ notification }: NotificationItemProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const read = useMutation({
@@ -33,4 +34,4 @@ export function NotificationItem({ notification }: NotificationItemProps) {
       <div className={styles.rowMeta}>{!notification.read && <Badge variant="warning">New</Badge>}<span className={styles.date}>{new Date(notification.created_at).toLocaleDateString()}</span></div>
     </button>
   );
-}
+});

@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Trash2, Pencil } from "lucide-react";
 import {
   getSummary, getEntities, getTags, getRelated,
@@ -151,6 +151,7 @@ function RelatedTab({ docId }: { docId: string }) {
 }
 
 const PLACEHOLDER_POSITION = { mode: "text-range" as const, start_char: 0, end_char: 0 };
+const COMMENTS_PAGE_SIZE = 20;
 
 function AnnotationsTab({ docId }: { docId: string }) {
   const t = useT();
@@ -233,9 +234,20 @@ function CommentsTab({ docId }: { docId: string }) {
   const { show: showToast } = useToast();
   const qc = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const {
+    data,
+    isLoading,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useInfiniteQuery({
     queryKey: ["doc-comments", docId],
-    queryFn: () => listComments(docId),
+    queryFn: ({ pageParam }) => listComments(docId, pageParam, COMMENTS_PAGE_SIZE),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((count, page) => count + page.comments.length, 0);
+      return loaded < lastPage.total ? loaded : undefined;
+    },
   });
 
   const invalidate = () => void qc.invalidateQueries({ queryKey: ["doc-comments", docId] });
@@ -258,7 +270,10 @@ function CommentsTab({ docId }: { docId: string }) {
     onError: () => showToast("error", t.insight.commentDeleteError),
   });
 
-  const activeComments = data?.comments.filter((c) => !c.deleted_at) ?? [];
+  const activeComments = useMemo(
+    () => data?.pages.flatMap((page) => page.comments).filter((c) => !c.deleted_at) ?? [],
+    [data],
+  );
 
   return (
     <div className={styles.commentsSection}>
@@ -295,6 +310,16 @@ function CommentsTab({ docId }: { docId: string }) {
           </li>
         ))}
       </ul>
+      {hasNextPage && (
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => void fetchNextPage()}
+          disabled={isFetchingNextPage}
+        >
+          {isFetchingNextPage ? t.insight.commentsLoadingMore : t.insight.commentsLoadMore}
+        </Button>
+      )}
       <div className={styles.addComment}>
         <input
           className={styles.inlineInput}

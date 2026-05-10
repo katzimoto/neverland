@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import { FileText, Image, Archive, Mail, File, Info } from "lucide-react";
 import { Badge } from "@/components/primitives/Badge";
 import type { SearchResult } from "@/api/search";
@@ -27,8 +28,8 @@ interface ResultRowProps {
   onClick?: () => void;
 }
 
-export function ResultRow({ result, onClick }: ResultRowProps) {
-  const visibleTags = result.tags.slice(0, 4);
+export const ResultRow = memo(function ResultRow({ result, onClick }: ResultRowProps) {
+  const visibleTags = useMemo(() => result.tags.slice(0, 4), [result.tags]);
   const extraTags = result.tags.length - visibleTags.length;
 
   return (
@@ -74,4 +75,4 @@ export function ResultRow({ result, onClick }: ResultRowProps) {
       </div>
     </div>
   );
-}
+});
