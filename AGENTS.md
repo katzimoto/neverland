@@ -15,38 +15,51 @@ single relevant plan, or one area context map.
 - Canonical requirements are `spec.md` and `spec-v4.pdf`; do not edit them
   unless the user explicitly asks.
 - Current implementation history lives in `CHANGELOG.md`; read the latest
-  `[Unreleased]` bullets before assuming a phase is missing.
-- Token budget rules live in `docs/agents/token-efficiency.md`; context maps live
-  in `docs/context/`.
+  `[Unreleased]` bullets before assuming a feature is missing.
+- Current executable work is tracked in GitHub Issues. Issue bodies override the
+  old phase table when they include a context budget, allowed paths, and
+  acceptance criteria.
 
-## Mission queue
+## Current release queue
 
-Work in priority order. Pick the highest-ranked **Next** or **parallel-safe** mission,
-read its single plan file, create the branch, and work until the plan's
-"Stop after opening PR" instruction. Mark the row **In progress** in this file when you
-claim it. All plan files live in `docs/implementation/`.
+Work from GitHub Issues first. Pick the highest-priority open issue whose
+relationships do not block implementation. If an issue has a planning request for
+Claude, do not implement until the plan is posted or the user explicitly says to
+proceed.
 
-Parallel-safe missions share no state with other in-flight work and can run on independent
-branches simultaneously.
+### Release-critical path
 
-| # | Mission | Plan | Branch | Status |
-|---|---|---|---|---|
-| 1 | UI: search workspace | `phase-08c-search-workspace.md` | `developer/phase-08c-search-workspace` | Done |
-| 2 | Metrics foundation | `phase-10a-metrics-foundation.md` | `developer/phase-10a-metrics-foundation` | Done |
-| 3 | Legacy Office extraction | `phase-09b-legacy-office-extraction.md` | `developer/phase-09b-legacy-office-extraction` | **Next** (parallel-safe) |
-| 4 | UI: document detail + Q&A | `phase-08d-document-detail.md` | `developer/phase-08d-document-detail` | Done |
-| 5 | Domain metrics | `phase-10b-domain-metrics.md` | `developer/phase-10b-domain-metrics` | Done |
-| 6 | Admin readiness endpoint | `phase-10c-admin-readiness.md` | `developer/phase-10c-admin-readiness` | **Next** (parallel-safe) |
-| 7 | UI: collaboration + discovery | `phase-08e-collaboration-discovery.md` | `developer/phase-08e-collaboration-discovery` | **In progress** |
-| 8 | Structured logs + tracing | `phase-10e-structured-logs.md` | `developer/phase-10e-structured-logs` | **Next** (parallel-safe) |
-| 9 | Monitoring Compose profile | `phase-10d-monitoring-compose.md` | `developer/phase-10d-monitoring-compose` | **Next** |
-| 10 | NiFi + Kafka integration | `phase-09a-nifi-integration.md` | `developer/phase-09a-nifi-integration` | **Next** (parallel-safe) |
-| 11 | Atlassian hardening | `phase-09c-atlassian-hardening.md` | `developer/phase-09c-atlassian-hardening` | Conditional |
-| 12 | Worker observability | `phase-10f-worker-observability.md` | `developer/phase-10f-worker-observability` | Deferred |
+| Priority | Issue | Owner fit | Status note |
+|---|---|---|---|
+| 1 | #83 Hebrew and English UI Localization | Claude implementation, Codex fixups | Release-target UI requirement. |
+| 2 | #75 Air-Gapped Upgrade Without Data Loss | Claude plan, Codex implementation, Claude review | Safety-sensitive; wait for plan before implementation. |
+| 3 | #65 NiFi Event Integration and Kafka Consumer Wiring | Claude plan, Codex implementation | Release-target connector work; no live NiFi/Kafka in CI. |
+| 4 | #79 NTFS ACL Permission Sync for SMB Sources | Claude security plan/review, narrow Codex implementation | Security-sensitive; disabled by default and fail-closed. |
+| 5 | #84 Frontend Perceived Performance Polish | Claude or Codex | Parallel-safe frontend polish. |
+| 6 | #85 Search Workflow Keyboard and Quick Preview | Claude or Codex | Parallel-safe frontend workflow polish. |
+| 7 | #86 Large List and Lazy Panel Performance | Claude or Codex | Parallel-safe frontend rendering polish. |
+| 8 | #87 Admin Source Sync Usability Polish | Claude or Codex | May touch frontend and small admin API paths. |
+| 9 | #88 Frontend User Performance Telemetry | Claude or Codex | Privacy-safe local timing instrumentation. |
+| 10 | #89 Agent Docs and Release Queue Efficiency Refresh | Claude or human | Docs-only coordination cleanup. |
 
-Branch validation (2026-05-09): local refs contain only the current `work` branch at the
-Phase 10a merge commit; no additional unmerged `developer/*` mission branches were present
-beyond the externally reported in-progress Phase 08 missions marked above.
+### Optional or deferred before release candidate
+
+| Issue | Status guidance |
+|---|---|
+| #63 Structured Logs and Tracing Hooks | Useful ops polish; not a release blocker unless requested. |
+| #64 Optional Monitoring Compose Profile | Enterprise polish; can follow release candidate. |
+| #58 Legacy Office Format Extraction | Do before release only if `.doc`, `.xls`, `.ppt` corpora are required. |
+| #66 Optional Atlassian Permission Hardening | Decision-gated; may close with no code if not required now. |
+| #67 Worker Observability | Deferred until long-running worker entrypoints exist. |
+
+### Recently completed release-hygiene work
+
+Do not reclaim these unless a new regression issue is opened:
+
+- #60 Admin readiness endpoint — done.
+- #61 UI collaboration and discovery — done via #81; #72 was superseded.
+- #77 SMB Source Connector MVP — done via #80.
+- #78 Host-Mounted SMB Share Deployment Guide — done via #82.
 
 ## Context routing
 
@@ -54,12 +67,15 @@ Use layered context. Do not load the whole repository by default.
 
 Default context order:
 
-1. This `AGENTS.md` file.
-2. GitHub Issue body, especially `Context Budget`, `Allowed Changes`, and `Forbidden Changes`.
-3. `docs/agents/token-efficiency.md`.
-4. The single implementation/design plan referenced by the issue or mission queue.
-5. One relevant context map from `docs/context/`.
-6. Source and test files located by `rg`.
+1. `AGENTS.md`.
+2. `docs/agents/token-efficiency.md`.
+3. `CLAUDE.md` when running Claude Code.
+4. GitHub Issue body, especially `Context Budget`, `Allowed Changes`, and
+   `Forbidden Changes`.
+5. The single implementation/design plan referenced by the issue, if any.
+6. One relevant context map from `docs/context/`, when needed.
+7. Source and test files located with `rg`.
+8. `CHANGELOG.md` before assuming a feature is missing.
 
 Available context maps:
 
@@ -70,43 +86,105 @@ Available context maps:
 | Search | `docs/context/search.md` |
 | Extraction | `docs/context/extraction.md` |
 
-Use `docs/agents/issue-context-template.md` when creating or refining mission issues.
-Use `docs/agents/context-budget-migration.md` when migrating older issues to include a
-context budget.
+For docs-only missions, do not read product source code unless the docs need exact
+service names, commands, paths, or API behavior.
 
 ## Multi-agent orchestration
 
-Neverland may be worked on by Codex, Claude Code, and human reviewers. This file plus the
-single relevant phase plan are the source of truth for repository work. GitHub Issues and
-PRs are coordination objects; they do not override the mission queue or phase plans unless
-the user explicitly says so.
+Neverland may be worked on by Codex, Claude Code, and human reviewers. GitHub
+Issues and PRs are the coordination objects for current work. This file provides
+routing rules; it should not be treated as a stale static project plan.
 
 ### Agent role split
 
-- **Claude Code** is preferred for planning, architecture review, issue decomposition,
-  security/edge-case analysis, API consistency checks, and reviewer reports.
-- **Codex** is preferred for scoped implementation, mechanical refactors, test generation,
-  lint/type/build fixes, CI repair, and small targeted patches.
-- **Human reviewers** own priority changes, merge decisions, risky migrations, and any
-  change to canonical requirements.
+- **Claude Code** is preferred for planning, architecture review, security/edge
+  cases, API consistency checks, broad frontend localization, UX/text consistency,
+  docs polish, issue decomposition, and reviewer reports.
+- **Codex** is preferred for scoped implementation after a plan, mechanical
+  refactors, test generation, lint/type/build fixes, CI repair, scripts, shell
+  safety, and small targeted patches.
+- **Human reviewers** own priority changes, merge decisions, risky migrations,
+  destructive-operation policy, and changes to canonical requirements.
 
-Any agent may create or edit GitHub Issues when doing so clarifies scope, dependencies,
-acceptance criteria, or follow-up work. Issue edits must be factual and concise.
+Security-sensitive work such as #79 must be planned/reviewed by Claude and
+implemented narrowly with strict tests. Destructive or safety-sensitive work such
+as #75 must have a reviewed plan before implementation.
 
-### Mission ownership rules
+## Mission ownership rules
 
 - One branch has one active owner at a time: Codex, Claude, or a human.
-- Do not edit another agent's in-progress branch unless an issue or PR comment explicitly
-  transfers ownership.
-- If a mission is already marked **In progress**, do not claim it unless the current owner
-  hands it off.
-- If working from a GitHub Issue, reference the issue number in the branch, commits, PR,
+- Do not edit another agent's in-progress branch unless an issue or PR comment
+  explicitly transfers ownership.
+- If working from a GitHub Issue, reference the issue number in the branch, PR,
   reviewer report, and final handoff.
-- If no GitHub Issue exists, the mission queue row and phase plan are sufficient authority.
+- If no issue exists, create one before implementing non-trivial work.
+- If work discovers independent features, create separate issues instead of
+  expanding the current PR.
 
-### GitHub Issue workflow
+Use this claim comment when starting work:
 
-Use issues to decompose large work, track dependencies, or coordinate Codex/Claude handoffs.
+```md
+## Agent Claim
+
+Owner: Codex | Claude | Human
+Issue: #<issue>
+Branch: `<branch>`
+Parallel-safe: yes/no
+Allowed paths:
+- ...
+Expected shared-file touches:
+- None, or list files
+Blocked by: None, or #<issue-or-pr>
+```
+
+Use this handoff comment when transferring ownership:
+
+```md
+## Ownership Transfer
+
+From: Codex | Claude | Human
+To: Codex | Claude | Human
+Branch: `<branch>`
+Reason: planning complete | implementation complete | review fixes needed | CI repair needed
+Current status:
+- ...
+Files already changed:
+- ...
+Do not touch:
+- ...
+Next action:
+- ...
+```
+
+## Shared-file conflict policy
+
+These files often conflict across parallel work and should have a single owner or
+be handled in a final integration pass:
+
+- `CHANGELOG.md`
+- `README.md`
+- `AGENTS.md`
+- `CLAUDE.md`
+- package lockfiles
+- migrations and migration indexes
+- frontend translation dictionaries
+- release/operations docs
+- generated artifacts
+
+If two PRs need the same shared file, merge the schema/API/config PR first, then
+rebase the second branch and resolve the shared file once. Do not let two agents
+resolve the same conflict independently.
+
+Merge order for parallel PRs:
+
+1. Schema/config/API-contract PRs.
+2. Backend services that define interfaces.
+3. Frontend consumers of those interfaces.
+4. Docs/test-only PRs.
+5. Final integration/changelog cleanup.
+
+## GitHub Issue workflow
+
 For new issues, prefer this compact structure:
 
 ```md
@@ -115,16 +193,11 @@ For new issues, prefer this compact structure:
 ## Objective
 One clear deliverable.
 
-## Context
-Relevant files, phase plan, constraints, and prior decisions.
-
 ## Context Budget
-
 Read first:
 - `AGENTS.md`
 - `docs/agents/token-efficiency.md`
-- `<single relevant implementation/design plan>`
-- `<single relevant docs/context/*.md>`
+- `<single relevant plan or context doc>`
 
 Allowed source paths:
 - ...
@@ -149,160 +222,52 @@ Related: #<issue-or-pr> or None
 Follow-ups: #<issue> or None
 
 ## Allowed Changes
-Directories/files the agent may edit.
+- ...
 
 ## Forbidden Changes
-Protected files/modules, especially `spec.md` and `spec-v4.pdf` unless explicitly allowed.
+- ...
 
 ## Acceptance Criteria
-- [ ] Targeted tests pass
-- [ ] Lint/type checks relevant to touched code pass
-- [ ] `CHANGELOG.md` updated for user-visible code, schema, config, or workflow changes
-- [ ] PR references the mission issue or phase plan
-- [ ] Agent handoff includes `Context Loaded`, `Context Skipped`, and `Token Efficiency Notes`
-
-## Risks / Notes
-Known edge cases, migrations, compatibility concerns, or follow-up work.
+- [ ] Targeted tests/checks pass
+- [ ] `CHANGELOG.md` updated when user-visible behavior, schema, config, docs workflow, or operations change
+- [ ] PR references this issue
+- [ ] Agent handoff includes context accounting
 ```
 
-Recommended labels when issues are used:
+Recommended labels:
 
 ```txt
-agent:codex
-agent:claude
+mission
 status:planning
+status:next
 status:implementation
 status:review
 status:blocked
-status:parallel-safe
-status:needs-human
+status:done
+parallel-safe
 risk:high
 risk:low
 ```
 
-### Issue relationships and dependency graph
+## Branch and PR expectations
 
-When issues are used, maintain explicit relationships in the issue body and update them as
-work changes. Prefer plain issue/PR references so GitHub backlinks stay visible.
-
-Relationship meanings:
-
-- **Parent**: an umbrella issue or phase-level tracker. Parent issues describe intent and
-  aggregate status; child issues contain executable work.
-- **Child mission**: an independently executable issue created from a parent. Child issues
-  must have their own objective, scope, owner, and acceptance criteria.
-- **Blocked by**: work must not start, or must not merge, until the referenced issue or PR is
-  complete. Agents may only do planning/review on blocked work unless the user explicitly
-  authorizes implementation.
-- **Blocks**: this issue prevents another issue from starting or merging. When completing
-  this issue, notify every blocked issue with a short unblocking comment.
-- **Depends on**: work may begin in parallel, but final validation or merge depends on the
-  referenced issue, PR, interface, migration, or decision.
-- **Related**: useful context only. No scheduling or merge constraint.
-- **Duplicate**: close the duplicate and link to the canonical issue.
-- **Follow-up**: new work discovered during implementation or review that should not expand
-  the current mission scope.
-
-Rules for dependency handling:
-
-- Before claiming an issue, inspect its `Relationships` section and linked PRs.
-- If `Blocked by` is not `None`, add `status:blocked` and do not implement beyond planning
-  unless explicitly instructed.
-- If this issue blocks others, list them under `Blocks` and mention them in the PR handoff.
-- When a blocker merges or closes, comment on blocked issues with `Unblocked by #<number>`
-  and replace `status:blocked` with `status:planning` or `status:implementation`.
-- Parent issues should remain open until all child missions are complete or intentionally
-  deferred.
-- Do not use dependencies to justify scope creep. Create follow-up issues instead.
-
-### Parallel multi-agent execution
-
-Multiple agents may work at the same time only when their missions are explicitly
-parallel-safe or their issue relationships show no blocking dependency.
-
-Parallel work is allowed when all of these are true:
-
-- Each agent has a different branch.
-- Each agent has a different mission queue row or GitHub Issue.
-- The `Allowed Changes` sections do not overlap except for coordination files.
-- No issue is marked `Blocked by` another in-flight mission.
-- Shared files such as `CHANGELOG.md`, `docs/README.md`, implementation indexes, migrations,
-  generated files, and package lockfiles are either assigned to one owner or updated during
-  the final integration pass.
-
-Parallel work is not allowed when any of these are true:
-
-- Two agents need to edit the same source file, migration chain, API contract, or shared
-  frontend state model.
-- One mission changes interfaces another mission consumes.
-- One mission depends on database schema, config, route, permission, or event changes from
-  another unmerged PR.
-- The phase plan says to serialize the work.
-
-Use this claim comment when starting parallel work:
-
-```md
-## Agent Claim
-
-Owner: Codex | Claude | Human
-Mission: #<issue> or `<phase-plan>.md`
-Branch: `<branch>`
-Parallel-safe: yes/no
-Allowed paths:
-- ...
-Expected shared-file touches:
-- None, or list files
-Blocked by: None, or #<issue-or-pr>
-```
-
-Use this handoff comment when transferring ownership between agents:
-
-```md
-## Ownership Transfer
-
-From: Codex | Claude | Human
-To: Codex | Claude | Human
-Branch: `<branch>`
-Reason: planning complete | implementation complete | review fixes needed | CI repair needed
-Current status:
-- ...
-Files already changed:
-- ...
-Do not touch:
-- ...
-Next action:
-- ...
-```
-
-Merge order for parallel PRs:
-
-1. Merge schema/config/API-contract PRs first.
-2. Rebase or update dependent branches after upstream merges.
-3. Run targeted tests for touched areas again after rebasing.
-4. Merge leaf UI/docs/test-only PRs last unless they are independent.
-5. If two PRs conflict, stop and assign one integration owner instead of letting both agents
-   resolve the same conflict independently.
-
-### Branch and PR coordination
-
-Prefer the branch listed in the mission queue. For issue-only work without a listed branch,
-use:
+For issue-only work without a listed branch, use:
 
 ```txt
-mission/<issue-number>-<short-name>
+issue/<issue-number>-<short-name>
 ```
 
-PRs must stay scoped to one phase, one mission, or one named subtask. PR descriptions should
-include:
+PRs must stay scoped to one issue, one phase, or one named subtask. PR
+descriptions should include:
 
 ```md
 ## Mission
-Closes #<issue> or references `<phase-plan>.md`.
+Closes #<issue>.
 
 ## Changes
 - ...
 
-## Tests
+## Tests / Checks
 - ...
 
 ## Risks
@@ -310,25 +275,12 @@ Closes #<issue> or references `<phase-plan>.md`.
 
 ## Notes for Reviewers
 - ...
+
+## Agent Handoff
+...
 ```
 
-### Review routing
-
-- Ask **Claude** to review architecture, API consistency, security boundaries, migrations,
-  edge cases, and whether the implementation matches the phase plan.
-- Ask **Codex** to review implementation correctness, test coverage, lint/type failures,
-  regressions, and CI failures.
-- Reviewer reports belong in `review/<pr-number>.md` and should remain concise: blockers,
-  warnings, suggestions, coverage/checks, and verdict.
-
-Useful review prompts:
-
-```txt
-@claude review this PR against AGENTS.md, the phase plan, architecture consistency, and edge cases.
-@codex review this PR for correctness, tests, typing, lint, regressions, and CI failures.
-```
-
-### Required agent handoff
+## Required agent handoff
 
 Every agent run that changes files must end with this handoff in the PR or issue:
 
@@ -362,31 +314,16 @@ Every agent run that changes files must end with this handoff in the PR or issue
 - ...
 ```
 
-### Conflict policy
-
-When instructions conflict, follow this priority order:
-
-1. Explicit user instruction in the current task.
-2. Safety and data-protection requirements.
-3. This `AGENTS.md` file.
-4. The relevant phase plan in `docs/implementation/`.
-5. Existing code patterns and tests.
-6. General agent preferences.
-
 ## Token-efficient workflow
 
 1. Start with `git status --short` and inspect only files relevant to the task.
 2. Use `rg` / `rg --files`; do not use recursive `grep` or broad file dumps.
-3. Read docs in this order only as needed:
-   - `CHANGELOG.md` for existing features.
-   - `docs/implementation/README.md` for phase index.
-   - The single phase plan that matches the task.
-   - One relevant context map from `docs/context/`.
-   - `docs/logical-spec.md` only for behavior questions.
-4. Read `docs/agents/token-efficiency.md` for hard limits and context accounting.
-5. Prefer targeted tests first, then broader checks before handoff.
-6. Do not reformat unrelated files or churn generated lockfiles unless the task
-   requires dependency changes.
+3. Prefer the issue body over old phase docs when an issue has a context budget.
+4. Read at most one implementation plan, one design doc, and one context map by
+   default.
+5. Do not read `spec.md` or `spec-v4.pdf` unless the user explicitly asks or the
+   issue authorizes it.
+6. Prefer targeted tests first, then broader checks before handoff.
 7. Preserve user changes: if `git status --short` shows unexpected edits, inspect
    before touching those files.
 
@@ -411,17 +348,24 @@ When instructions conflict, follow this priority order:
 Run from repo root.
 
 ```bash
-# Fast lint/format/type checks
 ruff check --fix src/ tests/ migrations/
 ruff format src/ tests/ migrations/
 mypy src --strict
-
-# Targeted tests
 pytest tests/unit/test_<area>.py -q
 pytest tests/integration/test_<area>.py -q
-
-# Full backend suite with coverage
 pytest
+```
+
+## Frontend commands
+
+Run from repo root.
+
+```bash
+npm --prefix frontend run lint
+npm --prefix frontend run typecheck
+npm --prefix frontend run test
+npm --prefix frontend run build
+npm --prefix frontend run test:e2e
 ```
 
 ## Python conventions
@@ -429,8 +373,7 @@ pytest
 - Every Python file starts with `from __future__ import annotations`.
 - Ruff line length is 100; mypy is strict.
 - Public functions/classes need Google-style docstrings.
-- Use `str | None`, `dict[str, Any]`, and other modern generic syntax.
-- Import order: standard library, third-party, local.
+- Use `str | None`, `dict[str, Any]`, and modern generic syntax.
 - Use `shared.db.db_uuid(value)` for SQL UUID parameter binding.
 - Use SQLAlchemy bound parameters; do not interpolate SQL strings.
 
@@ -451,8 +394,8 @@ pytest
   validation patterns.
 - Do not bypass feature flags for optional capabilities.
 - Do not create a migration without a downgrade path.
-- Do not forget `CHANGELOG.md` for user-visible code, schema, config, or docs
-  workflow changes.
+- Do not forget `CHANGELOG.md` for user-visible code, schema, config, operations,
+  docs workflow, or release-process changes.
 - Do not add hardcoded secrets; `.env.example` may contain placeholders only.
 - Do not move routes out of `src/services/api/main.py` unless a phase explicitly
   authorizes the refactor.
@@ -460,21 +403,27 @@ pytest
 
 ## Documentation structure rules
 
-- Every implementation plan in `docs/implementation/` must follow the `phase-XX-name.md`
-  naming convention. Never create loosely named plan files (e.g. `my-feature-plan.md`).
-- When a phase covers multiple independent features, split it: one overview index file
-  plus one `phase-XXa-feature.md` per feature. See phases 03, 08f, 09, and 10 as patterns.
-- Every feature that has a UX spec or metric catalog must have a matching design document in
-  `docs/design/`. Link the design file in the implementation plan under `## Design source`.
-- Update `docs/README.md` and `docs/implementation/README.md` in the same commit whenever
-  a new plan file is added or an existing file is renamed.
-- After completing a phase, update its status to `Done` in both README files in the same PR.
+- Implementation plans in `docs/implementation/` follow the `phase-XX-name.md`
+  naming convention.
+- When a phase covers multiple independent features, split it into one overview
+  plus one `phase-XXa-feature.md` per feature.
+- Update `docs/README.md` and `docs/implementation/README.md` when adding or
+  renaming plan files.
+- After completing a phase, update its status in the relevant README files in the
+  same PR when those indexes are still authoritative.
 
-## Review and PR expectations
+## Review routing
 
-- PRs should map to one phase or one named subtask.
-- Include tests or a clear reason a docs-only change did not need runtime tests.
-- If UI behavior changes, include visual evidence or explain why a screenshot was
-  not possible.
-- Reviewer reports belong in `review/<pr-number>.md` and should be concise:
-  blockers, warnings, suggestions, coverage/checks, verdict.
+- Ask **Claude** to review architecture, API consistency, security boundaries,
+  migrations, edge cases, and plan compliance.
+- Ask **Codex** to review implementation correctness, test coverage, lint/type
+  failures, regressions, and CI failures.
+- Reviewer reports should be concise: blockers, warnings, suggestions,
+  coverage/checks, and verdict.
+
+Useful review prompts:
+
+```txt
+@claude review this PR against AGENTS.md, the issue, architecture consistency, and edge cases.
+@codex review this PR for correctness, tests, typing, lint, regressions, and CI failures.
+```
