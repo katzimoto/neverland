@@ -45,9 +45,9 @@ docker compose down -v
 ```
 
 See `docs/operations/production-compose.md` for the full operations guide,
-including service layout, annotated environment variables, host-mounted SMB share
-ingestion with the existing `folder` connector, reset behavior, backup and
-restore guidance, health checks, troubleshooting, and current limitations.
+including service layout, annotated environment variables, reset behavior,
+backup and restore guidance, health checks, troubleshooting, and current
+limitations.
 
 ## Air-Gapped Release Artifact
 
@@ -77,8 +77,15 @@ docker compose --env-file .env -f docker-compose.airgap.yml up -d
 ```
 
 See `docs/operations/air-gapped-deployment.md` for the complete
-download-to-first-use guide, including connector setup, host-mounted SMB share
-setup, local users/groups, LDAP, health checks, backup, restore, and current
-limitations. For existing offline deployments, follow
-`docs/operations/air-gapped-upgrade.md` to load a newer release, run migrations,
-verify stable host mounts, and preserve data volumes.
+download-to-first-use guide, including connector setup, local users/groups, LDAP,
+health checks, backup, restore, and current limitations. For existing offline
+deployments, follow `docs/operations/air-gapped-upgrade.md` to load a newer
+release, run migrations, and preserve data volumes.
+
+## Host-Mounted SMB Shares
+
+Operators who already mount Windows/SMB shares on the Docker host can expose the
+mounted path to Neverland as a read-only bind mount and ingest it with the
+existing `folder` connector. See `docs/operations/production-compose.md` for the
+host-mounted SMB guide, including CIFS mount examples, read-only service-account
+guidance, the container path to use in the `folder` source, and upgrade notes.
