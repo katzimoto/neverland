@@ -445,6 +445,89 @@ Restore all consistency-sensitive volumes from the same backup set. Do not mix a
 PostgreSQL backup from one point in time with Elasticsearch or Qdrant indexes
 from another unless you are prepared to rebuild indexes.
 
+## Translation Language Support
+
+The release artifact includes a pinned LibreTranslate image (`neverland/libretranslate:airgap`)
+with Argos Translate language packs pre-installed at image build time. The air-gapped
+target host does not download translation models at startup.
+
+### Supported RC language matrix
+
+| Code | Language             | To English | From English |
+|------|----------------------|------------|--------------|
+| `en` | English              | —          | —            |
+| `ar` | Arabic               | Yes        | Yes          |
+| `fr` | French               | Yes        | Yes          |
+| `ru` | Russian              | Yes        | Yes          |
+| `es` | Spanish              | Yes        | Yes          |
+| `zh` | Chinese Simplified   | Yes        | Yes          |
+| `ko` | Korean               | Yes        | Yes          |
+| `th` | Thai                 | Yes        | Yes          |
+| `he` | Hebrew               | Yes        | Yes          |
+| `zt` | Chinese Traditional  | If bundled | If bundled   |
+
+### Direct non-English pairs
+
+LibreTranslate routes non-English-to-non-English translation requests through an
+English pivot (e.g., Arabic to French is translated as Arabic → English → French).
+Direct non-English pairs are not installed; quality for indirect pairs depends on
+the intermediate English translation step.
+
+### Chinese Traditional (`zt`) availability
+
+`zt` packages are installed during image build if they are present in the Argos
+Translate package index at build time. If the index did not include `zt` at build
+time, the `neverland/libretranslate:airgap` image will not serve `zt` translation.
+Run `scripts/validate-translation-languages.sh` after startup to confirm whether
+`zt` is available. If `zt` is required for a release, the release owner must
+explicitly accept this limitation if `zt` is absent.
+
+### Validating language support after startup
+
+After the stack is healthy, run the translation validation script against the
+running LibreTranslate service:
+
+```bash
+LIBRETRANSLATE_URL=http://localhost:5000 bash scripts/validate-translation-languages.sh
+```
+
+The script checks:
+
+1. `/languages` is reachable.
+2. Required language codes (`en`, `ar`, `fr`, `ru`, `es`, `zh`, `ko`, `th`, `he`)
+   are present.
+3. Each required non-English language can translate to and from English.
+4. `zt` is tested if present; a warning (not a failure) is emitted if absent.
+
+### Adding languages in future releases
+
+To add a language in a future release:
+
+1. Add the new language code to `SUPPORTED_TRANSLATION_SOURCE_LANGUAGES` and
+   `SUPPORTED_TRANSLATION_TARGET_LANGUAGES` in both env example files.
+2. Add the required `(lang, "en")` and `("en", lang)` pairs to `REQUIRED_PAIRS`
+   in `docker/install-translation-packs.py`.
+3. Rebuild the `neverland/libretranslate:airgap` image in a connected environment.
+4. Bundle the new image into the next release artifact.
+5. Update the language matrix in this document.
+
+### Unsupported-language behavior
+
+Languages not listed in `SUPPORTED_TRANSLATION_SOURCE_LANGUAGES` and
+`SUPPORTED_TRANSLATION_TARGET_LANGUAGES` are still indexed and searchable as
+original text. Translation requests for unsupported language codes are rejected or
+marked unavailable by the application; they are not silently passed to
+LibreTranslate. Operators should not infer that a language is translated simply
+because it appears in document metadata.
+
+### Artifact size impact
+
+Each Argos Translate language pair adds approximately 50–300 MB to the
+`neverland/libretranslate:airgap` image. The bundled image for the required
+language set is approximately 3–5 GB larger than the base `libretranslate:v1.6.3`
+image. Operators should reserve additional disk space for the expanded image
+bundle. See `Host Prerequisites` above for overall disk guidance.
+
 ## Current Limitations
 
 - The default artifact does not include pre-downloaded Ollama model weights.
@@ -456,3 +539,8 @@ from another unless you are prepared to rebuild indexes.
   long-running worker container or live NiFi/Kafka CI validation is included.
 - Atlassian-native permission synchronization is not present; use Neverland
   source grants and groups.
+- Direct non-English translation pairs are not installed; non-English-to-non-English
+  translation uses an English pivot via LibreTranslate's built-in routing.
+- `zt` (Traditional Chinese) availability depends on the Argos Translate package
+  index at image build time; run `scripts/validate-translation-languages.sh` to
+  confirm after startup.
