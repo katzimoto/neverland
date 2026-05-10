@@ -19,6 +19,8 @@ code.
 | `libretranslate` | `${LIBRETRANSLATE_PORT:-5000}` | Language detection and translation service. | `GET /languages` |
 | `ollama` | `${OLLAMA_PORT:-11434}` | Local LLM runtime for intelligence features. | `GET /api/tags` |
 | `kafka` | `${KAFKA_PORT:-9092}` | Redpanda Kafka-compatible broker for events. | `rpk cluster health` |
+| `prometheus` | `127.0.0.1:${PROMETHEUS_PORT:-9090}` | Optional metrics scraper and alert-rule evaluator in the `monitoring` profile. | none |
+| `grafana` | `127.0.0.1:${GRAFANA_PORT:-3000}` | Optional dashboard UI in the `monitoring` profile. | none |
 
 Worker containers are intentionally not included yet. The current backend uses
 synchronous API-triggered pipeline work and direct service classes. Add
@@ -232,6 +234,126 @@ HTTP request totals, request-duration histograms, and exception totals. The API
 also accepts `X-Request-ID` from trusted callers, generates one when absent, and
 echoes it back on all responses including 4xx/5xx errors.
 
+## Optional Monitoring Profile
+
+Monitoring is optional and is not part of the default startup path. The standard
+product command starts the API, frontend, migration job, and required data
+services only; it does not start Prometheus or Grafana:
+
+```bash
+docker compose up -d
+```
+
+Enable monitoring explicitly with the Compose profile:
+
+```bash
+docker compose --profile monitoring up -d
+```
+
+The profile adds two services on the internal Compose network:
+
+- `prometheus`, which scrapes `api:8000/metrics` every 15 seconds using
+  `docker/prometheus/prometheus.yml` and evaluates alert rules from
+  `docker/prometheus/alerts.yml`. Its retention defaults to 15 days and can be
+  changed with `PROMETHEUS_RETENTION`.
+- `grafana`, which automatically provisions the `Neverland Prometheus` data
+  source and dashboards from tracked files under `docker/grafana/`.
+
+The monitoring services do not participate in product health or dependency
+chains. If Prometheus or Grafana is stopped or its volumes are deleted, product
+documents, permissions, metadata, search indexes, vector indexes, translation
+cache, model cache, and Kafka data are unaffected.
+
+### Monitoring access and exposure
+
+Prometheus and Grafana ports are bound to loopback only by default:
+
+- Grafana: `http://127.0.0.1:${GRAFANA_PORT:-3000}`
+- Prometheus: `http://127.0.0.1:${PROMETHEUS_PORT:-9090}`
+
+Do not expose these ports directly to untrusted networks. If remote operations
+access is required, put the services behind an authenticated VPN, SSH tunnel, or
+reverse proxy managed outside this Compose file. The checked-in Prometheus,
+Grafana provisioning, and dashboard files do not contain hardcoded application
+secrets. Configure Grafana administrator credentials through deployment-specific
+secrets or environment management rather than committing them to the repository.
+
+### Provisioned dashboards
+
+Grafana loads these starter dashboards automatically:
+
+- **Executive Health**: API target status, API 5xx rate, DLQ pending count,
+  dependency degradation count, search/RAG p95 latency, and pipeline throughput.
+- **API and UX**: HTTP request rate, route latency, unhandled exceptions, login
+  attempts, authorization denials, preview outcomes, and download outcomes.
+- **Ingestion and Indexing**: source syncs, discovered documents, pipeline stage
+  latency, chunk rate, indexed document gauges, and DLQ trends.
+- **Search and RAG**: search request outcomes, search latency, backend latency,
+  result counts, RAG outcomes, RAG phase latency, and Ollama request behavior.
+- **Infrastructure**: API scrape status, dependency readiness and readiness
+  latency, API process CPU and memory, and Python GC activity.
+
+Dashboards intentionally use only metrics emitted by the API `/metrics` endpoint.
+They include text notes where host-level or dependency-internal exporter metrics
+would be needed for deeper infrastructure panels.
+
+### Alert rules
+
+The starter Prometheus rules include:
+
+- `NeverlandApiTargetDown` for failed API metrics scrapes.
+- `NeverlandHighApi5xxRate` for sustained API 5xx rates above 2%.
+- `NeverlandHighApiLatency` for sustained API p95 latency above 1 second.
+- `NeverlandIngestionFailuresIncreasing` for non-success ingestion sync outcomes.
+- `NeverlandSearchFailuresIncreasing` for non-success search outcomes.
+- `NeverlandDlqPending` and `NeverlandDlqGrowing` for dead-letter queue backlog.
+- `NeverlandDependencyReadinessDegraded` for dependency readiness probes that
+  report unavailable.
+
+Alertmanager is not included in this profile. Wire notifications through a
+deployment-specific Alertmanager or managed monitoring system if paging or chat
+alerts are required.
+
+### Stopping and resetting monitoring only
+
+Stop monitoring without stopping the product stack:
+
+```bash
+docker compose --profile monitoring stop prometheus grafana
+```
+
+Remove only monitoring containers while keeping product services and all named
+volumes:
+
+```bash
+docker compose --profile monitoring rm -sf prometheus grafana
+```
+
+Reset monitoring state without deleting product data volumes. Adjust the
+`neverland_` prefix if your Compose project name differs:
+
+```bash
+docker compose --profile monitoring stop prometheus grafana
+docker compose --profile monitoring rm -sf prometheus grafana
+docker volume rm neverland_prometheus_data neverland_grafana_data
+docker compose --profile monitoring up -d prometheus grafana
+```
+
+Do not use `docker compose down -v` for a monitoring-only reset because it also
+removes product data volumes.
+
+### Monitoring limitations and follow-ups
+
+- The profile scrapes only the Neverland API metrics endpoint; it does not add
+  PostgreSQL, Elasticsearch, Qdrant, Kafka, host, container, disk, or node
+  exporters.
+- Infrastructure dashboards therefore show dependency readiness and API process
+  metrics, not dependency-internal saturation metrics such as disk pressure,
+  Elasticsearch shard internals, Qdrant collection size, or Kafka broker
+  internals.
+- Alert rules intentionally reference only existing Neverland metrics. Add
+  exporter-backed alerts in a follow-up after those exporters are introduced.
+
 ## Startup, Shutdown, And Logs
 
 Validate Compose without starting services:
@@ -323,6 +445,8 @@ Compose creates these named volumes:
 - `kafka_data`: local Redpanda event log.
 - `libretranslate_data`: LibreTranslate downloaded language data and cache.
 - `ollama_data`: local Ollama model cache.
+- `prometheus_data`: optional monitoring time-series data; operational state, not product data.
+- `grafana_data`: optional monitoring UI database/plugins state; operational state, not product data.
 
 Back up `postgres_data`, `files_data`, `elasticsearch_data`, and `qdrant_data`
 together while the stack is stopped, or from a storage snapshot that captures
