@@ -28,9 +28,9 @@ jobs:
     name: Build air-gapped release artifact
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       - name: Resolve release version
         id: version
@@ -65,7 +65,7 @@ jobs:
           fi
 
       - name: Upload release archive artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: neverland-release-${{ steps.version.outputs.safe_version }}
           path: |
@@ -76,7 +76,7 @@ jobs:
 
       - name: Attach archive to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v') || inputs.attach_to_release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.version.outputs.version }}
           generate_release_notes: true
