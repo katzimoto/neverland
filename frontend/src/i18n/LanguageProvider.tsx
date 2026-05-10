@@ -22,7 +22,6 @@ export function LanguageProvider({ children }: LanguageProviderProps) {
   function setLanguage(lang: Language) {
     setLanguageState(lang);
     persistLanguage(lang);
-    applyLanguageToDocument(lang);
   }
 
   return (
