@@ -39,7 +39,7 @@ const ADMIN_ITEM: NavItem = {
   icon: <Shield size={20} />,
 };
 
-const STORAGE_KEY = "neverland_rail_expanded";
+const STORAGE_KEY = "tomorrowland_rail_expanded";
 
 interface NavRailProps {
   isAdmin: boolean;
