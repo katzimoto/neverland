@@ -20,6 +20,160 @@ single relevant plan, or one area context map.
   old phase table when they include a context budget, allowed paths, and
   acceptance criteria.
 
+## Release and board guardrails
+
+Follow these rules for every release candidate cycle and board update.
+
+### 1. One active release blocker at a time
+
+Do not start next-RC implementation while the current RC has unresolved release
+artifact, validation, or publication blockers unless the release owner explicitly
+approves parallel work.
+
+Priority order for RC work:
+
+1. Release artifact can build.
+2. Release artifact can validate.
+3. Release assets/checksums are attached.
+4. Only then resume optional or next-RC work.
+
+### 2. Do not close release issues until assets are actually published
+
+A release issue is done only when all of the following are true:
+
+- Workflow passed.
+- Artifact files exist.
+- Checksum files exist.
+- Assets are attached to the GitHub Release.
+- Air-gapped validation passed.
+- Final release URL/checksum posted back to the issue.
+
+For air-gapped releases, also confirm:
+
+- `validate-airgap-artifact.sh --load-images` passed.
+- `docker-compose.airgap.yml` has no build steps.
+- All Compose images are bundled.
+
+### 3. Always refresh `main` before release branches
+
+```bash
+git fetch origin
+git checkout main
+git pull --ff-only origin main
+git rev-parse HEAD
+```
+
+Do not base release branches on stale main. If release tooling merged recently,
+create a fresh branch from current main instead of reusing an old branch.
+
+### 4. Preserve recently merged release tooling
+
+When editing release scripts or workflows, preserve the following unless the
+mission explicitly changes them:
+
+- `scripts/build-ollama-model-bundle.sh`
+- `scripts/load-ollama-model-bundle.sh`
+- `scripts/validate-ollama-model.sh`
+- `build-ollama-model-bundle` workflow job
+- `build_ollama_bundle` workflow input
+- `ollama_model` workflow input
+
+### 5. Separate planning, implementation, and release management
+
+Do not mix in one PR:
+
+- release unblocker
+- feature implementation
+- architecture planning
+- UI polish
+- branding
+- future docs
+
+Use separate objects: a planning issue/comment, an implementation PR, a
+validation comment, and a release issue update.
+
+### 6. Large features default to deferred unless explicitly promoted
+
+Before adding a feature to RC scope, check whether it requires:
+
+- new architecture
+- new workers
+- air-gapped packaging
+- model/language packs
+- validation scripts
+- significant operator burden
+
+If yes, default the feature to `future/deferred`. OCR and translation-engine
+replacement are examples of large features that belong in a follow-on RC unless
+the release owner explicitly promotes them.
+
+### 7. Board labels must be consistent
+
+Every issue/PR should carry exactly one active status label:
+
+```txt
+status:next
+status:in-progress
+status:deferred
+status:done
+```
+
+Avoid invalid combinations:
+
+```txt
+status:next + status:deferred
+closed + status:in-progress
+status:done + unresolved acceptance criteria
+```
+
+When moving work out of a release, remove the release-target label and add
+`status:deferred`.
+
+### 8. Debug actual failing logs before patching assumptions
+
+Before changing workflow actions, Dockerfiles, or scripts, inspect the failing
+log. Use this triage format:
+
+```text
+Failing workflow:
+Failing job:
+Failing step:
+Exact command:
+Exact error:
+Likely root cause:
+Files involved:
+Minimal fix:
+Validation command:
+```
+
+### 9. Optional PRs stay parked until promoted
+
+Deferred or optional PRs must remain labeled `status:deferred`. Do not merge
+optional PRs into the active RC unless the release owner explicitly promotes
+them.
+
+### 10. Every agent handoff must end with a concrete next action
+
+Every Claude/Codex prompt or issue comment must end with:
+
+```text
+Owner:
+Branch:
+Issue:
+Allowed files:
+Forbidden files:
+Validation commands:
+Expected PR title:
+Definition of done:
+Next action after merge:
+```
+
+For release blockers, include:
+
+```text
+After merge, move/recreate the release tag and rerun the Release Artifact workflow.
+```
+
 ## Current release queue
 
 Work from GitHub Issues first. Pick the highest-priority open issue whose
