@@ -8,6 +8,10 @@ interface TranslationVersionSelectorProps {
   onSelect: (versionId: string | undefined) => void;
 }
 
+function isSelectableTranslationVersion(status: TranslationVersion["status"]): boolean {
+  return status === "done" || status === "available";
+}
+
 export function TranslationVersionSelector({
   docId,
   selectedVersionId,
@@ -30,15 +34,18 @@ export function TranslationVersionSelector({
         aria-label="Translation version"
       >
         <option value="">Latest</option>
-        {versions.map((v: TranslationVersion) => (
-          <option
-            key={v.version_id}
-            value={v.version_id}
-            disabled={v.status !== "done"}
-          >
-            {v.label} {v.status !== "done" ? `(${v.status})` : ""}
-          </option>
-        ))}
+        {versions.map((v: TranslationVersion) => {
+          const isSelectable = isSelectableTranslationVersion(v.status);
+          return (
+            <option
+              key={v.version_id}
+              value={v.version_id}
+              disabled={!isSelectable}
+            >
+              {v.label} {!isSelectable ? `(${v.status})` : ""}
+            </option>
+          );
+        })}
       </select>
     </label>
   );
