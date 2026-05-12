@@ -25,9 +25,15 @@ RUN python3 -m pip install --no-cache-dir "argostranslate==1.9.6" \
     && rm /tmp/install-translation-packs.py \
     && { chown -R libretranslate:libretranslate /home/libretranslate/.local 2>/dev/null || true; }
 
+# Run the service as the image's intended unprivileged user so Argos/LibreTranslate
+# reads the pre-installed packages from /home/libretranslate/.local at startup.
+USER libretranslate
+ENV HOME=/home/libretranslate
+
 # Prevent runtime model updates/downloads and only load the language set supported
 # by Tomorrowland. This keeps the real LibreTranslate service deterministic in CI
 # and air-gapped deployments while still serving the production API.
 ENV LT_UPDATE_PACKAGES=false \
+    LT_UPDATE_MODELS=false \
     LT_LOAD_ONLY=en,he,zh,ko,th,ar,fr,ru,es \
     ARGOS_CHUNK_TYPE=MINISBD
