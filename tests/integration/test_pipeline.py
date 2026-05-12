@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import sqlalchemy as sa
@@ -513,3 +513,329 @@ def test_sync_now_with_pre_extracted_text(
     mock_es.index_document.assert_called_once()
     indexed_doc = mock_es.index_document.call_args.args[1]
     assert "NiFi" in indexed_doc["content_english"]
+
+
+def test_sync_now_middle_item_failure_continues_sync(
+    migrated_engine: Engine,
+) -> None:
+    """A failed item must not stop the sync; later items are still processed."""
+    _setup_admin(migrated_engine)
+
+    source_id = uuid4()
+    with migrated_engine.begin() as connection:
+        auth_repo = AuthRepository(connection)
+        admin_group_id = auth_repo.ensure_group("admins")
+        connection.execute(
+            sa.text(
+                """
+                INSERT INTO ingestion_sources (id, name, type, config, source_language)
+                VALUES (:id, 'Stub', 'nifi', :config, 'en')
+                """
+            ),
+            {
+                "id": source_id.hex,
+                "config": '{"base_url":"http://nifi","flow_id":"x","api_token":"t"}',
+            },
+        )
+        auth_repo.grant_source_to_group(source_id, admin_group_id)
+
+    class _StubConnector:
+        def validate(self) -> None:
+            pass
+
+        def fetch_documents(self):  # type: ignore[override]
+            from services.connectors.base import ConnectorDocument
+
+            yield ConnectorDocument(
+                external_id="nifi:doc-001",
+                title="A",
+                mime_type="text/plain",
+                sha256="a" * 64,
+                source_language="en",
+                text_content="first",
+            )
+            yield ConnectorDocument(
+                external_id="nifi:doc-002",
+                title="B",
+                mime_type="text/plain",
+                sha256="b" * 64,
+                source_language="en",
+                text_content="second",
+            )
+            yield ConnectorDocument(
+                external_id="nifi:doc-003",
+                title="C",
+                mime_type="text/plain",
+                sha256="c" * 64,
+                source_language="en",
+                text_content="third",
+            )
+
+    mock_es = MagicMock(spec=ElasticsearchSearchClient)
+    mock_es.index_document.side_effect = [None, RuntimeError("ES down"), None]
+    mock_qdrant = MagicMock(spec=QdrantSearchClient)
+    mock_translator = MagicMock(spec=LibreTranslateClient)
+    mock_translator.translate.side_effect = lambda text, **_: text
+
+    with patch("services.api.main.build_connector", return_value=_StubConnector()):
+        client = TestClient(
+            create_app(
+                migrated_engine,
+                Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+                translator=mock_translator,
+                es_client=mock_es,
+                qdrant_client=mock_qdrant,
+            )
+        )
+        token = _admin_token(client)
+        response = client.post(
+            f"/admin/ingestion/{source_id}/sync-now",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["indexed"] == 2
+    assert data["skipped"] == 0
+    assert data["failed"] == 1
+    assert mock_es.index_document.call_count == 3
+
+    # Verify DLQ recorded the failed item
+    with migrated_engine.connect() as connection:
+        dlq_count = connection.execute(sa.text("SELECT COUNT(*) FROM dlq")).scalar_one()
+    assert dlq_count == 1
+
+
+def test_sync_now_document_creation_failure_continues_sync(
+    migrated_engine: Engine,
+) -> None:
+    """A failure during document creation must not stop the sync."""
+    _setup_admin(migrated_engine)
+
+    source_id = uuid4()
+    with migrated_engine.begin() as connection:
+        auth_repo = AuthRepository(connection)
+        admin_group_id = auth_repo.ensure_group("admins")
+        connection.execute(
+            sa.text(
+                """
+                INSERT INTO ingestion_sources (id, name, type, config, source_language)
+                VALUES (:id, 'Stub', 'nifi', :config, 'en')
+                """
+            ),
+            {
+                "id": source_id.hex,
+                "config": '{"base_url":"http://nifi","flow_id":"x","api_token":"t"}',
+            },
+        )
+        auth_repo.grant_source_to_group(source_id, admin_group_id)
+
+    class _StubConnector:
+        def validate(self) -> None:
+            pass
+
+        def fetch_documents(self):  # type: ignore[override]
+            from services.connectors.base import ConnectorDocument
+
+            yield ConnectorDocument(
+                external_id="nifi:doc-001",
+                title="A",
+                mime_type="text/plain",
+                sha256="a" * 64,
+                source_language="en",
+                text_content="first",
+            )
+            yield ConnectorDocument(
+                external_id="nifi:doc-002",
+                title="B",
+                mime_type="text/plain",
+                sha256="b" * 64,
+                source_language="en",
+                text_content="second",
+            )
+            yield ConnectorDocument(
+                external_id="nifi:doc-003",
+                title="C",
+                mime_type="text/plain",
+                sha256="c" * 64,
+                source_language="en",
+                text_content="third",
+            )
+
+    mock_es = MagicMock(spec=ElasticsearchSearchClient)
+    mock_qdrant = MagicMock(spec=QdrantSearchClient)
+    mock_translator = MagicMock(spec=LibreTranslateClient)
+    mock_translator.translate.side_effect = lambda text, **_: text
+
+    from services.documents.repository import DocumentRepository
+
+    _real_create = DocumentRepository.create
+    call_count = 0
+
+    def _fake_create(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal call_count
+        call_count += 1
+        if call_count == 2:
+            raise RuntimeError("DB error")
+        return _real_create(self, *args, **kwargs)
+
+    with (
+        patch("services.api.main.build_connector", return_value=_StubConnector()),
+        patch("services.api.main.DocumentRepository.create", _fake_create),
+    ):
+        client = TestClient(
+            create_app(
+                migrated_engine,
+                Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+                translator=mock_translator,
+                es_client=mock_es,
+                qdrant_client=mock_qdrant,
+            )
+        )
+        token = _admin_token(client)
+        response = client.post(
+            f"/admin/ingestion/{source_id}/sync-now",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["indexed"] == 2
+    assert data["skipped"] == 0
+    assert data["failed"] == 1
+
+    # Verify DLQ recorded the failed item
+    with migrated_engine.connect() as connection:
+        dlq_count = connection.execute(sa.text("SELECT COUNT(*) FROM dlq")).scalar_one()
+    assert dlq_count == 1
+
+
+def test_sync_now_connector_enumeration_failure_returns_safe_error(
+    migrated_engine: Engine,
+) -> None:
+    """A connector-level enumeration failure must return a safe error."""
+    _setup_admin(migrated_engine)
+
+    source_id = uuid4()
+    with migrated_engine.begin() as connection:
+        connection.execute(
+            sa.text(
+                """
+                INSERT INTO ingestion_sources (id, name, type, config, source_language)
+                VALUES (:id, 'Stub', 'nifi', :config, 'en')
+                """
+            ),
+            {
+                "id": source_id.hex,
+                "config": '{"base_url":"http://nifi","flow_id":"x","api_token":"t"}',
+            },
+        )
+
+    class _BrokenConnector:
+        def validate(self) -> None:
+            pass
+
+        def fetch_documents(self):  # type: ignore[override]
+            raise RuntimeError("cannot authenticate to source")
+
+    with patch("services.api.main.build_connector", return_value=_BrokenConnector()):
+        client = TestClient(
+            create_app(
+                migrated_engine,
+                Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+            )
+        )
+        token = _admin_token(client)
+        response = client.post(
+            f"/admin/ingestion/{source_id}/sync-now",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 502
+    detail = response.json()["detail"]
+    assert "Source enumeration failed" in detail
+    assert "cannot authenticate" not in detail.lower()
+
+
+def test_sync_now_smb_cleanup_on_item_failure(
+    migrated_engine: Engine,
+) -> None:
+    """SMB staged files are cleaned up even when the item fails."""
+    _setup_admin(migrated_engine)
+
+    source_id = uuid4()
+    with migrated_engine.begin() as connection:
+        auth_repo = AuthRepository(connection)
+        admin_group_id = auth_repo.ensure_group("admins")
+        connection.execute(
+            sa.text(
+                """
+                INSERT INTO ingestion_sources (id, name, type, config, source_language)
+                VALUES (:id, 'Stub', 'smb', :config, 'en')
+                """
+            ),
+            {
+                "id": source_id.hex,
+                "config": "{}",
+            },
+        )
+        auth_repo.grant_source_to_group(source_id, admin_group_id)
+
+    class _SmbConnector:
+        def validate(self) -> None:
+            pass
+
+        def fetch_documents(self):  # type: ignore[override]
+            from services.connectors.base import ConnectorDocument
+
+            yield ConnectorDocument(
+                external_id="smb:file-001",
+                title="A",
+                mime_type="text/plain",
+                sha256="a" * 64,
+                source_language="en",
+                text_content="first",
+                path="/tmp/staged_001.txt",
+            )
+            yield ConnectorDocument(
+                external_id="smb:file-002",
+                title="B",
+                mime_type="text/plain",
+                sha256="b" * 64,
+                source_language="en",
+                text_content="second",
+                path="/tmp/staged_002.txt",
+            )
+
+    mock_es = MagicMock(spec=ElasticsearchSearchClient)
+    mock_es.index_document.side_effect = [RuntimeError("ES down"), None]
+    mock_qdrant = MagicMock(spec=QdrantSearchClient)
+    mock_translator = MagicMock(spec=LibreTranslateClient)
+    mock_translator.translate.side_effect = lambda text, **_: text
+
+    with (
+        patch("services.api.main.build_connector", return_value=_SmbConnector()),
+        patch("services.api.main.os.unlink") as mock_unlink,
+    ):
+        client = TestClient(
+            create_app(
+                migrated_engine,
+                Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+                translator=mock_translator,
+                es_client=mock_es,
+                qdrant_client=mock_qdrant,
+            )
+        )
+        token = _admin_token(client)
+        response = client.post(
+            f"/admin/ingestion/{source_id}/sync-now",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["indexed"] == 1
+    assert data["failed"] == 1
+    assert mock_unlink.call_count == 2
+    paths = {call.args[0] for call in mock_unlink.call_args_list}
+    assert paths == {"/tmp/staged_001.txt", "/tmp/staged_002.txt"}
