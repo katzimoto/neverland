@@ -1,0 +1,125 @@
+name: Agent mission
+description: Scoped implementation, review, planning, or docs work for Copilot/Codex/Claude
+labels:
+  - mission
+  - status:next
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for work that may be picked up by Copilot, Codex, Claude, or a human reviewer. Keep the mission narrow.
+
+  - type: input
+    id: objective
+    attributes:
+      label: Objective
+      description: One clear deliverable.
+      placeholder: Replace mock encoder with the production encoder boundary.
+    validations:
+      required: true
+
+  - type: textarea
+    id: context-budget
+    attributes:
+      label: Context Budget
+      description: List the documents and paths agents should read first.
+      value: |
+        Read first:
+        - `AGENTS.md`
+        - `docs/agents/token-efficiency.md`
+        - `.github/copilot-instructions.md`
+
+        Allowed source paths:
+        - 
+
+        Allowed test paths:
+        - 
+
+        Do not read unless explicitly needed:
+        - 
+
+        Do not edit:
+        - `spec.md`
+        - `spec-v4.pdf`
+        - unrelated files outside the mission scope
+    validations:
+      required: true
+
+  - type: textarea
+    id: relationships
+    attributes:
+      label: Relationships
+      value: |
+        Parent: None
+        Blocked by: None
+        Blocks: None
+        Depends on: None
+        Related: None
+        Follow-ups: None
+    validations:
+      required: true
+
+  - type: textarea
+    id: allowed-changes
+    attributes:
+      label: Allowed Changes
+      value: |
+        - 
+    validations:
+      required: true
+
+  - type: textarea
+    id: forbidden-changes
+    attributes:
+      label: Forbidden Changes
+      value: |
+        - Do not edit canonical requirements unless explicitly approved.
+        - Do not broaden scope beyond this issue.
+        - Do not introduce new runtime dependencies unless approved.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      value: |
+        - [ ] Targeted tests/checks pass.
+        - [ ] `CHANGELOG.md` updated when user-visible behavior, schema, config, docs workflow, or operations change.
+        - [ ] PR references this issue.
+        - [ ] Agent handoff includes context accounting.
+    validations:
+      required: true
+
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation Commands
+      value: |
+        - 
+    validations:
+      required: true
+
+  - type: dropdown
+    id: owner-fit
+    attributes:
+      label: Best owner fit
+      options:
+        - Copilot
+        - Codex
+        - Claude
+        - Human
+        - Mixed
+    validations:
+      required: true
+
+  - type: dropdown
+    id: risk
+    attributes:
+      label: Risk level
+      options:
+        - risk:low
+        - risk:medium
+        - risk:high
+    validations:
+      required: true
