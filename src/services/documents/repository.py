@@ -58,6 +58,7 @@ class DocumentRepository:
             if existing_doc_id is not None:
                 return None
 
+        content_sha256 = sha256 or ""
         doc_id = uuid4()
         self._connection.execute(
             sa.text(
@@ -83,7 +84,7 @@ class DocumentRepository:
                 "mime_type": mime_type,
                 "title": title,
                 "source_language": source_language,
-                "content_sha256": sha256,
+                "content_sha256": content_sha256,
                 "metadata": metadata or {},
             },
         )
