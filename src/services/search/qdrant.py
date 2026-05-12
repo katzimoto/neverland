@@ -22,7 +22,7 @@ class QdrantSearchClient:
     """Thin wrapper around the Qdrant client for vector (semantic) search."""
 
     def __init__(self, url: str = "http://localhost:6333") -> None:
-        self._client = QdrantClient(url=url, check_compatibility=False)
+        self._client = QdrantClient(url=url)
 
     def create_collection_if_not_exists(self, vector_size: int = 384) -> None:
         """Create the chunk collection if it does not exist."""
@@ -75,7 +75,7 @@ class QdrantSearchClient:
         if not group_ids:
             raise ValueError("group_ids must not be empty")
 
-        results = self._client.search(  # type: ignore[attr-defined]
+        results = self._client.search(
             collection_name=COLLECTION_NAME,
             query_vector=vector,
             query_filter=Filter(
