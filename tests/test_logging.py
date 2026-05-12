@@ -142,7 +142,8 @@ def test_configure_json_logging_adds_root_handler_without_removing_existing_hand
     stream = StringIO()
     sentinel = logging.NullHandler()
     root = logging.getLogger()
-    original_handlers = list(root.handlers)
+    original_level = root.level
+    handler: logging.Handler | None = None
     try:
         root.addHandler(sentinel)
         handler = configure_json_logging(logging.WARNING)
@@ -155,4 +156,7 @@ def test_configure_json_logging_adds_root_handler_without_removing_existing_hand
         assert sentinel in root.handlers
         assert handler in root.handlers
     finally:
-        root.handlers = original_handlers
+        if handler is not None:
+            root.removeHandler(handler)
+        root.removeHandler(sentinel)
+        root.setLevel(original_level)
