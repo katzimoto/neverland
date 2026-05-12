@@ -9,15 +9,17 @@ Historical phase plans are useful context only when an issue asks for them.
    non-trivial task.
 2. If using GitHub Copilot, also read `.github/copilot-instructions.md` and the
    relevant path-specific instruction file under `.github/instructions/`.
-3. Read the issue body before source files. Follow its context budget, allowed
+3. If using OpenCode, also read `docs/agents/opencode.md`; project-level
+   OpenCode instructions are configured in `opencode.json`.
+4. Read the issue body before source files. Follow its context budget, allowed
    paths, forbidden paths, and acceptance criteria.
-4. Keep context narrow. Use `rg` and `rg --files` before opening files.
-5. Do not edit `spec.md` or `spec-v4.pdf` unless the user explicitly asks.
-6. Keep release blockers isolated from optional features, UI polish, and future
+5. Keep context narrow. Use `rg` and `rg --files` before opening files.
+6. Do not edit `spec.md` or `spec-v4.pdf` unless the user explicitly asks.
+7. Keep release blockers isolated from optional features, UI polish, and future
    planning work.
-7. Do not mix release management, architecture planning, implementation, and
+8. Do not mix release management, architecture planning, implementation, and
    optional PR work in one PR.
-8. End changed-file runs with a clear handoff: completed work, remaining work,
+9. End changed-file runs with a clear handoff: completed work, remaining work,
    tests, context loaded/skipped, risks, and next steps.
 
 ## Role routing
@@ -30,10 +32,20 @@ Historical phase plans are useful context only when an issue asks for them.
 - Use GitHub Copilot for in-editor implementation help, narrow issue execution,
   repetitive refactors, targeted tests, PR summaries, and additional code review
   comments.
+- Use OpenCode for local repository coding loops, bounded implementation,
+  targeted tests, mechanical refactors, and failure repair when the issue scope is
+  already clear.
 - Human reviewers own priority changes, merge decisions, risky migrations,
   destructive-operation policy, and canonical requirement changes.
 
 ## Copilot
 
 - [Copilot workflow](copilot.md) — how to route Tomorrowland work to Copilot,
-  which prompts to use, and when to escalate to Codex, Claude, or a human.
+  which prompts to use, and when to escalate to Codex, Claude, OpenCode, or a
+  human.
+
+## OpenCode
+
+- [OpenCode workflow](opencode.md) — how to route Tomorrowland work to OpenCode,
+  which prompts to use, and when to escalate to Copilot, Codex, Claude, or a
+  human.
