@@ -2,6 +2,7 @@ FROM python:3.13-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV LOG_LEVEL=info
 
 WORKDIR /app
 
@@ -19,4 +20,4 @@ RUN python -m pip install --no-cache-dir --upgrade pip \
 
 EXPOSE 8000
 
-CMD ["uvicorn", "services.api.asgi:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "exec uvicorn services.api.asgi:app --host 0.0.0.0 --port 8000 --log-level ${LOG_LEVEL:-info}"]
