@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import logging
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -11,7 +11,6 @@ from services.connectors.folder import FolderConnector
 def test_folder_connector_logs_file_read_failures(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
     unreadable = tmp_path / "unreadable.txt"
     unreadable.write_text("content")
@@ -24,10 +23,15 @@ def test_folder_connector_logs_file_read_failures(
 
     monkeypatch.setattr(Path, "read_bytes", fake_read_bytes)
 
-    with caplog.at_level(logging.WARNING, logger="services.connectors.folder"):
-        docs = list(FolderConnector(str(tmp_path)).fetch_documents())
+    with (
+        patch("services.connectors.folder.logger") as mock_logger,
+        pytest.raises(OSError, match="permission denied"),
+    ):
+        list(FolderConnector(str(tmp_path)).fetch_documents())
 
-    assert docs == []
-    assert "skipped unreadable file" in caplog.text
-    assert str(unreadable) in caplog.text
-    assert str(tmp_path) in caplog.text
+    mock_logger.exception.assert_called_once()
+    call_args = mock_logger.exception.call_args
+    message = call_args[0][0]
+    assert "Folder connector failed to read file" in message
+    assert str(unreadable) in message
+    assert str(tmp_path) in message
