@@ -74,7 +74,10 @@ validation command before editing files.
 ## Routing with other agents
 
 - Use Copilot for small implementation, repetitive edits, local coding help,
-  targeted tests, and PR review assistance.
+  targeted tests, PR summaries, and PR review assistance.
+- Use OpenCode for local repository coding loops, bounded implementation,
+  targeted tests, mechanical refactors, and failure repair when the issue scope is
+  already clear.
 - Use Codex for mechanical repository-wide execution, larger scoped
   implementation, and CI repair where branch-level changes are needed.
 - Use Claude for architecture, security, migrations, edge cases, issue
