@@ -26,6 +26,7 @@ class DocumentRow(BaseModel):
     target_language: str = "en"
     translation_quality: str | None = None
     status: DocumentStatus = "pending"
+    content_sha256: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime
