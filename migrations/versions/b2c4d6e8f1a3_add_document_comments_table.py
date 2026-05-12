@@ -62,10 +62,11 @@ def upgrade() -> None:
             nullable=True,
         ),
     )
-    op.create_index(
-        "ix_document_comments_doc_id_created_at",
-        "document_comments",
-        ["doc_id", "created_at DESC"],
+    op.execute(
+        """
+        CREATE INDEX ix_document_comments_doc_id_created_at
+        ON document_comments (doc_id, created_at DESC)
+        """
     )
     op.create_index(
         "ix_document_comments_author_id",
