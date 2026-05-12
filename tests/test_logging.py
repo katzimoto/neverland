@@ -73,6 +73,25 @@ def test_json_formatter_emits_only_safe_structured_fields() -> None:
     assert "nested" not in payload
 
 
+def test_json_formatter_falls_back_for_unsafe_required_fields() -> None:
+    record = logging.getLogger("tomorrowland").makeRecord(
+        "tomorrowland",
+        logging.INFO,
+        __file__,
+        1,
+        "completed",
+        (),
+        exc_info=None,
+        func=None,
+        extra={"component": {"unsafe": "drop"}, "outcome": ["drop"]},
+    )
+
+    payload = json.loads(JsonFormatter().format(record))
+
+    assert payload["component"] == "application"
+    assert payload["outcome"] == "unknown"
+
+
 def test_log_extra_drops_unapproved_values() -> None:
     set_correlation_id("from-context")
 
@@ -119,13 +138,21 @@ def test_formatter_records_exception_type_without_traceback_payload() -> None:
     assert "unsafe detail" not in json.dumps(payload)
 
 
-def test_configure_json_logging_sets_root_handler() -> None:
+def test_configure_json_logging_adds_root_handler_without_removing_existing_handlers() -> None:
     stream = StringIO()
-    configure_json_logging(logging.WARNING)
-    handler = logging.getLogger().handlers[0]
-    handler.stream = stream  # type: ignore[attr-defined]
+    sentinel = logging.NullHandler()
+    root = logging.getLogger()
+    original_handlers = list(root.handlers)
+    try:
+        root.addHandler(sentinel)
+        handler = configure_json_logging(logging.WARNING)
+        handler.stream = stream  # type: ignore[attr-defined]
 
-    logging.warning("configured")
+        logging.warning("configured")
 
-    payload = json.loads(stream.getvalue())
-    assert payload["message"] == "configured"
+        payload = json.loads(stream.getvalue())
+        assert payload["message"] == "configured"
+        assert sentinel in root.handlers
+        assert handler in root.handlers
+    finally:
+        root.handlers = original_handlers
