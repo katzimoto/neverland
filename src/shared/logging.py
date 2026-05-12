@@ -89,11 +89,14 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, sort_keys=True)
 
 
-def configure_json_logging(level: int = logging.INFO) -> None:
-    """Configure root logging for services that do not need custom handlers."""
+def configure_json_logging(level: int = logging.INFO) -> logging.Handler:
+    """Configure root JSON logging without removing existing capture handlers."""
     handler = logging.StreamHandler()
     handler.setFormatter(JsonFormatter())
-    logging.basicConfig(level=level, handlers=[handler], force=True)
+    root = logging.getLogger()
+    root.addHandler(handler)
+    root.setLevel(level)
+    return handler
 
 
 def log_extra(extra: Mapping[str, Any] | None = None) -> dict[str, Any]:
