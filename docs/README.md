@@ -29,7 +29,9 @@ README is the landing page; this index routes by audience.
 ## Agents
 
 - [Agent instructions](agents/README.md) — practical issue-first workflow for
-  Codex, Claude Code, and human handoffs.
+  Codex, Claude Code, GitHub Copilot, and human handoffs.
+- [Copilot workflow](agents/copilot.md) — recommended Copilot missions, prompts,
+  routing, review use, and done criteria.
 - [Token efficiency](agents/token-efficiency.md) — context-loading rules.
 - [Issue context template](agents/issue-context-template.md) — compact issue
   format with allowed paths and acceptance criteria.
