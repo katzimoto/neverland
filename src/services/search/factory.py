@@ -1,16 +1,19 @@
 from __future__ import annotations
 
-from typing import Literal
-
 from shared.config import Settings
 
-from .encoder import DeterministicTestEncoder, TextEncoder
+from .encoder import DeterministicTestEncoder, OllamaEmbeddingEncoder, TextEncoder
 
 
 def build_encoder(
     settings: Settings,
 ) -> TextEncoder:
     """Build and return a text encoder based on *settings*.
+
+    Provider resolution:
+    - If ``embedding_provider`` is explicitly set, use it.
+    - Otherwise default to ``ollama`` in production and ``deterministic-test``
+      in dev/test.
 
     Production safety:
     - ``APP_ENV=prod`` rejects the ``deterministic-test`` provider unless
@@ -21,7 +24,9 @@ def build_encoder(
             current environment.
         ValueError: when the configured provider is unknown.
     """
-    provider: Literal["deterministic-test"] | str = settings.embedding_provider
+    provider = settings.embedding_provider
+    if not provider:
+        provider = "ollama" if settings.app_env == "prod" else "deterministic-test"
 
     if provider == "deterministic-test":
         if settings.app_env == "prod" and not settings.embedding_provider_unsafe_allow_test_in_prod:
@@ -31,5 +36,12 @@ def build_encoder(
                 "explicitly understand the risks."
             )
         return DeterministicTestEncoder()
+
+    if provider == "ollama":
+        base_url = settings.embedding_url or settings.ollama_url
+        return OllamaEmbeddingEncoder(
+            base_url=base_url,
+            model=settings.embedding_model,
+        )
 
     raise ValueError(f"Unknown embedding provider: {provider}")
