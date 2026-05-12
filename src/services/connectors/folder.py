@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import mimetypes
 from collections.abc import Iterator
 from pathlib import Path
 
 from services.connectors.base import ConnectorDocument, ConnectorField
+
+logger = logging.getLogger(__name__)
 
 
 class FolderConnector:
@@ -42,7 +45,15 @@ class FolderConnector:
             mime_type, _ = mimetypes.guess_type(str(file_path))
             if mime_type is None:
                 mime_type = "application/octet-stream"
-            sha256 = hashlib.sha256(file_path.read_bytes()).hexdigest()
+            try:
+                sha256 = hashlib.sha256(file_path.read_bytes()).hexdigest()
+            except OSError:
+                logger.exception(
+                    "Folder connector failed to read file path=%s source_path=%s",
+                    file_path,
+                    self._folder,
+                )
+                raise
             yield ConnectorDocument(
                 external_id=f"file:{file_path}",
                 title=file_path.name,
