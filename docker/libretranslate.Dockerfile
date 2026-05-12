@@ -25,5 +25,9 @@ RUN python3 -m pip install --no-cache-dir "argostranslate==1.9.6" \
     && rm /tmp/install-translation-packs.py \
     && { chown -R libretranslate:libretranslate /home/libretranslate/.local 2>/dev/null || true; }
 
-# Prevent automatic package updates at startup; all required models are bundled.
-ENV LT_UPDATE_PACKAGES=false
+# Prevent runtime model updates/downloads and only load the language set supported
+# by Tomorrowland. This keeps the real LibreTranslate service deterministic in CI
+# and air-gapped deployments while still serving the production API.
+ENV LT_UPDATE_PACKAGES=false \
+    LT_LOAD_ONLY=en,he,zh,ko,th,ar,fr,ru,es \
+    ARGOS_CHUNK_TYPE=MINISBD
