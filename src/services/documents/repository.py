@@ -33,28 +33,45 @@ class DocumentRepository:
     ) -> DocumentRow | None:
         """Create a document row and optionally record SHA256 dedup.
 
-        Returns *None* when *sha256* is provided and already exists in
-        ``ingested_files``.
+        Returns *None* when *sha256* is provided and the same source item has
+        already ingested that exact content hash. A changed file at the same
+        ``source_id`` + ``external_id`` with a different SHA is stored as a new
+        document row so later version-family work can link those rows.
         """
         if sha256 is not None:
-            existing = self._connection.execute(
-                sa.text("SELECT sha256 FROM ingested_files WHERE sha256 = :sha256"),
-                {"sha256": sha256},
+            existing_doc_id = self._connection.execute(
+                sa.text(
+                    """
+                    SELECT id
+                    FROM documents
+                    WHERE source_id = :source_id
+                      AND external_id = :external_id
+                      AND content_sha256 = :sha256
+                    """
+                ),
+                {
+                    "source_id": db_uuid(source_id),
+                    "external_id": external_id,
+                    "sha256": sha256,
+                },
             ).scalar_one_or_none()
-            if existing is not None:
+            if existing_doc_id is not None:
                 return None
 
+        content_sha256 = sha256 or ""
         doc_id = uuid4()
         self._connection.execute(
             sa.text(
                 """
                 INSERT INTO documents (
                     id, source_id, external_id, source, path,
-                    mime_type, title, source_language, status, metadata
+                    mime_type, title, source_language, status,
+                    content_sha256, metadata
                 )
                 VALUES (
                     :id, :source_id, :external_id, :source, :path,
-                    :mime_type, :title, :source_language, 'pending', :metadata
+                    :mime_type, :title, :source_language, 'pending',
+                    :content_sha256, :metadata
                 )
                 """
             ).bindparams(sa.bindparam("metadata", type_=sa.JSON())),
@@ -67,6 +84,7 @@ class DocumentRepository:
                 "mime_type": mime_type,
                 "title": title,
                 "source_language": source_language,
+                "content_sha256": content_sha256,
                 "metadata": metadata or {},
             },
         )
@@ -75,14 +93,15 @@ class DocumentRepository:
             self._connection.execute(
                 sa.text(
                     """
-                    INSERT INTO ingested_files (sha256, doc_id, source_id)
-                    VALUES (:sha256, :doc_id, :source_id)
+                    INSERT INTO ingested_files (sha256, doc_id, source_id, external_id)
+                    VALUES (:sha256, :doc_id, :source_id, :external_id)
                     """
                 ),
                 {
                     "sha256": sha256,
                     "doc_id": db_uuid(doc_id),
                     "source_id": db_uuid(source_id),
+                    "external_id": external_id,
                 },
             )
 
@@ -199,6 +218,7 @@ class DocumentRepository:
             target_language=str(row["target_language"]),
             translation_quality=row["translation_quality"],
             status=cast("DocumentStatus", str(row["status"])),
+            content_sha256=row.get("content_sha256"),
             metadata=metadata,
             created_at=row["created_at"],
             updated_at=row["updated_at"],
