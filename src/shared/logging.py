@@ -51,6 +51,11 @@ def _safe_value(value: Any) -> Any:
     return None
 
 
+def _safe_string(value: Any, default: str) -> str:
+    """Return a safe string value for required schema fields."""
+    return value if isinstance(value, str) else default
+
+
 class JsonFormatter(logging.Formatter):
     """Format log records as one safe JSON object per line."""
 
@@ -62,8 +67,8 @@ class JsonFormatter(logging.Formatter):
             "level": record.levelname.lower(),
             "logger": record.name,
             "message": record.getMessage(),
-            "component": getattr(record, "component", "application"),
-            "outcome": getattr(record, "outcome", "unknown"),
+            "component": _safe_string(getattr(record, "component", None), "application"),
+            "outcome": _safe_string(getattr(record, "outcome", None), "unknown"),
             "correlation_id": correlation_id,
         }
         if request_id is not None:
