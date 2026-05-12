@@ -1,7 +1,23 @@
 const BASE = "/api";
 
-interface ApiRequestInit extends RequestInit {
+export interface ApiRequestInit extends RequestInit {
   skipAuthRedirect?: boolean;
+}
+
+type AuthRedirectHandler = (url: string) => void;
+
+function defaultAuthRedirectHandler(url: string) {
+  window.location.href = url;
+}
+
+let authRedirectHandler: AuthRedirectHandler = defaultAuthRedirectHandler;
+
+export function setAuthRedirectHandler(handler: AuthRedirectHandler) {
+  authRedirectHandler = handler;
+}
+
+export function resetAuthRedirectHandler() {
+  authRedirectHandler = defaultAuthRedirectHandler;
 }
 
 export class ApiError extends Error {
@@ -18,6 +34,12 @@ function getToken(): string | null {
   return sessionStorage.getItem("tomorrowland_token");
 }
 
+function redirectToExpiredLogin() {
+  const url = new URL("/login", window.location.href);
+  url.searchParams.set("expired", "1");
+  authRedirectHandler(url.toString());
+}
+
 async function request<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
   const { skipAuthRedirect = false, ...requestInit } = init;
   const token = getToken();
@@ -32,9 +54,7 @@ async function request<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
   if (res.status === 401 && !skipAuthRedirect) {
     // Clear stale token and redirect to login
     sessionStorage.removeItem("tomorrowland_token");
-    const url = new URL("/login", window.location.href);
-    url.searchParams.set("expired", "1");
-    window.location.href = url.toString();
+    redirectToExpiredLogin();
     throw new ApiError(401, "Session expired");
   }
 
