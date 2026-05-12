@@ -49,3 +49,17 @@ Historical phase plans are useful context only when an issue asks for them.
 - [OpenCode workflow](opencode.md) — how to route Tomorrowland work to OpenCode,
   which prompts to use, and when to escalate to Copilot, Codex, Claude, or a
   human.
+
+## Reusable Skills
+
+Reusable workflow skills live under `.agents/skills/` for all agents:
+
+- `tl-plan-issue` — planning workflow before touching code
+- `tl-implement-issue` — implementation workflow after planning
+- `tl-review-pr` — PR review workflow
+- `tl-debug-failure` — debug triage workflow
+- `tl-release-check` — release artifact validation workflow
+- `tl-handoff` — ownership transfer and session handoff workflow
+
+Invoke the relevant skill at the start of a mission instead of re-reading the
+full `AGENTS.md`.
