@@ -52,7 +52,7 @@ from services.search.hybrid import merge_results
 from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient
 from shared.config import Settings
-from shared.db import to_uuid
+from shared.db import db_uuid, to_uuid
 from shared.metrics import (
     MetricsRegistry,
     current_metrics,
@@ -534,45 +534,76 @@ def create_app(
             source_language = source_row.get("source_language")
             results: dict[str, int] = {"indexed": 0, "skipped": 0, "failed": 0}
 
-            connector_type = str(source_row["type"])
-            for item in connector.fetch_documents():
-                app.state.metrics.ingestion_documents_total.labels(
-                    safe_label_value(connector_type), "discovered"
-                ).inc()
-                try:
-                    doc = doc_repo.create(
-                        source_id=source_id,
-                        external_id=item.external_id,
-                        source=cast("DocumentSource", source_row["type"]),
-                        mime_type=item.mime_type,
-                        path=item.path,
-                        title=item.title,
-                        source_language=item.source_language or source_language,
-                        sha256=item.sha256,
-                        metadata=item.metadata,
-                    )
-                    if doc is None:
-                        results["skipped"] += 1
-                        app.state.metrics.ingestion_documents_total.labels(
-                            safe_label_value(connector_type), "skipped"
-                        ).inc()
-                        continue
+            def _record_sync_dlq(
+                doc_id: UUID | None,
+                message: str,
+            ) -> None:
+                connection.execute(
+                    sa.text(
+                        """
+                        INSERT INTO dlq (id, doc_id, error_message, status)
+                        VALUES (:id, :doc_id, :error_message, 'pending')
+                        """
+                    ),
+                    {
+                        "id": db_uuid(uuid4()),
+                        "doc_id": db_uuid(doc_id) if doc_id is not None else None,
+                        "error_message": message,
+                    },
+                )
 
+            connector_type = str(source_row["type"])
+            try:
+                for item in connector.fetch_documents():
+                    doc_id_for_dlq: UUID | None = None
                     try:
-                        worker.process_document(doc.id, pre_extracted_text=item.text_content)
-                        results["indexed"] += 1
                         app.state.metrics.ingestion_documents_total.labels(
-                            safe_label_value(connector_type), "success"
+                            safe_label_value(connector_type), "discovered"
                         ).inc()
+
+                        doc = doc_repo.create(
+                            source_id=source_id,
+                            external_id=item.external_id,
+                            source=cast("DocumentSource", source_row["type"]),
+                            mime_type=item.mime_type,
+                            path=item.path,
+                            title=item.title,
+                            source_language=item.source_language or source_language,
+                            sha256=item.sha256,
+                            metadata=item.metadata,
+                        )
+                        if doc is None:
+                            results["skipped"] += 1
+                            app.state.metrics.ingestion_documents_total.labels(
+                                safe_label_value(connector_type), "skipped"
+                            ).inc()
+                            continue
+
+                        doc_id_for_dlq = doc.id
+                        try:
+                            worker.process_document(doc.id, pre_extracted_text=item.text_content)
+                            results["indexed"] += 1
+                            app.state.metrics.ingestion_documents_total.labels(
+                                safe_label_value(connector_type), "success"
+                            ).inc()
+                        except Exception:
+                            results["failed"] += 1
+                            app.state.metrics.ingestion_documents_total.labels(
+                                safe_label_value(connector_type), "failure"
+                            ).inc()
+                            _record_sync_dlq(doc.id, "Document processing failed")
                     except Exception:
                         results["failed"] += 1
                         app.state.metrics.ingestion_documents_total.labels(
                             safe_label_value(connector_type), "failure"
                         ).inc()
-                finally:
-                    if connector_type == "smb" and item.path:
-                        with suppress(OSError):
-                            os.unlink(item.path)
+                        _record_sync_dlq(doc_id_for_dlq, "Document creation or discovery failed")
+                    finally:
+                        if connector_type == "smb" and item.path:
+                            with suppress(OSError):
+                                os.unlink(item.path)
+            except Exception:
+                raise HTTPException(status_code=502, detail="Source enumeration failed") from None
 
             sync_outcome = "failure" if results["failed"] else "success"
             app.state.metrics.ingestion_syncs_total.labels(
