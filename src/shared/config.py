@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     app_env: Literal["dev", "test", "prod"] = "dev"
     app_version: str = "0.1.0"
     build_commit: str = "unknown"
+    log_level: Literal["critical", "error", "warning", "info", "debug"] = "info"
 
     postgres_url: str = "postgresql+psycopg://postgres:changeme@postgres:5432/app"
     kafka_broker: str = "kafka:9092"
