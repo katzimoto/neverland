@@ -58,7 +58,7 @@ def install_enhanced_request_observability(app: Any) -> None:
     metrics/request-ID middleware. Production ASGI startup calls this helper to
     preserve those metrics while adding actionable exception logs for 500s.
     """
-    user_middleware = cast(list[Middleware], app.user_middleware)
+    user_middleware = cast("list[Middleware]", app.user_middleware)
     app.user_middleware = [
         middleware
         for middleware in user_middleware
