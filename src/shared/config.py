@@ -47,7 +47,9 @@ class Settings(BaseSettings):
     auto_enrich_threshold: int = Field(default=5, ge=0)
     ingest_mode: Literal["hybrid", "watch", "poll"] = "hybrid"
 
-    embedding_provider: str = "deterministic-test"
+    embedding_provider: str = ""
+    embedding_model: str = "nomic-embed-text"
+    embedding_url: str = ""
     embedding_provider_unsafe_allow_test_in_prod: bool = False
 
     @property
