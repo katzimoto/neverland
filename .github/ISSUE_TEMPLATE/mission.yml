@@ -1,5 +1,5 @@
 name: Agent mission
-description: Scoped implementation, review, planning, or docs work for Copilot/Codex/Claude
+description: Scoped implementation, review, planning, or docs work for Copilot/OpenCode/Codex/Claude
 labels:
   - mission
   - status:next
@@ -7,7 +7,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Use this template for work that may be picked up by Copilot, Codex, Claude, or a human reviewer. Keep the mission narrow.
+        Use this template for work that may be picked up by Copilot, OpenCode, Codex, Claude, or a human reviewer. Keep the mission narrow.
 
   - type: input
     id: objective
@@ -27,7 +27,8 @@ body:
         Read first:
         - `AGENTS.md`
         - `docs/agents/token-efficiency.md`
-        - `.github/copilot-instructions.md`
+        - `.github/copilot-instructions.md` when using GitHub Copilot
+        - `docs/agents/opencode.md` when using OpenCode
 
         Allowed source paths:
         - 
@@ -106,6 +107,7 @@ body:
       label: Best owner fit
       options:
         - Copilot
+        - OpenCode
         - Codex
         - Claude
         - Human
