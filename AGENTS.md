@@ -572,6 +572,20 @@ npm --prefix frontend run test:e2e
   authorizes the refactor.
 - Do not update `spec.md` or `spec-v4.pdf` as implementation notes.
 
+## Data-layer architecture guardrails
+
+The current backend data-layer default is SQLAlchemy Core repositories plus
+Pydantic request/response/service models and explicit Alembic migrations.
+
+Do not introduce SQLModel or refactor existing SQLAlchemy repositories broadly
+unless a mission explicitly authorizes it. SQLModel may be evaluated only for a
+bounded new module or an explicitly approved migration, and agents should avoid
+changing database abstraction style while doing unrelated feature work.
+
+When a mission does authorize SQLModel, read
+`docs/architecture/sqlmodel-bounded-models.md` first and keep the PR isolated from
+release blockers, UI polish, security hardening, and unrelated backend features.
+
 ## Documentation structure rules
 
 - Implementation plans in `docs/implementation/` follow the `phase-XX-name.md`
