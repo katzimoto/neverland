@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from io import StringIO
+from unittest.mock import patch
 
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
@@ -22,27 +23,16 @@ def test_structured_log_emitted_for_successful_request() -> None:
     def hello() -> dict[str, str]:
         return {"ok": "yes"}
 
-    client = TestClient(app)
-    logger = logging.getLogger("services.api.main")
-    stream = StringIO()
-    handler = logging.StreamHandler(stream)
-    handler.setFormatter(logging.Formatter("%(message)s"))
-    original_level = logger.level
-    original_propagate = logger.propagate
-    try:
-        logger.addHandler(handler)
-        logger.setLevel(logging.INFO)
-        logger.propagate = False
-
+    with patch("services.api.main.logger.info") as mock_info:
+        client = TestClient(app)
         response = client.get("/hello")
-    finally:
-        logger.removeHandler(handler)
-        logger.setLevel(original_level)
-        logger.propagate = original_propagate
 
     assert response.status_code == 200
-    text = stream.getvalue()
-    assert "http_request_completed" in text
+    mock_info.assert_called_once()
+    args, kwargs = mock_info.call_args
+    assert args[0] == "http_request_completed"
+    assert kwargs["extra"]["component"] == "api"
+    assert kwargs["extra"]["outcome"] == "success"
 
 
 def test_structured_log_emitted_for_internal_server_error() -> None:
@@ -53,29 +43,21 @@ def test_structured_log_emitted_for_internal_server_error() -> None:
     def boom() -> None:
         raise RuntimeError("boom")
 
-    client = TestClient(app)
-    logger = logging.getLogger("services.api.main")
-    stream = StringIO()
-    handler = logging.StreamHandler(stream)
-    handler.setFormatter(logging.Formatter("%(message)s"))
-    original_level = logger.level
-    original_propagate = logger.propagate
-    try:
-        logger.addHandler(handler)
-        logger.setLevel(logging.ERROR)
-        logger.propagate = False
-
+    with patch("services.api.main.logger.error") as mock_error:
+        client = TestClient(app)
         response = client.get("/boom")
-    finally:
-        logger.removeHandler(handler)
-        logger.setLevel(original_level)
-        logger.propagate = original_propagate
 
     assert response.status_code == 500
     assert "X-Request-ID" in response.headers
-    text = stream.getvalue()
-    assert "http_request_failed" in text
-    assert "RuntimeError" in text
+    mock_error.assert_called_once()
+    args, kwargs = mock_error.call_args
+    assert args[0] == "http_request_failed"
+    assert kwargs["extra"]["error_type"] == "RuntimeError"
+    assert kwargs["extra"]["component"] == "api"
+    assert kwargs["extra"]["outcome"] == "failure"
+
+    request_id = kwargs["extra"].get("request_id")
+    assert request_id == response.headers["X-Request-ID"]
 
 
 def test_enhanced_observability_logs_unhandled_errors() -> None:
