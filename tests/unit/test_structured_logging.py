@@ -20,9 +20,7 @@ def _make_record(
     logger_name: str = "test.logger",
     extra: dict | None = None,
 ) -> logging.LogRecord:
-    record = logging.LogRecord(
-        logger_name, level, "test.py", 1, msg, (), None
-    )
+    record = logging.LogRecord(logger_name, level, "test.py", 1, msg, (), None)
     if extra:
         for key, value in extra.items():
             setattr(record, key, value)
@@ -93,6 +91,7 @@ class TestJsonFormatter:
             record.exc_info = logging.ERROR  # wrong type, let's use proper
             # Actually set exc_info properly
             import sys
+
             record.exc_info = sys.exc_info()
         result = _format(record)
         assert result["error_type"] == "RuntimeError"
@@ -103,6 +102,7 @@ class TestJsonFormatter:
         except ValueError:
             record = _make_record("error", level=logging.ERROR)
             import sys
+
             record.exc_info = sys.exc_info()
         result = _format(record)
         assert result["error_type"] == "ValueError"
@@ -132,7 +132,6 @@ class TestJsonFormatter:
 
     def test_safe_field_list_is_frozen(self) -> None:
         assert isinstance(SAFE_LOG_FIELDS, frozenset)
-
 
 
 class TestLogExtra:
