@@ -3,11 +3,8 @@
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 from pathlib import Path
-
-import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "setup-env.sh"
@@ -186,7 +183,6 @@ class TestSetupEnvScript:
         for key in AIRGAP_REQUIRED_KEYS:
             assert key in env, f"missing airgap key: {key}"
 
-    @pytest.mark.skipif(shutil.which("docker") is None, reason="docker not available")  # type: ignore[untyped-decorator]
     def test_compose_config_renders(self, tmp_path: Path) -> None:
         out = tmp_path / "test.env"
         result = _run("--defaults", "--output", str(out))
@@ -199,7 +195,6 @@ class TestSetupEnvScript:
         )
         assert compose.returncode == 0, compose.stderr
 
-    @pytest.mark.skipif(shutil.which("docker") is None, reason="docker not available")  # type: ignore[untyped-decorator]
     def test_airgap_compose_config_renders(self, tmp_path: Path) -> None:
         out = tmp_path / "test.airgap.env"
         result = _run("--defaults", "--airgap", "--output", str(out))
