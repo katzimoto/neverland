@@ -129,7 +129,7 @@ export function getRelated(docId: string): Promise<{ doc_id: string; related: Re
   return api.get(`/documents/${docId}/related`);
 }
 
-export function requestTranslation(docId: string): Promise<{ queued: boolean; message?: string }> {
+export function requestTranslation(docId: string): Promise<{ doc_id: string; translation_version_id: string; status: string }> {
   return api.post(`/documents/${docId}/translate`, {});
 }
 

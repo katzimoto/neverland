@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Languages } from "lucide-react";
 import { requestTranslation } from "@/api/documents";
 import { Button } from "@/components/primitives/Button";
@@ -14,10 +14,12 @@ interface RequestTranslationDialogProps {
 
 export function RequestTranslationDialog({ docId, open, onClose }: RequestTranslationDialogProps) {
   const { show: showToast } = useToast();
+  const queryClient = useQueryClient();
 
   const mutation = useMutation({
     mutationFn: () => requestTranslation(docId),
     onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["doc-translation-versions", docId] });
       showToast("success", "High-quality translation queued.");
       onClose();
     },
