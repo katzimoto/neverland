@@ -342,14 +342,16 @@ def create_app(
             response.headers["X-Request-ID"] = request_id
             logger.info(
                 "http_request_completed",
-                extra=log_extra({
-                    "component": "api",
-                    "outcome": "success",
-                    "method": request.method,
-                    "route": route,
-                    "status_code": response.status_code,
-                    "duration_ms": round(elapsed * 1000),
-                }),
+                extra=log_extra(
+                    {
+                        "component": "api",
+                        "outcome": "success",
+                        "method": request.method,
+                        "route": route,
+                        "status_code": response.status_code,
+                        "duration_ms": round(elapsed * 1000),
+                    }
+                ),
             )
             return response
         except Exception as exc:
@@ -363,15 +365,17 @@ def create_app(
             logger.error(
                 "http_request_failed",
                 exc_info=True,
-                extra=log_extra({
-                    "component": "api",
-                    "outcome": "failure",
-                    "method": request.method,
-                    "route": route,
-                    "status_code": 500,
-                    "duration_ms": round(elapsed * 1000),
-                    "error_type": error_type,
-                }),
+                extra=log_extra(
+                    {
+                        "component": "api",
+                        "outcome": "failure",
+                        "method": request.method,
+                        "route": route,
+                        "status_code": 500,
+                        "duration_ms": round(elapsed * 1000),
+                        "error_type": error_type,
+                    }
+                ),
             )
             return Response(
                 content="Internal Server Error",
