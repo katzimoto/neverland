@@ -9,9 +9,6 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-import sqlalchemy as sa
-from alembic import op
-
 revision: str = "c9d7e5f3a1b8"
 down_revision: tuple[str, ...] = ("b8c1d2e3f7a9", "b1c2d3e4f5a6")
 branch_labels: str | Sequence[str] | None = None
