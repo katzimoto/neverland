@@ -8,10 +8,14 @@ import {
   getPerformanceTelemetryEvents,
 } from "@/lib/performanceTelemetry";
 
-// Mock TanStack Router hooks
+const routerMocks = vi.hoisted(() => ({
+  useSearch: vi.fn(() => ({ q: "", mode: "hybrid" })),
+  navigate: vi.fn(),
+}));
+
 vi.mock("@tanstack/react-router", () => ({
-  useSearch: () => ({ q: "", mode: "hybrid" }),
-  useNavigate: () => vi.fn(),
+  useSearch: routerMocks.useSearch,
+  useNavigate: () => routerMocks.navigate,
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
     <a href={to}>{children}</a>
   ),
@@ -40,6 +44,9 @@ const mockResults = [
 
 beforeEach(() => {
   clearPerformanceTelemetryEvents();
+  routerMocks.useSearch.mockReturnValue({ q: "", mode: "hybrid" });
+  routerMocks.navigate.mockClear();
+  vi.mocked(searchApi.search).mockReset();
   vi.mocked(searchApi.search).mockResolvedValue({
     results: mockResults,
     total: 1,
@@ -48,6 +55,11 @@ beforeEach(() => {
 });
 
 describe("SearchPage", () => {
+  it("binds route search params to the registered search route", () => {
+    render(<SearchPage />);
+    expect(routerMocks.useSearch).toHaveBeenCalledWith({ from: "/search" });
+  });
+
   it("renders the search input and title", () => {
     render(<SearchPage />);
     expect(screen.getByRole("heading", { name: "Search" })).toBeInTheDocument();
@@ -58,14 +70,43 @@ describe("SearchPage", () => {
     render(<SearchPage />);
     expect(screen.getByRole("button", { name: "Hybrid" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Keyword" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Semantic" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Semantic" })).toBeInTheDocument();
   });
 
   it("shows empty start state before any query", () => {
     render(<SearchPage />);
     expect(screen.getByText("Start searching")).toBeInTheDocument();
+  });
+
+  it("calls the search API when the search button is clicked", async () => {
+    render(<SearchPage />);
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "vendor risk" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    await waitFor(() => {
+      expect(searchApi.search).toHaveBeenCalledWith("vendor risk", "hybrid", {}, 20);
+    });
+    expect(routerMocks.navigate).toHaveBeenCalledWith({
+      to: "/search",
+      search: expect.any(Function),
+    });
+  });
+
+  it("calls the search API when Enter is pressed in the input", async () => {
+    render(<SearchPage />);
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "vendor risk" },
+    });
+    fireEvent.keyDown(screen.getByRole("searchbox"), {
+      key: "Enter",
+      code: "Enter",
+    });
+
+    await waitFor(() => {
+      expect(searchApi.search).toHaveBeenCalledWith("vendor risk", "hybrid", {}, 20);
+    });
   });
 
   it("shows results after search is submitted", async () => {
@@ -75,9 +116,7 @@ describe("SearchPage", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Search" }));
     await waitFor(() => {
-      expect(
-        screen.getByText("Vendor Risk Assessment 2024"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Vendor Risk Assessment 2024")).toBeInTheDocument();
     });
   });
 
