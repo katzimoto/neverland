@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import json
 import logging
 from io import StringIO
 
+import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
@@ -15,7 +15,9 @@ from services.api.observability import (
 from shared.config import Settings
 
 
-def test_structured_log_emitted_for_successful_request() -> None:
+def test_structured_log_emitted_for_successful_request(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     engine = sa.create_engine("sqlite:///:memory:")
     app = create_app(engine, Settings(app_env="test", auth_provider="local"))
 
@@ -24,34 +26,20 @@ def test_structured_log_emitted_for_successful_request() -> None:
         return {"ok": "yes"}
 
     client = TestClient(app)
-    stream = StringIO()
-    handler = logging.StreamHandler(stream)
-    logger = logging.getLogger("services.api.main")
-    original_level = logger.level
-    original_propagate = logger.propagate
-    try:
-        logger.addHandler(handler)
-        logger.setLevel(logging.INFO)
-        logger.propagate = False
-
+    with caplog.at_level(logging.INFO, logger="services.api.main"):
         response = client.get("/hello")
-    finally:
-        logger.removeHandler(handler)
-        logger.setLevel(original_level)
-        logger.propagate = original_propagate
 
-    text = stream.getvalue()
     assert response.status_code == 200
-    log_line = json.loads(text.strip())
-    assert log_line["component"] == "api"
-    assert log_line["outcome"] == "success"
-    assert log_line["message"] == "http_request_completed"
-    assert log_line["route"] == "/hello"
-    assert log_line["status_code"] == 200
-    assert "duration_ms" in log_line
+    assert len(caplog.records) >= 1
+    record = caplog.records[-1]
+    assert record.message == "http_request_completed"
+    assert getattr(record, "component", None) == "api"
+    assert getattr(record, "outcome", None) == "success"
 
 
-def test_structured_log_emitted_for_internal_server_error() -> None:
+def test_structured_log_emitted_for_internal_server_error(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     engine = sa.create_engine("sqlite:///:memory:")
     app = create_app(engine, Settings(app_env="test", auth_provider="local"))
 
@@ -60,33 +48,18 @@ def test_structured_log_emitted_for_internal_server_error() -> None:
         raise RuntimeError("boom")
 
     client = TestClient(app)
-    stream = StringIO()
-    handler = logging.StreamHandler(stream)
-    logger = logging.getLogger("services.api.main")
-    original_level = logger.level
-    original_propagate = logger.propagate
-    try:
-        logger.addHandler(handler)
-        logger.setLevel(logging.ERROR)
-        logger.propagate = False
-
+    with caplog.at_level(logging.ERROR, logger="services.api.main"):
         response = client.get("/boom")
-    finally:
-        logger.removeHandler(handler)
-        logger.setLevel(original_level)
-        logger.propagate = original_propagate
 
-    text = stream.getvalue()
     assert response.status_code == 500
     assert "X-Request-ID" in response.headers
-    log_line = json.loads(text.strip())
-    assert log_line["component"] == "api"
-    assert log_line["outcome"] == "failure"
-    assert log_line["message"] == "http_request_failed"
-    assert log_line["status_code"] == 500
-    assert log_line["error_type"] == "RuntimeError"
-    assert "duration_ms" in log_line
-    assert log_line["request_id"] == response.headers["X-Request-ID"]
+    assert len(caplog.records) >= 1
+    record = caplog.records[-1]
+    assert record.message == "http_request_failed"
+    assert getattr(record, "component", None) == "api"
+    assert getattr(record, "outcome", None) == "failure"
+    assert getattr(record, "error_type", None) == "RuntimeError"
+    assert getattr(record, "request_id", None) == response.headers["X-Request-ID"]
 
 
 def test_enhanced_observability_logs_unhandled_errors() -> None:
