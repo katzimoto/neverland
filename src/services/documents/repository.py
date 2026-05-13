@@ -150,6 +150,18 @@ class DocumentRepository:
         ).mappings()
         return [self._row_to_model(row) for row in rows]
 
+    def list_by_ids(self, doc_ids: list[UUID]) -> list[DocumentRow]:
+        """Return documents for a list of IDs."""
+        if not doc_ids:
+            return []
+        rows = self._connection.execute(
+            sa.text("SELECT * FROM documents WHERE id IN :ids").bindparams(
+                sa.bindparam("ids", expanding=True)
+            ),
+            {"ids": [db_uuid(d) for d in doc_ids]},
+        ).mappings()
+        return [self._row_to_model(row) for row in rows]
+
     def update_translation_quality(
         self,
         doc_id: UUID,
