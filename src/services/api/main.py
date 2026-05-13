@@ -1904,6 +1904,9 @@ def create_app(
                     "config": json.dumps(request.config),
                 },
             )
+            auth_repo = AuthRepository(connection)
+            admins_group_id = auth_repo.ensure_group("admins")
+            auth_repo.grant_source_to_group(source_id, admins_group_id)
             _audit_log(
                 connection,
                 user.sub,
