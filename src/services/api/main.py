@@ -306,6 +306,12 @@ def create_app(
     app.state.es_client = es_client
     app.state.qdrant_client = qdrant_client
     app.state.ollama_client = ollama_client
+
+    with app.state.engine.begin() as connection:
+        admins_id = connection.execute(
+            sa.text("SELECT id FROM groups WHERE name = 'admins'"),
+        ).scalar()
+        app.state.admins_group_id = str(admins_id) if admins_id else None
     app.state.readiness_checker = ReadinessChecker(
         engine=app.state.engine,
         settings=app.state.settings,
@@ -658,15 +664,19 @@ def create_app(
             app.state.metrics.search_duration_seconds.labels("hybrid").observe(
                 time.perf_counter() - metrics_start
             )
-            logger.warning("There is no group id for this search")
             return SearchResponse(results=[], total=0)
+
+        if app.state.admins_group_id in group_ids:
+            search_group_ids: list[str] = []
+        else:
+            search_group_ids = group_ids
 
         es_client = app.state.es_client or ElasticsearchSearchClient(
             hosts=[app.state.settings.elastic_url]
         )
 
         backend_start = time.perf_counter()
-        bm25_results = es_client.search(request.query, group_ids=group_ids, size=50)
+        bm25_results = es_client.search(request.query, group_ids=search_group_ids, size=50)
         app.state.metrics.search_backend_duration_seconds.labels(
             "elasticsearch", "search"
         ).observe(time.perf_counter() - backend_start)
@@ -680,7 +690,7 @@ def create_app(
             query_vector = encoder.encode(request.query)
             backend_start = time.perf_counter()
             vector_results = qdrant_client.search(
-                vector=query_vector, group_ids=group_ids, limit=50
+                vector=query_vector, group_ids=search_group_ids, limit=50
             )
             logger.debug(f"The word vector returned {vector_results}")
             app.state.metrics.search_backend_duration_seconds.labels(

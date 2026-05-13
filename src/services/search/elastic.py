@@ -22,62 +22,12 @@ class ElasticsearchSearchClient:
 
         self._client.indices.create(
             index=INDEX_NAME,
-            settings={
-                "analysis": {
-                    "filter": {
-                        "autocomplete_ngram": {
-                            "type": "edge_ngram",
-                            "min_gram": 2,
-                            "max_gram": 20,
-                        }
-                    },
-                    "analyzer": {
-                        "autocomplete_index": {
-                            "type": "custom",
-                            "tokenizer": "standard",
-                            "filter": ["lowercase", "autocomplete_ngram"],
-                        },
-                        "autocomplete_search": {
-                            "type": "custom",
-                            "tokenizer": "standard",
-                            "filter": ["lowercase"],
-                        },
-                    },
-                }
-            },
             mappings={
                 "properties": {
                     "doc_id": {"type": "keyword"},
-                    "content_english": {
-                        "type": "text",
-                        "fields": {
-                            "autocomplete": {
-                                "type": "text",
-                                "analyzer": "autocomplete_index",
-                                "search_analyzer": "autocomplete_search",
-                            }
-                        },
-                    },
-                    "title": {
-                        "type": "text",
-                        "fields": {
-                            "autocomplete": {
-                                "type": "text",
-                                "analyzer": "autocomplete_index",
-                                "search_analyzer": "autocomplete_search",
-                            }
-                        },
-                    },
-                    "summary": {
-                        "type": "text",
-                        "fields": {
-                            "autocomplete": {
-                                "type": "text",
-                                "analyzer": "autocomplete_index",
-                                "search_analyzer": "autocomplete_search",
-                            }
-                        },
-                    },
+                    "content_english": {"type": "text"},
+                    "title": {"type": "text"},
+                    "summary": {"type": "text"},
                     "tags": {"type": "keyword"},
                     "entities": {"type": "keyword"},
                     "metadata": {"type": "object"},
@@ -117,38 +67,23 @@ class ElasticsearchSearchClient:
         group_ids: list[str],
         size: int = 50,
     ) -> list[SearchResult]:
-        """BM25 search restricted to *group_ids*."""
-        if not group_ids:
-            raise ValueError("group_ids must not be empty")
+        """BM25 search restricted to *group_ids*.
 
-        # should[0]: full-text BM25 with original boosts for full-word relevance
-        # should[1]: edge_ngram subfields for prefix/partial-word matching (lower boost)
+        When *group_ids* is empty (admins-group user), no permission
+        filter is applied, giving the caller global document access.
+        """
         es_query: dict[str, Any] = {
             "bool": {
-                "should": [
-                    {
-                        "multi_match": {
-                            "query": query,
-                            "fields": ["content_english^2", "title^3", "summary", "tags"],
-                            "type": "best_fields",
-                        }
-                    },
-                    {
-                        "multi_match": {
-                            "query": query,
-                            "fields": [
-                                "content_english.autocomplete",
-                                "title.autocomplete^1.5",
-                                "summary.autocomplete^0.5",
-                            ],
-                            "type": "best_fields",
-                        }
-                    },
-                ],
-                "minimum_should_match": 1,
-                # "filter": {"terms": {"allowed_group_ids": group_ids}},
+                "must": {
+                    "multi_match": {
+                        "query": query,
+                        "fields": ["content_english^2", "title^3", "summary", "tags"],
+                    }
+                },
             }
         }
+        if group_ids:
+            es_query["bool"]["filter"] = {"terms": {"allowed_group_ids": group_ids}}
 
         response = self._client.search(index=INDEX_NAME, query=es_query, size=size)
         hits = response["hits"]["hits"]
