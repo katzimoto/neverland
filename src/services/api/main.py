@@ -525,15 +525,17 @@ def create_app(
             es_client = app.state.es_client or ElasticsearchSearchClient(
                 hosts=[app.state.settings.elastic_url]
             )
+            encoder = build_encoder(app.state.settings)
             qdrant_client = app.state.qdrant_client or QdrantSearchClient(
-                url=app.state.settings.qdrant_url
+                url=app.state.settings.qdrant_url,
+                dimension=encoder.dimension,
             )
 
             worker = PipelineWorker(
                 document_repository=doc_repo,
                 extractor_registry=ExtractorRegistry(),
                 translator=translator,
-                encoder=build_encoder(app.state.settings),
+                encoder=encoder,
                 es_client=es_client,
                 qdrant_client=qdrant_client,
                 alert_matcher=(
@@ -646,10 +648,11 @@ def create_app(
         es_client = app.state.es_client or ElasticsearchSearchClient(
             hosts=[app.state.settings.elastic_url]
         )
-        qdrant_client = app.state.qdrant_client or QdrantSearchClient(
-            url=app.state.settings.qdrant_url
-        )
         encoder = build_encoder(app.state.settings)
+        qdrant_client = app.state.qdrant_client or QdrantSearchClient(
+            url=app.state.settings.qdrant_url,
+            dimension=encoder.dimension,
+        )
 
         backend_start = time.perf_counter()
         bm25_results = es_client.search(request.query, group_ids=group_ids, size=50)
@@ -944,13 +947,15 @@ def create_app(
             if not group_ids:
                 return {"doc_id": str(doc_id), "related": []}
 
+            encoder = build_encoder(app.state.settings)
             qdrant_client = app.state.qdrant_client or QdrantSearchClient(
-                url=app.state.settings.qdrant_url
+                url=app.state.settings.qdrant_url,
+                dimension=encoder.dimension,
             )
             service = RelatedService(
                 repository=RelatedRepository(connection),
                 qdrant_client=qdrant_client,
-                encoder=build_encoder(app.state.settings),
+                encoder=encoder,
             )
             try:
                 related = service.related_documents(
@@ -981,13 +986,15 @@ def create_app(
             group_ids = [str(group_id) for group_id in user.groups]
             if not group_ids:
                 return []
+            encoder = build_encoder(app.state.settings)
             qdrant_client = app.state.qdrant_client or QdrantSearchClient(
-                url=app.state.settings.qdrant_url
+                url=app.state.settings.qdrant_url,
+                dimension=encoder.dimension,
             )
             service = RelatedService(
                 repository=RelatedRepository(connection),
                 qdrant_client=qdrant_client,
-                encoder=build_encoder(app.state.settings),
+                encoder=encoder,
             )
             try:
                 return service.expertise(topic=topic, group_ids=group_ids)
@@ -1387,10 +1394,11 @@ def create_app(
             if flag_row and not _config_bool(flag_row["value"], default=True):
                 raise HTTPException(status_code=404, detail="RAG Q&A is disabled")
 
-            qdrant_client = app.state.qdrant_client or QdrantSearchClient(
-                url=app.state.settings.qdrant_url
-            )
             encoder = build_encoder(app.state.settings)
+            qdrant_client = app.state.qdrant_client or QdrantSearchClient(
+                url=app.state.settings.qdrant_url,
+                dimension=encoder.dimension,
+            )
             ollama_client = app.state.ollama_client or OllamaClient(
                 base_url=app.state.settings.ollama_url,
                 model=app.state.settings.ollama_model,
