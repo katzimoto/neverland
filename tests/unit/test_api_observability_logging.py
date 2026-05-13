@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import logging
 from unittest.mock import patch
 
-import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 
