@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { getTranslationVersions, type TranslationVersion } from "@/api/documents";
 import styles from "./TranslationVersionSelector.module.css";
 
+const POLL_INTERVAL_MS = 5000;
+
 interface TranslationVersionSelectorProps {
   docId: string;
   selectedVersionId: string | undefined;
@@ -9,7 +11,11 @@ interface TranslationVersionSelectorProps {
 }
 
 function isSelectableTranslationVersion(status: TranslationVersion["status"]): boolean {
-  return status === "done" || status === "available";
+  return status === "available";
+}
+
+function hasInProgressVersions(versions: TranslationVersion[]): boolean {
+  return versions.some((v) => v.status === "pending" || v.status === "running");
 }
 
 export function TranslationVersionSelector({
@@ -20,6 +26,10 @@ export function TranslationVersionSelector({
   const { data: versions } = useQuery({
     queryKey: ["doc-translation-versions", docId],
     queryFn: () => getTranslationVersions(docId),
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      return data && hasInProgressVersions(data) ? POLL_INTERVAL_MS : false;
+    },
   });
 
   if (!versions?.length) return null;

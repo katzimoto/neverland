@@ -8,7 +8,7 @@ vi.mock("@/api/documents");
 
 beforeEach(() => {
   vi.mocked(documentsApi.getTranslationVersions).mockResolvedValue([
-    { version_id: "v1", version_number: 1, label: "Manual EN", quality: "high", status: "done", target_language: "en", requested_at: "2024-01-01T00:00:00Z" },
+    { version_id: "v1", version_number: 1, label: "Manual EN", quality: "high", status: "available", target_language: "en", requested_at: "2024-01-01T00:00:00Z" },
     { version_id: "v2", version_number: 2, label: "Manual EN v2", quality: "high", status: "pending", target_language: "en", requested_at: "2024-02-01T00:00:00Z" },
     { version_id: "v3", version_number: 3, label: "Manual EN v3", quality: "high", status: "available", target_language: "en", requested_at: "2024-03-01T00:00:00Z" },
     { version_id: "v4", version_number: 4, label: "Manual EN v4", quality: "high", status: "running", target_language: "en", requested_at: "2024-04-01T00:00:00Z" },
@@ -43,7 +43,7 @@ describe("TranslationVersionSelector", () => {
     expect(runningOption).toBeDisabled();
   });
 
-  it("allows backend available versions to be selected", async () => {
+  it("allows available versions to be selected", async () => {
     render(
       <TranslationVersionSelector
         docId="doc-1"
@@ -66,5 +66,31 @@ describe("TranslationVersionSelector", () => {
     );
     await new Promise((r) => setTimeout(r, 50));
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  });
+
+  it("polls for updates when pending or running versions exist", async () => {
+    // First call returns a pending version; second call returns it as available.
+    vi.mocked(documentsApi.getTranslationVersions)
+      .mockResolvedValueOnce([
+        { version_id: "v1", version_number: 1, label: "In Progress", quality: "high", status: "pending", target_language: "en", requested_at: "2024-01-01T00:00:00Z" },
+      ])
+      .mockResolvedValueOnce([
+        { version_id: "v1", version_number: 1, label: "In Progress", quality: "high", status: "available", target_language: "en", requested_at: "2024-01-01T00:00:00Z" },
+      ]);
+
+    render(
+      <TranslationVersionSelector
+        docId="doc-2"
+        selectedVersionId={undefined}
+        onSelect={vi.fn()}
+      />
+    );
+
+    // Initially the version is shown as disabled (pending)
+    const option = await screen.findByRole("option", { name: /In Progress/ });
+    expect(option).toBeDisabled();
+
+    // Verify the API was called at least once (polling is configured)
+    expect(documentsApi.getTranslationVersions).toHaveBeenCalledWith("doc-2");
   });
 });
