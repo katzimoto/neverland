@@ -113,9 +113,20 @@ def test_search_returns_matching_documents(
     assert response.status_code == 200
     data = response.json()
     assert data["total"] == 1
+    assert data["query"] == "hello"
     assert len(data["results"]) == 1
-    assert data["results"][0]["doc_id"] == doc_id
-    assert data["results"][0]["title"] == "Hello Doc"
+    result = data["results"][0]
+    assert result["doc_id"] == doc_id
+    assert result["title"] == "Hello Doc"
+    assert result["snippet"] == "Hello Doc"
+    assert result["source"] == "folder"
+    assert result["source_label"] == "Folder"
+    assert result["mime_type"] == "text/plain"
+    assert result["tags"] == []
+    assert result["score"] == pytest.approx(1.08, rel=1e-2)
+    assert "updated_at" in result
+    assert "indexed_at" in result
+    assert result["source_id"] == source_id
 
     # Verify group filtering was passed to search clients
     es_call = mock_es.search.call_args

@@ -6,6 +6,7 @@ import os
 import time
 from collections.abc import Awaitable, Callable, Iterator
 from contextlib import contextmanager, suppress
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal, cast
 from uuid import UUID, uuid4
@@ -33,7 +34,7 @@ from services.auth.service import AuthService
 from services.comments.models import CommentCreateRequest, CommentUpdateRequest
 from services.comments.repository import CommentRepository
 from services.connectors.factory import build_connector, connector_types
-from services.documents.models import DocumentSource
+from services.documents.models import DocumentRow, DocumentSource
 from services.documents.repository import DocumentRepository, TranslationVersionRepository
 from services.extraction.registry import ExtractorRegistry
 from services.health import HealthResponse, health
@@ -178,17 +179,29 @@ class SearchRequest(BaseModel):
     """Search request body."""
 
     query: str
+    mode: str = "hybrid"
+    filters: dict[str, Any] = Field(default_factory=dict)
+    top_k: int = Field(default=20, ge=1, le=100)
     page: int = 1
-    page_size: int = Field(default=10, ge=1, le=100)
+    page_size: int = Field(default=20, ge=1, le=100)
 
 
 class SearchResultItem(BaseModel):
     """Single search result."""
 
     doc_id: str
-    score: float
+    source_id: str
+    external_id: str | None = None
     title: str | None = None
-    chunk_text: str | None = None
+    snippet: str | None = None
+    source: str
+    source_label: str
+    mime_type: str
+    tags: list[str] = Field(default_factory=list)
+    translation_quality: str | None = None
+    score: float
+    updated_at: str
+    indexed_at: str
 
 
 class SearchResponse(BaseModel):
@@ -196,6 +209,7 @@ class SearchResponse(BaseModel):
 
     results: list[SearchResultItem]
     total: int
+    query: str = ""
 
 
 class PreviewResponse(BaseModel):
@@ -682,6 +696,65 @@ def create_app(
         end = start + request.page_size
         page = merged[start:end]
 
+        # Enrich page with document metadata from the database
+        doc_ids: list[UUID] = []
+        for r in page:
+            with suppress(ValueError):
+                doc_ids.append(UUID(r.doc_id))
+
+        docs: dict[str, DocumentRow] = {}
+        if doc_ids:
+            with app.state.engine.begin() as connection:
+                doc_repo = DocumentRepository(connection)
+                for doc in doc_repo.list_by_ids(doc_ids):
+                    docs[str(doc.id)] = doc
+
+        now = datetime.now(UTC).isoformat()
+        results: list[SearchResultItem] = []
+        for r in page:
+            doc_row = docs.get(r.doc_id)
+            if doc_row is None:
+                results.append(
+                    SearchResultItem(
+                        doc_id=r.doc_id,
+                        source_id="",
+                        external_id=None,
+                        title=r.title,
+                        snippet=r.chunk_text or "",
+                        source="unknown",
+                        source_label="Unknown",
+                        mime_type="application/octet-stream",
+                        tags=[],
+                        translation_quality=None,
+                        score=r.score,
+                        updated_at=now,
+                        indexed_at=now,
+                    )
+                )
+                continue
+
+            metadata = doc_row.metadata or {}
+            tags = metadata.get("tags", [])
+            if isinstance(tags, str):
+                tags = [tags]
+            results.append(
+                SearchResultItem(
+                    doc_id=r.doc_id,
+                    source_id=str(doc_row.source_id),
+                    external_id=doc_row.external_id or None,
+                    title=r.title or doc_row.title,
+                    snippet=r.chunk_text or doc_row.title or "",
+                    source=doc_row.source,
+                    source_label=doc_row.source.capitalize(),
+                    mime_type=doc_row.mime_type,
+                    tags=list(tags),
+                    translation_quality=doc_row.translation_quality,
+                    score=r.score,
+                    updated_at=_fmt_dt(doc_row.updated_at) or now,
+                    indexed_at=_fmt_dt(doc_row.created_at) or now,
+                )
+            )
+
         if vector_results:
             app.state.metrics.search_requests_total.labels("hybrid", "success").inc()
         app.state.metrics.search_results_count.labels("hybrid").observe(len(merged))
@@ -689,16 +762,9 @@ def create_app(
             time.perf_counter() - metrics_start
         )
         return SearchResponse(
-            results=[
-                SearchResultItem(
-                    doc_id=r.doc_id,
-                    score=r.score,
-                    title=r.title,
-                    chunk_text=r.chunk_text,
-                )
-                for r in page
-            ],
+            results=results,
             total=len(merged),
+            query=request.query,
         )
 
     @app.get("/preview/{doc_id}", response_model=PreviewResponse)
