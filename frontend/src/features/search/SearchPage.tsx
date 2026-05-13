@@ -40,7 +40,6 @@ export function SearchPage() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const finishFirstResultTimer = useRef<(() => number) | null>(null);
 
-  // Keyboard shortcut: "/" focuses search input
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const target = e.target as HTMLElement;
@@ -58,10 +57,7 @@ export function SearchPage() {
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
-  function submitSearch(
-    q: string = inputValue,
-    currentMode: SearchMode = mode,
-  ) {
+  function submitSearch(q: string = inputValue, currentMode: SearchMode = mode) {
     finishFirstResultTimer.current = q.trim() ? startPerformanceTimer() : null;
     setSubmittedQuery(q);
     void navigate({ to: "/search", search: () => ({ q, mode: currentMode }) });
@@ -79,11 +75,7 @@ export function SearchPage() {
   useEffect(() => {
     if (isError) {
       if (finishFirstResultTimer.current) {
-        recordPerformanceEvent(
-          "search.firstResult",
-          finishFirstResultTimer.current(),
-          "error",
-        );
+        recordPerformanceEvent("search.firstResult", finishFirstResultTimer.current(), "error");
         finishFirstResultTimer.current = null;
       }
       showToast("error", t.search.failedToast);
@@ -93,15 +85,11 @@ export function SearchPage() {
   useEffect(() => {
     if (!data || !finishFirstResultTimer.current) return;
     if (data.results.length > 0) {
-      recordPerformanceEvent(
-        "search.firstResult",
-        finishFirstResultTimer.current(),
-      );
+      recordPerformanceEvent("search.firstResult", finishFirstResultTimer.current());
       finishFirstResultTimer.current = null;
     }
   }, [data]);
 
-  // Active filter chips
   const activeChips: Array<{ label: string; remove: () => void }> = [];
   (filters.file_type ?? []).forEach((ft) => {
     const label = ft.split("/").pop() ?? ft;
@@ -120,8 +108,7 @@ export function SearchPage() {
       remove: () =>
         setFilters((f) => ({
           ...f,
-          translation_quality:
-            f.translation_quality?.filter((v) => v !== tq) || undefined,
+          translation_quality: f.translation_quality?.filter((v) => v !== tq) || undefined,
         })),
     });
   });
@@ -138,7 +125,6 @@ export function SearchPage() {
             onChange={setInputValue}
             onSubmit={() => submitSearch()}
             autoFocus
-            // Pass ref via a wrapper pattern — SearchInput forwards to input
           />
           <Button onClick={() => submitSearch()} disabled={!inputValue.trim()}>
             {t.search.button}
@@ -147,11 +133,7 @@ export function SearchPage() {
       </header>
 
       <div className={styles.toolbar}>
-        <div
-          className={styles.modeGroup}
-          role="group"
-          aria-label={t.search.modeGroup}
-        >
+        <div className={styles.modeGroup} role="group" aria-label={t.search.modeGroup}>
           {MODES.map(({ value, label }) => (
             <button
               key={value}
@@ -166,18 +148,11 @@ export function SearchPage() {
             </button>
           ))}
         </div>
-        {data && (
-          <span className={styles.resultCount}>
-            {t.search.resultCount(data.total)}
-          </span>
-        )}
+        {data && <span className={styles.resultCount}>{t.search.resultCount(data.total)}</span>}
       </div>
 
       {activeChips.length > 0 && (
-        <div
-          className={styles.activeFilters}
-          aria-label={t.search.activeFilters}
-        >
+        <div className={styles.activeFilters} aria-label={t.search.activeFilters}>
           {activeChips.map((chip, i) => (
             <span key={i} className={styles.filterChip}>
               {chip.label}
@@ -195,7 +170,6 @@ export function SearchPage() {
 
       <div className={styles.body}>
         <FilterPanel filters={filters} onChange={setFilters} />
-
         <div className={styles.results}>
           <div
             className={styles.resultsList}
@@ -217,21 +191,12 @@ export function SearchPage() {
               />
             )}
 
-            {!isLoading &&
-              !isError &&
-              showResults &&
-              data?.results.length === 0 && (
-                <EmptyState
-                  title={t.search.noResultsTitle}
-                  body={t.search.noResultsBody}
-                />
-              )}
+            {!isLoading && !isError && showResults && data?.results.length === 0 && (
+              <EmptyState title={t.search.noResultsTitle} body={t.search.noResultsBody} />
+            )}
 
             {!isLoading && !isError && !showResults && (
-              <EmptyState
-                title={t.search.emptyTitle}
-                body={t.search.emptyBody}
-              />
+              <EmptyState title={t.search.emptyTitle} body={t.search.emptyBody} />
             )}
 
             {!isLoading &&
