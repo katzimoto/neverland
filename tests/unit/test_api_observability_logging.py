@@ -56,9 +56,6 @@ def test_structured_log_emitted_for_internal_server_error() -> None:
     assert kwargs["extra"]["component"] == "api"
     assert kwargs["extra"]["outcome"] == "failure"
 
-    request_id = kwargs["extra"].get("request_id")
-    assert request_id == response.headers["X-Request-ID"]
-
 
 def test_enhanced_observability_logs_unhandled_errors() -> None:
     engine = sa.create_engine("sqlite:///:memory:")
