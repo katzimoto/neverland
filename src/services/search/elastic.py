@@ -146,9 +146,10 @@ class ElasticsearchSearchClient:
                     },
                 ],
                 "minimum_should_match": 1,
-                # "filter": {"terms": {"allowed_group_ids": group_ids}},
             }
         }
+        if group_ids:
+            es_query["bool"]["filter"] = {"terms": {"allowed_group_ids": group_ids}}
 
         response = self._client.search(index=INDEX_NAME, query=es_query, size=size)
         hits = response["hits"]["hits"]
