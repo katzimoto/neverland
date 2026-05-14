@@ -63,9 +63,7 @@ SECRET_HITS="$(git grep -n -E "$SECRET_PATTERN" -- \
   ':(exclude)frontend/src/**/*.test.ts' \
   ':(exclude)frontend/src/**/*.test.tsx' \
   ':(exclude)frontend/src/**/*.spec.ts' \
-  ':(exclude)frontend/src/**/*.spec.tsx' \
-  ':(exclude)frontend/src/i18n/**' \
-  || true)"
+  ':(exclude)frontend/src/**/*.spec.tsx' || true)"
 if [[ -n "$SECRET_HITS" ]]; then
   echo "Potential hardcoded secret-like assignments found outside test files:" >&2
   printf '%s\n' "$SECRET_HITS" | sed -E \
@@ -81,10 +79,11 @@ FORBIDDEN_PATTERNS=(
   "This page will be implemented"
   "SubscriptionsStub"
   "PLACEHOLDER_POSITION"
+  "NotImplementedError"
 )
 PATTERN_HITS=""
 for pattern in "${FORBIDDEN_PATTERNS[@]}"; do
-  hits="$(git grep -l -n -F "$pattern" -- \
+  hits="$(git grep -n -F "$pattern" -- \
     'src/' 'frontend/src/' \
     ':(exclude)tests/**' \
     ':(exclude)frontend/src/**/*.test.ts' \
