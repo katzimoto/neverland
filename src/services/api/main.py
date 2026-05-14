@@ -691,13 +691,28 @@ def create_app(
             )
         app.state.metrics.search_requests_total.labels("hybrid", "degraded").inc()
 
-        # TODO: read weights from system_config in Phase 04
+        with app.state.engine.begin() as connection:
+            vector_row = connection.execute(
+                sa.text("SELECT value FROM system_config WHERE key = 'search.vector_weight'"),
+            ).scalar()
+            bm25_row = connection.execute(
+                sa.text("SELECT value FROM system_config WHERE key = 'search.bm25_weight'"),
+            ).scalar()
+            try:
+                vector_weight = float(vector_row) if vector_row is not None else 0.7
+            except (TypeError, ValueError):
+                vector_weight = 0.7
+            try:
+                bm25_weight = float(bm25_row) if bm25_row is not None else 0.3
+            except (TypeError, ValueError):
+                bm25_weight = 0.3
+
         if vector_results:
             merged = merge_results(
                 bm25_results=bm25_results,
                 vector_results=vector_results,
-                vector_weight=0.7,
-                bm25_weight=0.3,
+                vector_weight=vector_weight,
+                bm25_weight=bm25_weight,
             )
         else:
             merged = merge_results(
