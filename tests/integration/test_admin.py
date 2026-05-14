@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from uuid import UUID, uuid4
 
 import sqlalchemy as sa
@@ -59,9 +61,9 @@ def test_admin_list_users(migrated_engine: Engine) -> None:
 
     assert response.status_code == 200
     data = response.json()
-    assert len(data) == 2
+    assert len(data) == 3
     emails = {u["email"] for u in data}
-    assert emails == {"admin@example.com", "user@example.com"}
+    assert emails == {"admiin@local.com", "admin@example.com", "user@example.com"}
 
 
 def test_admin_create_user(migrated_engine: Engine) -> None:
@@ -102,7 +104,7 @@ def test_admin_delete_user(migrated_engine: Engine) -> None:
 
     # Verify user is gone
     users = client.get("/admin/users", headers={"Authorization": f"Bearer {token}"})
-    assert len(users.json()) == 1
+    assert len(users.json()) == 2
 
 
 def test_admin_cannot_delete_self(migrated_engine: Engine) -> None:
@@ -611,8 +613,125 @@ def test_admin_create_source_persists_config(migrated_engine: Engine) -> None:
     assert response.status_code == 201
     data = response.json()
     assert data["type"] == "nifi"
-    assert data["config"]["api_token"] == "secret"
-    assert data["config"]["base_url"] == "http://nifi:8080"
+    assert "config" not in data
+
+    with migrated_engine.connect() as connection:
+        row = connection.execute(
+            sa.text("SELECT config FROM ingestion_sources WHERE id = :id"),
+            {"id": data["id"].replace("-", "")},
+        ).scalar_one()
+    stored_config = json.loads(row) if isinstance(row, str) else row
+    assert stored_config["api_token"] == "secret"
+    assert stored_config["base_url"] == "http://nifi:8080"
+
+
+def test_admin_test_source_connection_validates_without_leaking_config(
+    migrated_engine: Engine, tmp_path: Path
+) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+    missing_folder = tmp_path / "missing"
+    response = client.post(
+        "/admin/sources",
+        json={
+            "name": "Folder",
+            "type": "folder",
+            "path": str(missing_folder),
+            "source_language": "en",
+            "config": {"path": str(missing_folder), "api_token": "secret-token"},
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 201
+    source_id = response.json()["id"]
+    assert "config" not in response.json()
+
+    test_response = client.post(
+        f"/admin/sources/{source_id}/test-connection",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert test_response.status_code == 200
+    result = test_response.json()
+    assert result["status"] == "unreachable"
+    assert "does not exist" in result["error"]
+    assert "secret-token" not in result["error"]
+
+
+def test_admin_test_source_connection_succeeds_for_valid_source(
+    migrated_engine: Engine, tmp_path: Path
+) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+    valid_folder = tmp_path / "valid"
+    valid_folder.mkdir()
+    response = client.post(
+        "/admin/sources",
+        json={
+            "name": "ValidFolder",
+            "type": "folder",
+            "path": str(valid_folder),
+            "source_language": "en",
+            "config": {"path": str(valid_folder)},
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 201
+    source_id = response.json()["id"]
+
+    test_response = client.post(
+        f"/admin/sources/{source_id}/test-connection",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert test_response.status_code == 200
+    result = test_response.json()
+    assert result["status"] == "ok"
+    assert result["source_id"] == source_id
+    assert "checked_at" in result
+
+
+def test_admin_list_sources_returns_last_sync_state(migrated_engine: Engine) -> None:
+    _setup_users(migrated_engine)
+    client = TestClient(
+        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+    )
+    token = _admin_token(client)
+
+    source_id = uuid4()
+    with migrated_engine.begin() as connection:
+        connection.execute(
+            sa.text(
+                """
+                INSERT INTO ingestion_sources (
+                    id, name, type, source_language, last_sync_status,
+                    last_sync_indexed, last_sync_skipped, last_sync_failed, last_sync_error
+                )
+                VALUES (
+                    :id, 'Synced', 'folder', 'en', 'failed', 2, 1, 1,
+                    'Source path does not exist'
+                )
+                """
+            ),
+            {"id": source_id.hex},
+        )
+
+    response = client.get("/admin/sources", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 200
+    data = response.json()[0]
+    assert data["last_sync_status"] == "failed"
+    assert data["last_sync_indexed"] == 2
+    assert data["last_sync_skipped"] == 1
+    assert data["last_sync_failed"] == 1
+    assert data["last_sync_error"] == "Source path does not exist"
+    assert "config" not in data
 
 
 def test_admin_list_sources_omits_config(migrated_engine: Engine) -> None:
