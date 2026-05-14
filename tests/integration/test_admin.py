@@ -59,9 +59,9 @@ def test_admin_list_users(migrated_engine: Engine) -> None:
 
     assert response.status_code == 200
     data = response.json()
-    assert len(data) == 3
+    assert len(data) == 2
     emails = {u["email"] for u in data}
-    assert emails == {"admiin@local.com", "admin@example.com", "user@example.com"}
+    assert emails == {"admin@example.com", "user@example.com"}
 
 
 def test_admin_create_user(migrated_engine: Engine) -> None:
@@ -102,7 +102,7 @@ def test_admin_delete_user(migrated_engine: Engine) -> None:
 
     # Verify user is gone
     users = client.get("/admin/users", headers={"Authorization": f"Bearer {token}"})
-    assert len(users.json()) == 2
+    assert len(users.json()) == 1
 
 
 def test_admin_cannot_delete_self(migrated_engine: Engine) -> None:
@@ -241,18 +241,14 @@ def test_admin_create_source_always_grants_admins(migrated_engine: Engine) -> No
     source_id = response.json()["id"]
 
     with migrated_engine.connect() as connection:
-        group_names = (
-            connection.execute(
-                sa.text("""
+        group_names = connection.execute(
+            sa.text("""
                 SELECT g.name FROM source_permissions sp
                 JOIN groups g ON g.id = sp.group_id
                 WHERE sp.source_id = :source_id
             """),
-                {"source_id": UUID(source_id).hex},
-            )
-            .scalars()
-            .all()
-        )
+            {"source_id": UUID(source_id).hex},
+        ).scalars().all()
     assert "admins" in group_names
 
 
