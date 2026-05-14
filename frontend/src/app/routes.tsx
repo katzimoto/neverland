@@ -10,7 +10,6 @@ import { HistoryPage } from "@/features/history/HistoryPage";
 import { ExpertisePage } from "@/features/expertise/ExpertisePage";
 import { AdminSourcesPage } from "@/features/admin/AdminSourcesPage";
 import { AppLayout } from "./AppLayout";
-import { PlaceholderPage } from "./PlaceholderPage";
 
 function requireAuth() {
   if (!authStorage.hasToken()) {
@@ -85,12 +84,6 @@ const expertiseRoute = createRoute({
   component: ExpertisePage,
 });
 
-const settingsRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: "/settings/profile",
-  component: () => <PlaceholderPage title="Settings" />,
-});
-
 const adminRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/admin",
@@ -108,7 +101,6 @@ const routeTree = rootRoute.addChildren([
     notificationsRoute,
     historyRoute,
     expertiseRoute,
-    settingsRoute,
     adminRoute,
   ]),
 ]);

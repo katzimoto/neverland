@@ -35,7 +35,10 @@ from services.comments.models import CommentCreateRequest, CommentUpdateRequest
 from services.comments.repository import CommentRepository
 from services.connectors.factory import build_connector, connector_types
 from services.documents.models import DocumentRow, DocumentSource
-from services.documents.repository import DocumentRepository, TranslationVersionRepository
+from services.documents.repository import (
+    DocumentRepository,
+    TranslationVersionRepository,
+)
 from services.extraction.registry import ExtractorRegistry
 from services.health import HealthResponse, health
 from services.intelligence.ollama_client import OllamaClient
@@ -127,12 +130,10 @@ def _audit_log(
             safe_label_value(action), safe_label_value(resource_type)
         ).inc()
     connection.execute(
-        sa.text(
-            """
+        sa.text("""
             INSERT INTO audit_log (id, user_id, action, resource_type, resource_id, details)
             VALUES (:id, :user_id, :action, :resource_type, :resource_id, :details)
-            """
-        ),
+            """),
         {
             "id": uuid4().hex,
             "user_id": user_id.hex if user_id else None,
@@ -305,6 +306,12 @@ def create_app(
     app.state.es_client = es_client
     app.state.qdrant_client = qdrant_client
     app.state.ollama_client = ollama_client
+
+    with app.state.engine.begin() as connection:
+        admins_id = connection.execute(
+            sa.text("SELECT id FROM groups WHERE name = 'admins'"),
+        ).scalar()
+        app.state.admins_group_id = str(admins_id) if admins_id else None
     app.state.readiness_checker = ReadinessChecker(
         engine=app.state.engine,
         settings=app.state.settings,
@@ -460,7 +467,9 @@ def create_app(
         return health("api")
 
     @app.get("/admin/readiness", response_model=None)
-    def admin_readiness(user: Annotated[TokenPayload, Depends(current_user)]) -> ReadinessResponse:
+    def admin_readiness(
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> ReadinessResponse:
         require_admin(user)
         readiness: ReadinessResponse = app.state.readiness_checker.check()
         return readiness
@@ -489,7 +498,9 @@ def create_app(
         return UserResponse.from_token(user)
 
     @app.get("/admin/health")
-    def admin_health(user: Annotated[TokenPayload, Depends(current_user)]) -> dict[str, str]:
+    def admin_health(
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, str]:
         require_admin(user)
         return {"status": "ok"}
 
@@ -556,12 +567,10 @@ def create_app(
                 message: str,
             ) -> None:
                 connection.execute(
-                    sa.text(
-                        """
+                    sa.text("""
                         INSERT INTO dlq (id, doc_id, error_message, status)
                         VALUES (:id, :doc_id, :error_message, 'pending')
-                        """
-                    ),
+                        """),
                     {
                         "id": db_uuid(uuid4()),
                         "doc_id": db_uuid(doc_id) if doc_id is not None else None,
@@ -643,27 +652,33 @@ def create_app(
             )
             return SearchResponse(results=[], total=0)
 
+        if app.state.admins_group_id in group_ids:
+            search_group_ids: list[str] = []
+        else:
+            search_group_ids = group_ids
+
         es_client = app.state.es_client or ElasticsearchSearchClient(
             hosts=[app.state.settings.elastic_url]
         )
-        qdrant_client = app.state.qdrant_client or QdrantSearchClient(
-            url=app.state.settings.qdrant_url
-        )
-        encoder = build_encoder(app.state.settings)
 
         backend_start = time.perf_counter()
-        bm25_results = es_client.search(request.query, group_ids=group_ids, size=50)
+        bm25_results = es_client.search(request.query, group_ids=search_group_ids, size=50)
         app.state.metrics.search_backend_duration_seconds.labels("elasticsearch", "search").observe(
             time.perf_counter() - backend_start
         )
-
+        logger.debug(f"The elastic search client returned {bm25_results}")
         vector_results: list[SearchResult] = []
         try:
+            qdrant_client = app.state.qdrant_client or QdrantSearchClient(
+                url=app.state.settings.qdrant_url
+            )
+            encoder = build_encoder(app.state.settings)
             query_vector = encoder.encode(request.query)
             backend_start = time.perf_counter()
             vector_results = qdrant_client.search(
-                vector=query_vector, group_ids=group_ids, limit=50
+                vector=query_vector, group_ids=search_group_ids, limit=50
             )
+            logger.debug(f"The word vector returned {vector_results}")
             app.state.metrics.search_backend_duration_seconds.labels("qdrant", "search").observe(
                 time.perf_counter() - backend_start
             )
@@ -674,7 +689,7 @@ def create_app(
                 exc.__class__.__name__,
                 get_correlation_id(),
             )
-            app.state.metrics.search_requests_total.labels("hybrid", "degraded").inc()
+        app.state.metrics.search_requests_total.labels("hybrid", "degraded").inc()
 
         # TODO: read weights from system_config in Phase 04
         if vector_results:
@@ -695,7 +710,7 @@ def create_app(
         start = (request.page - 1) * request.page_size
         end = start + request.page_size
         page = merged[start:end]
-
+        logger.info(f"The search result are {page}")
         # Enrich page with document metadata from the database
         doc_ids: list[UUID] = []
         for r in page:
@@ -1545,12 +1560,10 @@ def create_app(
         require_admin(user)
         with app.state.engine.begin() as connection:
             rows = connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     SELECT id, email, display_name, auth_source, is_admin, created_at
                     FROM users ORDER BY created_at DESC
-                    """
-                )
+                    """)
             ).mappings()
             return [
                 {
@@ -1648,12 +1661,10 @@ def create_app(
         require_admin(user)
         with app.state.engine.begin() as connection:
             rows = connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     SELECT id, name, type, path, source_language, enabled, created_at
                     FROM ingestion_sources ORDER BY created_at DESC
-                    """
-                )
+                    """)
             ).mappings()
             return [
                 {
@@ -1677,14 +1688,12 @@ def create_app(
         with app.state.engine.begin() as connection:
             source_id = uuid4()
             connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     INSERT INTO ingestion_sources
                         (id, name, type, path, source_language, enabled, config)
                     VALUES
                         (:id, :name, :type, :path, :source_language, :enabled, :config)
-                    """
-                ),
+                    """),
                 {
                     "id": source_id.hex,
                     "name": request.name,
@@ -1695,6 +1704,11 @@ def create_app(
                     "config": json.dumps(request.config),
                 },
             )
+
+            auth_repo = AuthRepository(connection)
+            admins_group_id = auth_repo.ensure_group("admins")
+            auth_repo.grant_source_to_group(source_id, admins_group_id)
+
             _audit_log(
                 connection,
                 user.sub,
@@ -1743,12 +1757,10 @@ def create_app(
         require_admin(user)
         with app.state.engine.begin() as connection:
             connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     DELETE FROM source_permissions
                     WHERE source_id = :source_id AND group_id = :group_id
-                    """
-                ),
+                    """),
                 {"source_id": source_id.hex, "group_id": group_id.hex},
             )
             _audit_log(
@@ -1787,13 +1799,11 @@ def create_app(
         require_admin(user)
         with app.state.engine.begin() as connection:
             connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     UPDATE system_config
                     SET value = :value, updated_at = CURRENT_TIMESTAMP, updated_by = :user_id
                     WHERE key = :key
-                    """
-                ),
+                    """),
                 {
                     "key": key,
                     "value": request.value,
@@ -1834,13 +1844,11 @@ def create_app(
         with app.state.engine.begin() as connection:
             for key, value in SYSTEM_CONFIG_DEFAULTS.items():
                 connection.execute(
-                    sa.text(
-                        """
+                    sa.text("""
                         UPDATE system_config
                         SET value = :value, updated_at = CURRENT_TIMESTAMP, updated_by = :user_id
                         WHERE key = :key
-                        """
-                    ),
+                        """),
                     {"key": key, "value": value, "user_id": user.sub.hex},
                 )
             _audit_log(connection, user.sub, "reset", "system_config")
@@ -1853,12 +1861,10 @@ def create_app(
         require_admin(user)
         with app.state.engine.begin() as connection:
             rows = connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     SELECT id, doc_id, error_message, retry_count, status, created_at, updated_at
                     FROM dlq ORDER BY created_at DESC
-                    """
-                )
+                    """)
             ).mappings()
             return [
                 DlqItem(
@@ -1881,14 +1887,12 @@ def create_app(
         require_admin(user)
         with app.state.engine.begin() as connection:
             result = connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     UPDATE dlq
                     SET status = 'retried', retry_count = retry_count + 1,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE id = :id AND status = 'pending'
-                    """
-                ),
+                    """),
                 {"id": dlq_id.hex},
             )
             if result.rowcount == 0:
@@ -1903,12 +1907,10 @@ def create_app(
         require_admin(user)
         with app.state.engine.begin() as connection:
             rows = connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     SELECT id, user_id, action, resource_type, resource_id, details, created_at
                     FROM audit_log ORDER BY created_at DESC LIMIT 100
-                    """
-                )
+                    """)
             ).mappings()
             return [
                 {

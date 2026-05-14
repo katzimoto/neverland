@@ -73,6 +73,68 @@ Python 3.13; local dev is supported on Python >=3.11.
 - Create an issue before non-trivial work. If work discovers independent
   features, open separate issues.
 
+## Feature branch policy
+
+Large multi-issue features must target a dedicated integration branch first,
+not `main` directly. This prevents partial merges from leaving the app in an
+inconsistent state.
+
+### When to use a feature branch
+
+Use `feature/<short-feature-name>` when work involves any of:
+
+- multiple issues under one parent feature;
+- architecture or runtime changes;
+- schema + backend + frontend coordination;
+- worker/runtime split work;
+- air-gapped packaging changes;
+- search/vector/indexing model changes;
+- release packaging changes;
+- any change where a partial merge to `main` would break consistency.
+
+Examples:
+
+- `feature/pipeline-jobs` for #209/#213/#214/#215/#216
+- `feature/document-versioning` for #201/#202/#203/#204/#205
+- `feature/vector-safety` for #184/#185/#186
+- `feature/structured-logging` for #63/#163/#164/#165/#179/#180/#181
+- `feature/admin-source-ux` for #87/#170/#171
+
+Small isolated fixes may still target `main` directly: one-file frontend cleanup,
+isolated test-only PRs, docs-only changes, or focused bugfixes with no multi-PR
+dependency.
+
+### Branch flow
+
+```text
+main
+  -> feature/<feature-name>
+       <- PR for issue A
+       <- PR for issue B
+       <- PR for issue C
+       <- integration validation / fix PRs
+  -> final PR: feature/<feature-name> -> main
+```
+
+Subtask branches target the feature branch. Only the final integration PR
+targets `main`.
+
+### PR requirements
+
+- PR title/body must state the base branch clearly.
+- PR body must explain whether it targets `main` or a feature branch.
+- Do not retarget or merge feature sub-PRs into `main` without explicit approval.
+- The integration branch must periodically rebase/merge latest `main` and rerun CI.
+- The final PR to `main` must include an integration validation summary
+  (ruff, mypy, pytest, frontend checks, production-audit where applicable).
+
+### Guardrails
+
+- Do not use a feature branch as a dumping ground for unrelated work.
+- Do not merge broken intermediate states into `main`.
+- Do not bypass branch protection or CI.
+- Keep subtask branches small and reviewable even when they target a feature branch.
+
 ## Shared-file conflicts (short)
 
 Touch these only when required or when your PR owns the final integration:
@@ -102,6 +164,39 @@ Do not read `spec.md` or `spec-v4.pdf` unless explicitly authorized.
 - `docs/agents/templates.md` — claim/transfer/issue/PR templates (new)
 - `frontend/AGENTS.md` — frontend-specific conventions
 - `docs/context/*.md` — area context maps
+
+## Pre-PR changed-files checklist
+
+Before opening any PR, run the following and review every file listed:
+
+```bash
+git diff --name-only <target-branch>...HEAD
+```
+
+For PRs targeting `main` use `main`; for feature-branch sub-PRs use the feature
+branch name. Then verify:
+
+1. **Every changed file is in scope** — it must be required by the issue.
+   Unexplained out-of-scope changes block merge.
+2. **No local agent artifacts** — the following files must not appear in the diff:
+   - `.opencode_auth.json`
+   - `token_opencode.txt`
+   - any root-level file named `main` (without extension)
+   These belong in `.git/info/exclude` or your global gitignore, not in
+   `repo/.gitignore` and never in a commit.
+3. **No unrelated `.gitignore` additions** — only add entries that the team has
+   agreed to track. Local tooling exclusions go in `.git/info/exclude` or
+   `~/.gitignore_global`.
+4. **No formatting-only changes outside scope** — ruff/prettier churn on files
+   not touched by the issue adds noise and risks merge conflicts.
+5. **No execute-bit or trailing-newline-only diffs** — check with
+   `git diff --stat` and `git diff` before staging.
+
+Run the guard script for a quick automated check:
+
+```bash
+bash scripts/check-pr-cleanliness.sh [target-branch]
+```
 
 ## Conventions & guardrails (quick)
 

@@ -97,7 +97,11 @@ def test_search_returns_matching_documents(
     client = TestClient(
         create_app(
             migrated_engine,
-            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+            Settings(
+                auth_provider="local",
+                jwt_secret=TEST_JWT_SECRET,
+                app_env="dev",
+            ),
             es_client=mock_es,
             qdrant_client=mock_qdrant,
         )

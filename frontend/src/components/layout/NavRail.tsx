@@ -6,7 +6,6 @@ import {
   Bell,
   History,
   Bookmark,
-  Settings,
   Shield,
   Network,
   ChevronRight,
@@ -115,14 +114,6 @@ export function NavRail({ isAdmin, unreadCount = 0 }: NavRailProps) {
       </ul>
 
       <div className={styles.bottom}>
-        <Link
-          to="/settings/profile"
-          className={styles.item}
-          title={!expanded ? t.nav.settings : undefined}
-        >
-          <span className={styles.icon} aria-hidden><Settings size={20} /></span>
-          <span className={styles.label}>{t.nav.settings}</span>
-        </Link>
         <LanguageSelector />
       </div>
     </nav>

@@ -16,18 +16,73 @@ class ElasticsearchSearchClient:
         self._client = Elasticsearch(hosts=hosts or ["http://localhost:9200"])
 
     def create_index_if_not_exists(self) -> None:
-        """Create the document index with mappings if it does not exist."""
+        """Create the document index with mappings if it does not exist.
+
+        Note: Analyzer filter settings (e.g. ``min_gram``) are baked in at
+        index creation time.  Existing indices must be deleted and recreated
+        for this change to take effect.
+        """
         if self._client.indices.exists(index=INDEX_NAME):
             return
 
         self._client.indices.create(
             index=INDEX_NAME,
+            settings={
+                "analysis": {
+                    "filter": {
+                        "autocomplete_ngram": {
+                            "type": "edge_ngram",
+                            "min_gram": 1,  # single-char prefix search ("t" matching "test1")
+                            "max_gram": 20,
+                        }
+                    },
+                    "analyzer": {
+                        "autocomplete_index": {
+                            "type": "custom",
+                            "tokenizer": "standard",
+                            "filter": ["lowercase", "autocomplete_ngram"],
+                        },
+                        "autocomplete_search": {
+                            "type": "custom",
+                            "tokenizer": "standard",
+                            "filter": ["lowercase"],
+                        },
+                    },
+                }
+            },
             mappings={
                 "properties": {
                     "doc_id": {"type": "keyword"},
-                    "content_english": {"type": "text"},
-                    "title": {"type": "text"},
-                    "summary": {"type": "text"},
+                    "content_english": {
+                        "type": "text",
+                        "fields": {
+                            "autocomplete": {
+                                "type": "text",
+                                "analyzer": "autocomplete_index",
+                                "search_analyzer": "autocomplete_search",
+                            }
+                        },
+                    },
+                    "title": {
+                        "type": "text",
+                        "fields": {
+                            "autocomplete": {
+                                "type": "text",
+                                "analyzer": "autocomplete_index",
+                                "search_analyzer": "autocomplete_search",
+                            }
+                        },
+                    },
+                    "summary": {
+                        "type": "text",
+                        "fields": {
+                            "autocomplete": {
+                                "type": "text",
+                                "analyzer": "autocomplete_index",
+                                "search_analyzer": "autocomplete_search",
+                            }
+                        },
+                    },
                     "tags": {"type": "keyword"},
                     "entities": {"type": "keyword"},
                     "metadata": {"type": "object"},
@@ -67,21 +122,38 @@ class ElasticsearchSearchClient:
         group_ids: list[str],
         size: int = 50,
     ) -> list[SearchResult]:
-        """BM25 search restricted to *group_ids*."""
-        if not group_ids:
-            raise ValueError("group_ids must not be empty")
+        """BM25 search restricted to *group_ids*.
 
+        When *group_ids* is empty (admins-group user), no permission
+        filter is applied, giving the caller global document access.
+        """
         es_query: dict[str, Any] = {
             "bool": {
-                "must": {
-                    "multi_match": {
-                        "query": query,
-                        "fields": ["content_english^2", "title^3", "summary", "tags"],
-                    }
-                },
-                "filter": {"terms": {"allowed_group_ids": group_ids}},
+                "should": [
+                    {
+                        "multi_match": {
+                            "query": query,
+                            "fields": ["content_english^2", "title^3", "summary", "tags"],
+                            "type": "best_fields",
+                        }
+                    },
+                    {
+                        "multi_match": {
+                            "query": query,
+                            "fields": [
+                                "content_english.autocomplete",
+                                "title.autocomplete^1.5",
+                                "summary.autocomplete^0.5",
+                            ],
+                            "type": "best_fields",
+                        }
+                    },
+                ],
+                "minimum_should_match": 1,
             }
         }
+        if group_ids:
+            es_query["bool"]["filter"] = {"terms": {"allowed_group_ids": group_ids}}
 
         response = self._client.search(index=INDEX_NAME, query=es_query, size=size)
         hits = response["hits"]["hits"]

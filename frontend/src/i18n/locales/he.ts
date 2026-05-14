@@ -51,6 +51,10 @@ export const he: Translations = {
     emptyTitle: "התחל/י לחפש",
     emptyBody: "הקלד/י שאילתה למעלה ולחץ/י Enter או חפש.",
     failedToast: "החיפוש נכשל. בדוק/י שהשרת נגיש.",
+    keyboardHelp: "השתמש/י ב-↑/↓ או j/k לבחירת תוצאה, Enter לפתיחה, Space לתצוגה מקדימה ו-Esc לסגירה.",
+    quickPreviewTitle: "תצוגה מקדימה מהירה",
+    openSelected: "פתח מסמך",
+    closePreview: "סגור תצוגה מקדימה",
   },
   filters: {
     panel: "מסנני חיפוש",

@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import { Search, X } from "lucide-react";
 import { IconButton } from "./IconButton";
 import styles from "./SearchInput.module.css";
@@ -10,13 +11,13 @@ interface SearchInputProps {
   autoFocus?: boolean;
 }
 
-export function SearchInput({
+export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(function SearchInput({
   value,
   onChange,
   onSubmit,
   placeholder = "Search documents, issues, pages, and emails",
   autoFocus,
-}: SearchInputProps) {
+}: SearchInputProps, ref) {
   function handleKey(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter") onSubmit?.();
     if (e.key === "Escape" && value) onChange("");
@@ -37,6 +38,7 @@ export function SearchInput({
         aria-label="Search"
         autoFocus={autoFocus}
         autoComplete="off"
+        ref={ref}
       />
       {value && (
         <IconButton
@@ -50,4 +52,4 @@ export function SearchInput({
       )}
     </div>
   );
-}
+});

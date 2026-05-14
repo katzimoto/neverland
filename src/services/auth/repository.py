@@ -22,13 +22,11 @@ class AuthRepository:
         """Return a user identity and group memberships by email."""
         row = (
             self._connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                 SELECT id, email, display_name, auth_source, is_admin
                 FROM users
                 WHERE email = :email
-                """
-                ),
+                """),
                 {"email": email},
             )
             .mappings()
@@ -56,12 +54,10 @@ class AuthRepository:
         """Create a local user with optional group memberships."""
         user_id = uuid4()
         self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 INSERT INTO users (id, email, display_name, auth_source, password_hash, is_admin)
                 VALUES (:id, :email, :display_name, 'local', :password_hash, :is_admin)
-                """
-            ),
+                """),
             {
                 "id": db_uuid(user_id),
                 "email": email,
@@ -82,12 +78,10 @@ class AuthRepository:
         if existing is None:
             user_id = uuid4()
             self._connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     INSERT INTO users (id, email, display_name, auth_source, password_hash)
                     VALUES (:id, :email, :display_name, 'ldap', NULL)
-                    """
-                ),
+                    """),
                 {
                     "id": db_uuid(user_id),
                     "email": profile.email,
@@ -97,13 +91,11 @@ class AuthRepository:
         else:
             user_id = existing.id
             self._connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     UPDATE users
                     SET display_name = :display_name, auth_source = 'ldap', password_hash = NULL
                     WHERE id = :id
-                    """
-                ),
+                    """),
                 {"id": db_uuid(user_id), "display_name": profile.display_name},
             )
         self.set_user_groups(user_id, profile.group_names)
@@ -159,58 +151,71 @@ class AuthRepository:
         """Create a minimal ingestion source for permission grants."""
         source_id = uuid4()
         self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 INSERT INTO ingestion_sources (id, name, type, source_language)
                 VALUES (:id, :name, :type, 'en')
-                """
-            ),
+                """),
             {"id": db_uuid(source_id), "name": name, "type": source_type},
         )
         return source_id
 
     def grant_source_to_group(self, source_id: UUID, group_id: UUID) -> None:
-        """Grant a group access to an ingestion source."""
-        self._connection.execute(
-            sa.text(
-                """
-                INSERT INTO source_permissions (source_id, group_id)
-                VALUES (:source_id, :group_id)
-                """
-            ),
-            {"source_id": db_uuid(source_id), "group_id": db_uuid(group_id)},
-        )
+        """Grant a group access to an ingestion source (idempotent)."""
+        try:
+            with self._connection.begin_nested():
+                self._connection.execute(
+                    sa.text("""
+                        INSERT INTO source_permissions (source_id, group_id)
+                        VALUES (:source_id, :group_id)
+                        """),
+                    {"source_id": db_uuid(source_id), "group_id": db_uuid(group_id)},
+                )
+        except sa.exc.IntegrityError:
+            pass
 
     def create_document(self, source_id: UUID, external_id: str = "file:/data/a.txt") -> UUID:
         """Create a minimal document tied to an ingestion source."""
         doc_id = uuid4()
         self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 INSERT INTO documents (id, source_id, external_id, source, mime_type)
                 VALUES (:id, :source_id, :external_id, 'folder', 'text/plain')
-                """
-            ),
-            {"id": db_uuid(doc_id), "source_id": db_uuid(source_id), "external_id": external_id},
+                """),
+            {
+                "id": db_uuid(doc_id),
+                "source_id": db_uuid(source_id),
+                "external_id": external_id,
+            },
         )
         return doc_id
 
     def user_can_access_source(self, user: UserIdentity, source_id: UUID) -> bool:
         """Return whether any of a user's groups can access a source."""
+        if self._is_admins_group_member(user):
+            return True
         if not user.groups:
             return False
         rows = self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 SELECT group_id
                 FROM source_permissions
                 WHERE source_id = :source_id
-                """
-            ),
+                """),
             {"source_id": db_uuid(source_id)},
         ).scalars()
         allowed_groups = {to_uuid(row) for row in rows}
         return bool(allowed_groups.intersection(user.groups))
+
+    def _is_admins_group_member(self, user: UserIdentity) -> bool:
+        """Return True if the user belongs to the 'admins' group."""
+        if not user.groups:
+            return False
+        admins_id = self._connection.execute(
+            sa.text("SELECT id FROM groups WHERE name = 'admins'"),
+        ).scalar()
+        if admins_id is None:
+            return False
+        return to_uuid(admins_id) in user.groups
 
     def document_source_id(self, doc_id: UUID) -> UUID | None:
         """Return the ingestion source for a document when it exists."""
