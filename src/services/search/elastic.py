@@ -16,7 +16,12 @@ class ElasticsearchSearchClient:
         self._client = Elasticsearch(hosts=hosts or ["http://localhost:9200"])
 
     def create_index_if_not_exists(self) -> None:
-        """Create the document index with mappings if it does not exist."""
+        """Create the document index with mappings if it does not exist.
+
+        Note: Analyzer filter settings (e.g. ``min_gram``) are baked in at
+        index creation time.  Existing indices must be deleted and recreated
+        for this change to take effect.
+        """
         if self._client.indices.exists(index=INDEX_NAME):
             return
 
@@ -27,7 +32,7 @@ class ElasticsearchSearchClient:
                     "filter": {
                         "autocomplete_ngram": {
                             "type": "edge_ngram",
-                            "min_gram": 2,
+                            "min_gram": 1,  # single-char prefix search ("t" matching "test1")
                             "max_gram": 20,
                         }
                     },
@@ -117,12 +122,11 @@ class ElasticsearchSearchClient:
         group_ids: list[str],
         size: int = 50,
     ) -> list[SearchResult]:
-        """BM25 search restricted to *group_ids*."""
-        if not group_ids:
-            raise ValueError("group_ids must not be empty")
+        """BM25 search restricted to *group_ids*.
 
-        # should[0]: full-text BM25 with original boosts for full-word relevance
-        # should[1]: edge_ngram subfields for prefix/partial-word matching (lower boost)
+        When *group_ids* is empty (admins-group user), no permission
+        filter is applied, giving the caller global document access.
+        """
         es_query: dict[str, Any] = {
             "bool": {
                 "should": [
@@ -146,9 +150,10 @@ class ElasticsearchSearchClient:
                     },
                 ],
                 "minimum_should_match": 1,
-                "filter": {"terms": {"allowed_group_ids": group_ids}},
             }
         }
+        if group_ids:
+            es_query["bool"]["filter"] = {"terms": {"allowed_group_ids": group_ids}}
 
         response = self._client.search(index=INDEX_NAME, query=es_query, size=size)
         hits = response["hits"]["hits"]

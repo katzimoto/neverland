@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import contextlib
 import hashlib
 import mimetypes
 import tempfile
 from collections.abc import Iterator
+from contextlib import suppress
 from dataclasses import dataclass
 from fnmatch import fnmatch
 from pathlib import PurePosixPath
@@ -131,7 +131,7 @@ class SmbConnector:
                     continue
                 yield self._download(remote_file)
         finally:
-            with contextlib.suppress(Exception):
+            with suppress(Exception):
                 smbclient.close_session(self._server)
 
     def _list_files(self) -> Iterator[_RemoteFile]:

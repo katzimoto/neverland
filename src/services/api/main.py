@@ -113,7 +113,17 @@ def _config_bool(value: Any, default: bool) -> bool:
     return bool(value)
 
 
-_SENSITIVE_CONFIG_KEYS = {"api_token", "password", "token", "secret", "client_secret"}
+_SENSITIVE_CONFIG_KEYS = frozenset(
+    {
+        "api_token",
+        "password",
+        "token",
+        "secret",
+        "client_secret",
+        "api_key",
+        "private_key",
+    }
+)
 
 
 def _source_config(value: Any) -> dict[str, Any]:
@@ -138,25 +148,25 @@ def _sanitize_source_error(message: str, source_row: Any | None = None) -> str:
 
 
 def _classify_connection_error(
-    exc: Exception, connector_type: str
+    exc: Exception, connector_type: str, source_row: Any | None = None
 ) -> tuple[Literal["ok", "unreachable", "auth_failed", "permission_denied", "config_invalid"], str]:
     """Classify a connector error into status type and sanitized message."""
     message = str(exc).lower()
     if connector_type in ("smb", "folder"):
         if "does not exist" in message or "not found" in message or "unreachable" in message:
-            return ("unreachable", _sanitize_source_error(str(exc), None))
+            return ("unreachable", _sanitize_source_error(str(exc), source_row))
         if "permission" in message or "access denied" in message:
-            return ("permission_denied", _sanitize_source_error(str(exc), None))
+            return ("permission_denied", _sanitize_source_error(str(exc), source_row))
     if connector_type in ("confluence", "jira"):
         if "401" in message or "unauthorized" in message or "auth" in message:
-            return ("auth_failed", _sanitize_source_error(str(exc), None))
+            return ("auth_failed", _sanitize_source_error(str(exc), source_row))
         if "403" in message or "forbidden" in message:
-            return ("permission_denied", _sanitize_source_error(str(exc), None))
+            return ("permission_denied", _sanitize_source_error(str(exc), source_row))
         if "connection" in message or "timeout" in message or "refused" in message:
-            return ("unreachable", _sanitize_source_error(str(exc), None))
+            return ("unreachable", _sanitize_source_error(str(exc), source_row))
     if "requires" in message or "missing" in message or "invalid" in message:
-        return ("config_invalid", _sanitize_source_error(str(exc), None))
-    return ("config_invalid", _sanitize_source_error(str(exc), None))
+        return ("config_invalid", _sanitize_source_error(str(exc), source_row))
+    return ("config_invalid", _sanitize_source_error(str(exc), source_row))
 
 
 def _record_source_sync_state(
@@ -1790,7 +1800,7 @@ def create_app(
                 connector = build_connector(source_row)
                 connector.validate()
             except Exception as exc:
-                status, error = _classify_connection_error(exc, connector_type)
+                status, error = _classify_connection_error(exc, connector_type, source_row)
                 connection.execute(
                     sa.text(
                         """
@@ -1929,6 +1939,9 @@ def create_app(
                 "last_sync_failed": None,
                 "last_sync_error": None,
                 "last_sync_at": None,
+                "last_validation_status": None,
+                "last_validation_error": None,
+                "last_validated_at": None,
             }
 
     @app.post("/admin/sources/{source_id}/permissions", status_code=201)
