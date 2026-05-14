@@ -154,7 +154,6 @@ function RelatedTab({ docId }: { docId: string }) {
   );
 }
 
-const PLACEHOLDER_POSITION = { mode: "text-range" as const, start_char: 0, end_char: 0 };
 const COMMENTS_PAGE_SIZE = 20;
 
 function AnnotationsTab({ docId }: { docId: string }) {
@@ -173,7 +172,7 @@ function AnnotationsTab({ docId }: { docId: string }) {
   const invalidate = () => void qc.invalidateQueries({ queryKey: ["doc-annotations", docId] });
 
   const addMut = useMutation({
-    mutationFn: (text: string) => createAnnotation(docId, { text, position: PLACEHOLDER_POSITION, is_private: isPrivate }),
+    mutationFn: (text: string) => createAnnotation(docId, { text, is_private: isPrivate }),
     onMutate: async (text) => {
       await qc.cancelQueries({ queryKey: ["doc-annotations", docId] });
       const previous = qc.getQueryData<{ annotations: DocAnnotation[] }>(["doc-annotations", docId]);
@@ -183,7 +182,7 @@ function AnnotationsTab({ docId }: { docId: string }) {
         user_id: "current-user",
         text,
         note: null,
-        position: PLACEHOLDER_POSITION,
+        position: null,
         is_private: isPrivate,
         created_at: new Date().toISOString(),
         can_modify: true,
