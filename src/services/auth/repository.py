@@ -190,22 +190,26 @@ class AuthRepository:
         return doc_id
 
     def _group_would_create_cycle(self, parent_id: UUID, child_id: UUID) -> bool:
-        """Return True if adding (parent_id, child_id) to group_memberships would create a cycle."""
+        """Return True if adding (parent_id, child_id) to group_memberships would create a cycle.
+
+        A cycle exists when parent_id is already reachable from child_id by following
+        parent→child edges (i.e., parent_id is a descendant of child_id in the existing graph).
+        """
         if parent_id == child_id:
             return True
         result = self._connection.execute(
             sa.text("""
-                WITH RECURSIVE ancestors(id, depth) AS (
-                    SELECT parent_group_id, 1
+                WITH RECURSIVE descendants(id, depth) AS (
+                    SELECT child_group_id, 1
                     FROM group_memberships
-                    WHERE child_group_id = :child_id
+                    WHERE parent_group_id = :child_id
                     UNION ALL
-                    SELECT gm.parent_group_id, a.depth + 1
+                    SELECT gm.child_group_id, d.depth + 1
                     FROM group_memberships gm
-                    JOIN ancestors a ON gm.child_group_id = a.id
-                    WHERE a.depth < 10
+                    JOIN descendants d ON gm.parent_group_id = d.id
+                    WHERE d.depth < 10
                 )
-                SELECT 1 FROM ancestors WHERE id = :parent_id LIMIT 1
+                SELECT 1 FROM descendants WHERE id = :parent_id LIMIT 1
             """),
             {"child_id": db_uuid(child_id), "parent_id": db_uuid(parent_id)},
         ).scalar()
