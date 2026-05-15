@@ -10,6 +10,7 @@ import { NotificationsPage } from "@/features/notifications/NotificationsPage";
 import { HistoryPage } from "@/features/history/HistoryPage";
 import { ExpertisePage } from "@/features/expertise/ExpertisePage";
 import { AdminSourcesPage } from "@/features/admin/AdminSourcesPage";
+import { AdminSourceDetailPage } from "@/features/admin/AdminSourceDetailPage";
 import { AppLayout } from "./AppLayout";
 
 function requireAuth() {
@@ -97,6 +98,12 @@ const adminRoute = createRoute({
   component: AdminSourcesPage,
 });
 
+const adminSourceDetailRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/admin/sources/$sourceId",
+  component: AdminSourceDetailPage,
+});
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   signupRoute,
@@ -110,6 +117,7 @@ const routeTree = rootRoute.addChildren([
     historyRoute,
     expertiseRoute,
     adminRoute,
+    adminSourceDetailRoute,
   ]),
 ]);
 
