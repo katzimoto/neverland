@@ -58,6 +58,7 @@ from services.related.service import RelatedService
 from services.search.elastic import ElasticsearchSearchClient
 from services.search.factory import build_encoder
 from services.search.hybrid import SearchResult, merge_results
+from services.search.meili_provider import MeilisearchSearchProvider
 from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient
 from shared.config import Settings
@@ -430,6 +431,16 @@ def create_app(
     app.state.es_client = es_client
     app.state.qdrant_client = qdrant_client
     app.state.ollama_client = ollama_client
+
+    if app.state.settings.feature_meilisearch_search:
+        import meilisearch
+        meili_client = meilisearch.Client(
+            app.state.settings.meilisearch_url,
+            api_key=app.state.settings.meilisearch_master_key,
+        )
+        app.state.meili_provider = MeilisearchSearchProvider(meili_client)
+    else:
+        app.state.meili_provider = None
 
     with app.state.engine.begin() as connection:
         try:
