@@ -12,6 +12,7 @@ A single iteration performs:
 from __future__ import annotations
 
 import logging
+import time
 from uuid import UUID
 
 from sqlalchemy import create_engine
@@ -23,14 +24,19 @@ from services.pipeline.worker import PipelineWorker
 from services.search.elastic import ElasticsearchSearchClient
 from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient
+from shared.metrics import MetricsRegistry
 
 logger = logging.getLogger(__name__)
+
+_WORKER_TYPE = "pipeline"
+_REAP_INTERVAL_SECONDS = 60.0
 
 
 def run_once(
     job_repo: PipelineJobRepository,
     worker: PipelineWorker,
     worker_id: str = "worker-default",
+    metrics: MetricsRegistry | None = None,
 ) -> bool:
     """Claim one job, process it, and mark it done.
 
@@ -38,6 +44,7 @@ def run_once(
         job_repo: Queue repository for claiming and updating jobs.
         worker: Pipeline worker for document processing.
         worker_id: Identifier stamped on claimed jobs (for stale-lock tracking).
+        metrics: Optional metrics registry; pass ``None`` to disable instrumentation.
 
     Returns:
         ``True`` if a job was claimed and processed, ``False`` if no job was available.
@@ -48,8 +55,14 @@ def run_once(
 
     job_id: UUID = claimed["id"]
     doc_id: UUID = claimed["doc_id"]
+    job_type: str = claimed["job_type"]
     attempts: int = claimed["attempts"]
     max_attempts: int = claimed["max_attempts"]
+
+    if metrics is not None:
+        metrics.pipeline_jobs_claimed_total.labels(
+            worker_type=_WORKER_TYPE, job_type=job_type
+        ).inc()
 
     # Load durable payload
     payload = job_repo.get_payload(doc_id)
@@ -57,31 +70,91 @@ def run_once(
 
     job_repo.mark_running_stage(job_id, "process")
 
+    start = time.monotonic()
     try:
         worker.process_document(doc_id, pre_extracted_text=pre_extracted_text)
     except Exception as exc:
+        elapsed = time.monotonic() - start
+        error_type = type(exc).__name__
         if attempts < max_attempts:
             job_repo.mark_retry(job_id, exc, stage="process")
-            logger.info("Job %s scheduled for retry (%d/%d)", job_id, attempts, max_attempts)
+            if metrics is not None:
+                metrics.pipeline_jobs_retried_total.labels(
+                    worker_type=_WORKER_TYPE, job_type=job_type
+                ).inc()
+                metrics.pipeline_job_duration_seconds.labels(
+                    worker_type=_WORKER_TYPE,
+                    job_type=job_type,
+                    stage="process",
+                    outcome="retried",
+                ).observe(elapsed)
+            logger.info(
+                "pipeline job retried: worker_id=%s job_type=%s job_id=%s "
+                "attempt=%d max_attempts=%d error_type=%s",
+                worker_id,
+                job_type,
+                job_id,
+                attempts,
+                max_attempts,
+                error_type,
+            )
         else:
             job_repo.mark_dead_letter(job_id, exc)
-            logger.warning("Job %s moved to dead-letter after %d attempts", job_id, attempts)
+            if metrics is not None:
+                metrics.pipeline_jobs_dead_lettered_total.labels(
+                    worker_type=_WORKER_TYPE, job_type=job_type
+                ).inc()
+                metrics.pipeline_job_duration_seconds.labels(
+                    worker_type=_WORKER_TYPE,
+                    job_type=job_type,
+                    stage="process",
+                    outcome="dead_lettered",
+                ).observe(elapsed)
+            logger.warning(
+                "pipeline job dead-lettered: worker_id=%s job_type=%s job_id=%s "
+                "attempts=%d error_type=%s",
+                worker_id,
+                job_type,
+                job_id,
+                attempts,
+                error_type,
+            )
         return True
 
+    elapsed = time.monotonic() - start
     job_repo.mark_succeeded(job_id)
-    logger.info("Job %s completed successfully", job_id)
+    if metrics is not None:
+        metrics.pipeline_jobs_succeeded_total.labels(
+            worker_type=_WORKER_TYPE, job_type=job_type
+        ).inc()
+        metrics.pipeline_job_duration_seconds.labels(
+            worker_type=_WORKER_TYPE,
+            job_type=job_type,
+            stage="process",
+            outcome="succeeded",
+        ).observe(elapsed)
+    logger.info(
+        "pipeline job succeeded: worker_id=%s job_type=%s job_id=%s attempt=%d",
+        worker_id,
+        job_type,
+        job_id,
+        attempts,
+    )
 
     # Enqueue vector indexing job after successful text processing
-    if claimed["job_type"] == "process_document":
+    if job_type == "process_document":
         try:
             job_repo.enqueue_document(
                 doc_id=doc_id,
                 source_id=claimed["source_id"],
                 job_type="vector_index_document",
             )
-            logger.debug("Vector job enqueued for doc %s", doc_id)
+            logger.debug("vector job enqueued: worker_id=%s doc_id=%s", worker_id, doc_id)
         except Exception:
-            logger.exception("Failed to enqueue vector job for doc %s", doc_id)
+            logger.exception(
+                "failed to enqueue vector job: worker_id=%s error_type=EnqueueError",
+                worker_id,
+            )
 
     return True
 
@@ -91,18 +164,65 @@ def run_loop(
     worker: PipelineWorker,
     worker_id: str = "worker-default",
     poll_interval: float = 1.0,
+    metrics: MetricsRegistry | None = None,
 ) -> None:
-    """Run ``run_once`` in a loop until interrupted."""
-    logger.info("Pipeline worker %s started (poll interval %.1fs)", worker_id, poll_interval)
+    """Run ``run_once`` in a loop until interrupted.
+
+    Emits a heartbeat gauge and queue-depth snapshot each iteration.
+    Reaps stale locks every ``_REAP_INTERVAL_SECONDS`` seconds.
+    """
+    logger.info(
+        "pipeline worker started: worker_id=%s poll_interval=%.1f",
+        worker_id,
+        poll_interval,
+    )
+    last_reap = time.monotonic()
     try:
         while True:
-            ran = run_once(job_repo, worker, worker_id=worker_id)
-            if not ran:
-                import time
+            now = time.monotonic()
 
+            if metrics is not None:
+                metrics.worker_heartbeat_timestamp_seconds.labels(
+                    worker_type=_WORKER_TYPE, worker_id=worker_id
+                ).set_to_current_time()
+                counts = job_repo.count_by_status()
+                for (status, jt), count in counts.items():
+                    metrics.pipeline_queue_depth.labels(status=status, job_type=jt).set(count)
+
+            if now - last_reap >= _REAP_INTERVAL_SECONDS:
+                reaped = job_repo.reap_stale_locks()
+                last_reap = now
+                if reaped:
+                    if metrics is not None:
+                        metrics.pipeline_jobs_stale_lock_reaped_total.labels(
+                            worker_type=_WORKER_TYPE
+                        ).inc(reaped)
+                    logger.info(
+                        "stale pipeline locks reaped: worker_id=%s count=%d",
+                        worker_id,
+                        reaped,
+                    )
+
+            try:
+                ran = run_once(job_repo, worker, worker_id=worker_id, metrics=metrics)
+            except Exception as exc:
+                error_type = type(exc).__name__
+                if metrics is not None:
+                    metrics.worker_loop_errors_total.labels(
+                        worker_type=_WORKER_TYPE, error_type=error_type
+                    ).inc()
+                logger.exception(
+                    "unhandled pipeline loop error: worker_id=%s error_type=%s",
+                    worker_id,
+                    error_type,
+                )
+                time.sleep(poll_interval)
+                continue
+
+            if not ran:
                 time.sleep(poll_interval)
     except KeyboardInterrupt:
-        logger.info("Pipeline worker %s shutting down", worker_id)
+        logger.info("pipeline worker shutting down: worker_id=%s", worker_id)
 
 
 if __name__ == "__main__":

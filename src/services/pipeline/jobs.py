@@ -349,6 +349,22 @@ class PipelineJobRepository:
             else None
         )
 
+    def count_by_status(self) -> dict[tuple[str, str], int]:
+        """Return job counts grouped by (status, job_type).
+
+        Used to populate queue-depth gauges for operator visibility.
+        """
+        rows = self._connection.execute(
+            sa.text(
+                """
+                SELECT status, job_type, COUNT(*) AS cnt
+                FROM pipeline_jobs
+                GROUP BY status, job_type
+                """
+            )
+        ).fetchall()
+        return {(row[0], row[1]): row[2] for row in rows}
+
     def reap_stale_locks(self, max_age_seconds: int = 300) -> int:
         """Reset jobs stuck in ``running`` state past *max_age_seconds* to ``pending``.
 
