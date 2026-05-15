@@ -78,4 +78,9 @@ export const adminApi = {
     api.post<SourceTestResult>(`/admin/sources/${sourceId}/test-connection`, {}),
   getSource: (sourceId: string) =>
     api.get<SourceDetail>(`/admin/sources/${sourceId}`),
+  listGroups: () => api.get<{id: string; name: string}[]>("/admin/groups"),
+  grantPermission: (sourceId: string, groupId: string) =>
+    api.post(`/admin/sources/${sourceId}/permissions`, { group_id: groupId }),
+  revokePermission: (sourceId: string, groupId: string) =>
+    api.delete(`/admin/sources/${sourceId}/permissions/${groupId}`),
 };

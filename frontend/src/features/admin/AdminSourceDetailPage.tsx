@@ -1,11 +1,13 @@
+import { useState } from "react";
 import { useParams, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, Plus, X } from "lucide-react";
 import { adminApi } from "@/api/admin";
 import { Button } from "@/components/primitives/Button";
 import { Badge } from "@/components/primitives/Badge";
 import { SkeletonRow } from "@/components/primitives/Skeleton";
 import { EmptyState } from "@/components/primitives/EmptyState";
+import { useToast } from "@/components/primitives/ToastContext";
 import styles from "./AdminSourcesPage.module.css";
 
 function formatDateTime(value: string) {
@@ -17,12 +19,43 @@ function formatDateTime(value: string) {
 
 export function AdminSourceDetailPage() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
+  const { show: showToast } = useToast();
   const { sourceId } = useParams({ from: "/app/admin/sources/$sourceId" });
+  const [addingGroup, setAddingGroup] = useState(false);
 
   const { data: source, isLoading, isError } = useQuery({
     queryKey: ["admin-source", sourceId],
     queryFn: () => adminApi.getSource(sourceId!),
     enabled: !!sourceId,
+  });
+
+  const { data: allGroups } = useQuery({
+    queryKey: ["admin-groups"],
+    queryFn: () => adminApi.listGroups(),
+  });
+
+  const grantMutation = useMutation({
+    mutationFn: (groupId: string) => adminApi.grantPermission(sourceId!, groupId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-source", sourceId] });
+      setAddingGroup(false);
+      showToast("success", "Group granted access.");
+    },
+    onError: () => {
+      showToast("error", "Failed to grant access.");
+    },
+  });
+
+  const revokeMutation = useMutation({
+    mutationFn: (groupId: string) => adminApi.revokePermission(sourceId!, groupId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-source", sourceId] });
+      showToast("success", "Group access revoked.");
+    },
+    onError: () => {
+      showToast("error", "Failed to revoke access.");
+    },
   });
 
   if (isLoading) {
@@ -40,6 +73,10 @@ export function AdminSourceDetailPage() {
       </div>
     );
   }
+
+  const availableGroups = (allGroups || []).filter(
+    (g) => !source.groups.some((sg) => sg.id === g.id),
+  );
 
   return (
     <div className={styles.page}>
@@ -104,11 +141,7 @@ export function AdminSourceDetailPage() {
           <dl className={styles.dl}>
             <dt>Status</dt>
             <dd>
-              <Badge
-                variant={
-                  source.last_validation_status === "ok" ? "success" : "danger"
-                }
-              >
+              <Badge variant={source.last_validation_status === "ok" ? "success" : "danger"}>
                 {source.last_validation_status}
               </Badge>
             </dd>
@@ -126,16 +159,78 @@ export function AdminSourceDetailPage() {
 
       <div className={styles.section}>
         <h2>Permissions</h2>
+        <p className={styles.mutedMeta}>
+          Groups listed here can search and open documents from this source.
+        </p>
+
         {source.groups.length > 0 ? (
-          <ul className={styles.groupList}>
-            {source.groups.map((g) => (
-              <li key={g.id}>
-                <Badge variant="neutral">{g.name}</Badge>
-              </li>
-            ))}
-          </ul>
+          <>
+            <ul className={styles.groupList}>
+              {source.groups.map((g) => (
+                <li key={g.id} className={styles.groupItem}>
+                  <Badge variant="neutral">{g.name}</Badge>
+                  <button
+                    className={styles.removeBtn}
+                    type="button"
+                    aria-label={`Remove ${g.name}`}
+                    onClick={() => revokeMutation.mutate(g.id)}
+                    disabled={revokeMutation.isPending}
+                  >
+                    <X size={12} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {source.groups.length === 1 && (
+              <p className={styles.warning}>
+                Removing this group will leave the source with no user access.
+                Existing indexed documents remain, but regular users will not
+                be able to search this source.
+              </p>
+            )}
+          </>
         ) : (
-          <p className={styles.mutedMeta}>No groups granted</p>
+          <p className={styles.mutedMeta}>
+            No groups have access yet. Documents can sync, but regular users
+            cannot search this source.
+          </p>
+        )}
+
+        {addingGroup ? (
+          <div className={styles.addGroupRow}>
+            <select
+              className={styles.select}
+              aria-label="Select group"
+              onChange={(e) => {
+                if (e.target.value) {
+                  grantMutation.mutate(e.target.value);
+                }
+              }}
+              value=""
+            >
+              <option value="" disabled>
+                Select a group…
+              </option>
+              {availableGroups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+            <Button variant="secondary" size="sm" onClick={() => setAddingGroup(false)}>
+              Cancel
+            </Button>
+          </div>
+        ) : (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setAddingGroup(true)}
+            disabled={availableGroups.length === 0}
+          >
+            <Plus size={14} />
+            Add group access
+          </Button>
         )}
       </div>
     </div>
