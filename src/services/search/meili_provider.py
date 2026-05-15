@@ -23,6 +23,7 @@ from services.search.meili_types import (
     DocumentSearchResultMetadata,
     SearchChunkRecord,
 )
+from shared.metrics import MetricsRegistry
 
 # Requires: pip install meilisearch
 # Client type is Any to avoid a hard import error before the package is installed.
@@ -123,8 +124,9 @@ class MeilisearchSearchProvider:
         client: A ``meilisearch.Client`` instance.
     """
 
-    def __init__(self, client: _MeilisearchClient) -> None:
+    def __init__(self, client: _MeilisearchClient, metrics: MetricsRegistry | None = None) -> None:
         self._client = client
+        self._metrics = metrics
 
     # ------------------------------------------------------------------
     # Index management
@@ -239,6 +241,17 @@ class MeilisearchSearchProvider:
         return {hit["id"]: hit.get("content_checksum", "") for hit in result.get("hits", [])}
 
     # ------------------------------------------------------------------
+    # Metrics
+    # ------------------------------------------------------------------
+
+    def _metric(self, result: str) -> None:
+        """Increment permission-filter metric when metrics are configured."""
+        if self._metrics is not None:
+            self._metrics.search_permission_filter_applied_total.labels(
+                result=result,
+            ).inc()
+
+    # ------------------------------------------------------------------
     # Search
     # ------------------------------------------------------------------
 
@@ -257,6 +270,7 @@ class MeilisearchSearchProvider:
         document (non-admin with no group memberships).
         """
         if needs_acl_short_circuit(user):
+            self._metric("bypassed_admin")
             return DocumentSearchResponse(
                 total=0,
                 estimated_total=0,
@@ -267,6 +281,11 @@ class MeilisearchSearchProvider:
         acl_filter = build_permission_filter(user)
         user_filter = _build_user_filter(query.filters)
         combined_filter = compose_filters(acl_filter, user_filter)
+
+        if not user.groups:
+            self._metric("zero_groups")
+        else:
+            self._metric("applied")
 
         sort = _SORT_MAP.get(query.sort, [])
 
