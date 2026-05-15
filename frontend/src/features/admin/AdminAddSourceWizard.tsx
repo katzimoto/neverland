@@ -21,19 +21,41 @@ interface WizardState {
   groups: SourceGroup[];
 }
 
+const LANGUAGE_LABELS: Record<string, string> = {
+  en: "English",
+  he: "Hebrew",
+  ar: "Arabic",
+  fr: "French",
+  de: "German",
+  es: "Spanish",
+  ru: "Russian",
+  zh: "Chinese",
+  ko: "Korean",
+  th: "Thai",
+};
+
+function languageLabel(code: string): string {
+  return LANGUAGE_LABELS[code] ?? code.toUpperCase();
+}
+
 export function AdminAddSourceWizard() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { show: showToast } = useToast();
   const [step, setStep] = useState<WizardStep>("type");
   const [state, setState] = useState<WizardState>({
-    type: "", name: "", path: "", sourceLanguage: "en", version: "",
+    type: "", name: "", path: "", sourceLanguage: "", version: "auto-detect",
     config: {}, enabled: true, groups: [],
   });
 
   const { data: connectorTypes = [] } = useQuery({
     queryKey: ["connector-types"],
     queryFn: adminApi.connectorTypes,
+  });
+
+  const { data: sourceLanguages = [] } = useQuery({
+    queryKey: ["source-languages"],
+    queryFn: adminApi.sourceLanguages,
   });
 
   const { data: allGroups = [] } = useQuery({
@@ -52,7 +74,7 @@ export function AdminAddSourceWizard() {
       const payload: Parameters<typeof adminApi.createSource>[0] = {
         name: state.name,
         type: state.type,
-        source_language: state.sourceLanguage,
+        source_language: state.sourceLanguage || null,
         enabled: state.enabled,
         config,
       };
@@ -62,7 +84,6 @@ export function AdminAddSourceWizard() {
       return adminApi.createSource(payload);
     },
     onSuccess: (newSource) => {
-      // Grant permissions to selected groups
       const grantPromises = state.groups.map((g) =>
         adminApi.grantPermission(newSource.id, g.id).catch(() => {}),
       );
@@ -109,7 +130,10 @@ export function AdminAddSourceWizard() {
               <button
                 key={ct.type}
                 className={`${styles.typeCard} ${state.type === ct.type ? styles.typeCardActive : ""}`}
-                onClick={() => { update("type", ct.type); setStep("settings"); }}
+                onClick={() => {
+                  setState((s) => ({ ...s, type: ct.type, sourceLanguage: "", version: "auto-detect" }));
+                  setStep("settings");
+                }}
               >
                 <ServerIcon size={24} />
                 <span>{ct.label}</span>
@@ -138,10 +162,24 @@ export function AdminAddSourceWizard() {
             <label className={styles.label}>
               Language
               <select className={styles.select} value={state.sourceLanguage}
-                onChange={(e) => update("sourceLanguage", e.target.value)}>
-                <option value="en">English</option>
-                <option value="fr">French</option>
-                <option value="de">German</option>
+                onChange={(e) => {
+                  const nextLanguage = e.target.value;
+                  const currentVersionStillValid =
+                    currentSpec?.supported_versions?.[nextLanguage]?.some(
+                      (v) => v.value === state.version
+                    );
+                  setState((s) => ({
+                    ...s,
+                    sourceLanguage: nextLanguage,
+                    ...(currentVersionStillValid ? {} : { version: "auto-detect" }),
+                  }));
+                }}>
+                <option value="">Auto detect</option>
+                {sourceLanguages.map((code) => (
+                  <option key={code} value={code}>
+                    {languageLabel(code)}
+                  </option>
+                ))}
               </select>
             </label>
             {currentSpec?.supported_versions && (
@@ -150,7 +188,7 @@ export function AdminAddSourceWizard() {
                 <select className={styles.select} value={state.version}
                   onChange={(e) => update("version", e.target.value)}>
                   <option value="auto-detect">Auto detect</option>
-                  {(currentSpec.supported_versions[state.sourceLanguage] || currentSpec.supported_versions["en"] || []).map((v) => (
+                  {(currentSpec.supported_versions[state.sourceLanguage] ?? []).map((v) => (
                     <option key={v.value} value={v.value}>{v.label}</option>
                   ))}
                 </select>
@@ -216,7 +254,8 @@ export function AdminAddSourceWizard() {
           <dl className={styles.dl}>
             <dt>Type</dt><dd>{state.type}</dd>
             <dt>Name</dt><dd>{state.name}</dd>
-            <dt>Language</dt><dd>{state.sourceLanguage}</dd>
+            <dt>Language</dt>
+            <dd>{state.sourceLanguage ? languageLabel(state.sourceLanguage) : "Auto detect"}</dd>
             <dt>Enabled</dt><dd>{state.enabled ? "Yes" : "No"}</dd>
             {Object.entries(state.config).map(([k, v]) => (
               <div key={k}>
