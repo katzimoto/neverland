@@ -367,6 +367,12 @@ class GrantPermissionRequest(BaseModel):
     group_id: str
 
 
+class AdminUpdateUserGroupsRequest(BaseModel):
+    """Admin update user group memberships request."""
+
+    group_names: list[str]
+
+
 class UpdateConfigRequest(BaseModel):
     """Admin update config request."""
 
@@ -1803,6 +1809,92 @@ def create_app(
             ).mappings()
             return [{"id": str(to_uuid(row["id"])), "name": row["name"]} for row in rows]
 
+    @app.get("/admin/users/{user_id}")
+    def admin_get_user(
+        user_id: UUID,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, Any]:
+        require_admin(user)
+        with app.state.engine.begin() as connection:
+            row = (
+                connection.execute(
+                    sa.text(
+                        """
+                    SELECT id, email, display_name, auth_source, is_admin, created_at
+                    FROM users WHERE id = :id
+                    """
+                    ),
+                    {"id": user_id.hex},
+                )
+                .mappings()
+                .first()
+            )
+            if row is None:
+                raise HTTPException(status_code=404, detail="User not found")
+            groups = (
+                connection.execute(
+                    sa.text(
+                        """
+                    SELECT g.id, g.name
+                    FROM user_groups ug
+                    JOIN groups g ON g.id = ug.group_id
+                    WHERE ug.user_id = :user_id
+                    ORDER BY g.name
+                    """
+                    ),
+                    {"user_id": user_id.hex},
+                )
+                .mappings()
+                .all()
+            )
+            return {
+                "id": str(to_uuid(row["id"])),
+                "email": row["email"],
+                "display_name": row["display_name"],
+                "auth_source": row["auth_source"],
+                "is_admin": row["is_admin"],
+                "created_at": _fmt_dt(row["created_at"]),
+                "groups": [{"id": str(to_uuid(g["id"])), "name": g["name"]} for g in groups],
+            }
+
+    @app.put("/admin/users/{user_id}/groups")
+    def admin_set_user_groups(
+        user_id: UUID,
+        request: AdminUpdateUserGroupsRequest,
+        user: Annotated[TokenPayload, Depends(current_user)],
+    ) -> dict[str, list[dict[str, str]]]:
+        require_admin(user)
+        with app.state.engine.begin() as connection:
+            auth_repo = AuthRepository(connection)
+            auth_repo.set_user_groups(user_id, request.group_names)
+            groups = (
+                connection.execute(
+                    sa.text(
+                        """
+                    SELECT g.id, g.name
+                    FROM user_groups ug
+                    JOIN groups g ON g.id = ug.group_id
+                    WHERE ug.user_id = :user_id
+                    ORDER BY g.name
+                    """
+                    ),
+                    {"user_id": user_id.hex},
+                )
+                .mappings()
+                .all()
+            )
+            _audit_log(
+                connection,
+                user.sub,
+                "update",
+                "user",
+                str(user_id),
+                {"groups": list(request.group_names)},
+            )
+            return {
+                "groups": [{"id": str(to_uuid(g["id"])), "name": g["name"]} for g in groups],
+            }
+
     @app.post("/admin/groups", status_code=201)
     def admin_create_group(
         request: CreateGroupRequest,
@@ -1942,9 +2034,10 @@ def create_app(
     ) -> dict[str, Any]:
         require_admin(user)
         with app.state.engine.begin() as connection:
-            row = connection.execute(
-                sa.text(
-                    """
+            row = (
+                connection.execute(
+                    sa.text(
+                        """
                     SELECT id, name, type, path, source_language, enabled, created_at,
                            config,
                            last_sync_status, last_sync_indexed, last_sync_skipped,
@@ -1952,9 +2045,12 @@ def create_app(
                            last_validation_status, last_validation_error, last_validated_at
                     FROM ingestion_sources WHERE id = :id
                     """
-                ),
-                {"id": source_id.hex},
-            ).mappings().first()
+                    ),
+                    {"id": source_id.hex},
+                )
+                .mappings()
+                .first()
+            )
             if row is None:
                 raise HTTPException(status_code=404, detail="Source not found")
 
@@ -1966,18 +2062,22 @@ def create_app(
                 else:
                     masked_config[key] = value
 
-            permissions = connection.execute(
-                sa.text(
-                    """
+            permissions = (
+                connection.execute(
+                    sa.text(
+                        """
                     SELECT g.id, g.name
                     FROM source_permissions sp
                     JOIN groups g ON g.id = sp.group_id
                     WHERE sp.source_id = :source_id
                     ORDER BY g.name
                     """
-                ),
-                {"source_id": source_id.hex},
-            ).mappings().all()
+                    ),
+                    {"source_id": source_id.hex},
+                )
+                .mappings()
+                .all()
+            )
 
             return {
                 "id": str(to_uuid(row["id"])),
@@ -1997,10 +2097,7 @@ def create_app(
                 "last_validation_status": row.get("last_validation_status"),
                 "last_validation_error": row.get("last_validation_error"),
                 "last_validated_at": _fmt_dt(row.get("last_validated_at")),
-                "groups": [
-                    {"id": str(to_uuid(p["id"])), "name": p["name"]}
-                    for p in permissions
-                ],
+                "groups": [{"id": str(to_uuid(p["id"])), "name": p["name"]} for p in permissions],
             }
 
     @app.post("/admin/sources", status_code=201)
