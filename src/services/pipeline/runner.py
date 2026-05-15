@@ -14,8 +14,15 @@ from __future__ import annotations
 import logging
 from uuid import UUID
 
+from sqlalchemy import create_engine
+
+from services.documents.repository import DocumentRepository
+from services.extraction.registry import ExtractorRegistry
 from services.pipeline.jobs import PipelineJobRepository
 from services.pipeline.worker import PipelineWorker
+from services.search.elastic import ElasticsearchSearchClient
+from services.search.qdrant import QdrantSearchClient
+from services.translation.client import LibreTranslateClient
 
 logger = logging.getLogger(__name__)
 
@@ -83,3 +90,30 @@ def run_loop(
                 time.sleep(poll_interval)
     except KeyboardInterrupt:
         logger.info("Pipeline worker %s shutting down", worker_id)
+
+
+if __name__ == "__main__":
+    from services.search.factory import build_encoder
+    from shared.config import Settings
+
+    settings = Settings()
+    engine = create_engine(settings.database_url)
+
+    with engine.begin() as conn:
+        doc_repo = DocumentRepository(conn)
+        es_client = ElasticsearchSearchClient(hosts=[settings.elastic_url])
+        qdrant_client = QdrantSearchClient(url=settings.qdrant_url)
+        translator = LibreTranslateClient(base_url=settings.libretranslate_url)
+        encoder = build_encoder(settings)
+
+        job_repo = PipelineJobRepository(conn)
+        worker = PipelineWorker(
+            document_repository=doc_repo,
+            extractor_registry=ExtractorRegistry(),
+            translator=translator,
+            encoder=encoder,
+            es_client=es_client,
+            qdrant_client=qdrant_client,
+        )
+
+        run_loop(job_repo, worker, worker_id="pipeline-worker")
