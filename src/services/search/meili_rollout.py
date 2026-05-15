@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from services.search.meili_settings import apply_index_settings
 
@@ -55,7 +55,7 @@ def initialize_meilisearch(client: object, settings: Settings) -> None:
 def meilisearch_health_probe(
     provider: MeilisearchSearchProvider,
     metrics: MetricsRegistry | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """Run a health check and emit dependency metrics.
 
     Returns the raw dict from :meth:`MeilisearchSearchProvider.health_check`
