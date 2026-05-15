@@ -4,7 +4,7 @@ import time
 from typing import Any
 
 from services.auth.models import TokenPayload, UserIdentity
-from services.search.meili_acl import (  # type: ignore[import-not-found]
+from services.search.meili_acl import (
     build_permission_filter,
     compose_filters,
     needs_acl_short_circuit,

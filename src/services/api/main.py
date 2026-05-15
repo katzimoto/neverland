@@ -434,6 +434,7 @@ def create_app(
 
     if app.state.settings.feature_meilisearch_search:
         import meilisearch
+
         meili_client = meilisearch.Client(
             app.state.settings.meilisearch_url,
             api_key=app.state.settings.meilisearch_master_key,
