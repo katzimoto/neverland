@@ -221,6 +221,12 @@ class MetricsRegistry:
             ("backend",),
             registry=self.registry,
         )
+        self.search_permission_filter_applied_total = Counter(
+            "tomorrowland_search_permission_filter_applied_total",
+            "Meilisearch search ACL filter outcome by result.",
+            ("result",),
+            registry=self.registry,
+        )
         self.translation_requests_total = Counter(
             "tomorrowland_translation_requests_total",
             "Translation requests by kind and outcome.",

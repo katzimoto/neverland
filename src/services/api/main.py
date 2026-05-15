@@ -439,7 +439,10 @@ def create_app(
             app.state.settings.meilisearch_url,
             api_key=app.state.settings.meilisearch_master_key,
         )
-        app.state.meili_provider = MeilisearchSearchProvider(meili_client)
+        app.state.meili_provider = MeilisearchSearchProvider(
+            meili_client,
+            metrics=app.state.metrics,
+        )
     else:
         app.state.meili_provider = None
 
