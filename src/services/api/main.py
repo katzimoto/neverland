@@ -28,7 +28,13 @@ from services.annotations.repository import AnnotationRepository
 from services.api.readiness import ReadinessChecker, ReadinessResponse
 from services.auth.jwt import JwtService
 from services.auth.ldap import LdapAuthenticator
-from services.auth.models import LoginRequest, LoginResponse, TokenPayload, UserResponse
+from services.auth.models import (
+    LoginRequest,
+    LoginResponse,
+    SignUpRequest,
+    TokenPayload,
+    UserResponse,
+)
 from services.auth.passwords import hash_password
 from services.auth.repository import AuthRepository
 from services.auth.service import AuthService
@@ -568,6 +574,18 @@ def create_app(
                 metrics=app.state.metrics,
             )
             return service.authenticate(request.email, request.password)
+
+    @app.post("/auth/signup", response_model=LoginResponse)
+    def signup(request: SignUpRequest) -> LoginResponse:
+        with repository_context() as repository:
+            service = AuthService(
+                repository=repository,
+                jwt_service=jwt_service(),
+                auth_provider=app.state.settings.auth_provider,
+                ldap_authenticator=app.state.ldap_authenticator,
+                metrics=app.state.metrics,
+            )
+            return service.register(request.email, request.password, request.display_name)
 
     @app.get("/health")
     def app_health() -> HealthResponse:

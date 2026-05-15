@@ -29,6 +29,15 @@ export interface Translations {
     genericError: string;
     signIn: string;
     signInLabel: string;
+    signUp: string;
+    signUpLink: string;
+    signUpTitle: string;
+    displayName: string;
+    confirmPassword: string;
+    passwordMismatch: string;
+    duplicateEmail: string;
+    signUpSuccess: string;
+    signInLink: string;
   };
   search: {
     title: string;
@@ -304,6 +313,15 @@ export const en: Translations = {
     genericError: "Something went wrong. Try again.",
     signIn: "Sign in",
     signInLabel: "Sign in",
+    signUp: "Sign up",
+    signUpLink: "Don't have an account? Sign up",
+    signUpTitle: "Create an account",
+    displayName: "Display name",
+    confirmPassword: "Confirm password",
+    passwordMismatch: "Passwords do not match",
+    duplicateEmail: "An account with this email already exists",
+    signUpSuccess: "Account created. You are now signed in.",
+    signInLink: "Already have an account? Sign in",
   },
   search: {
     title: "Search",

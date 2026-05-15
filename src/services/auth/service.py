@@ -64,3 +64,23 @@ class AuthService:
             access_token=self._jwt_service.encode(user),
             user=UserResponse.from_identity(user),
         )
+
+    def register(self, email: str, password: str, display_name: str | None = None) -> LoginResponse:
+        """Create a local user and return a bearer token."""
+        if self._auth_provider not in {"local", "both"}:
+            raise HTTPException(status_code=403, detail="Registration is disabled")
+        existing = self._repository.get_user_by_email(email)
+        if existing is not None:
+            raise HTTPException(status_code=409, detail="An account with this email already exists")
+        password_hash = hash_password(password)
+        user = self._repository.create_local_user(
+            email=email,
+            password_hash=password_hash,
+            display_name=display_name,
+            is_admin=False,
+            group_names=(),
+        )
+        return LoginResponse(
+            access_token=self._jwt_service.encode(user),
+            user=UserResponse.from_identity(user),
+        )
