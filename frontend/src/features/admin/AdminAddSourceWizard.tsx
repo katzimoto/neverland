@@ -44,17 +44,17 @@ export function AdminAddSourceWizard() {
 
   const createMutation = useMutation({
     mutationFn: () => {
-      const payload: Record<string, unknown> = {
+      const payload: Parameters<typeof adminApi.createSource>[0] = {
         name: state.name,
         type: state.type,
         source_language: state.sourceLanguage,
         enabled: state.enabled,
-        config: state.config,
+        config: state.config as Record<string, string>,
       };
       if (currentSpec?.fields.some((f) => f.key === "path") && state.path) {
         payload.path = state.path;
       }
-      return adminApi.createSource(payload as any);
+      return adminApi.createSource(payload);
     },
     onSuccess: (newSource) => {
       // Grant permissions to selected groups
