@@ -1,5 +1,6 @@
 import { createRouter, createRoute, createRootRoute, redirect } from "@tanstack/react-router";
 import { authStorage } from "@/api/auth";
+import { SignUpPage } from "@/features/auth/SignUpPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { SearchPage } from "@/features/search/SearchPage";
 import { DocumentPage } from "@/features/documents/DocumentPage";
@@ -9,8 +10,9 @@ import { NotificationsPage } from "@/features/notifications/NotificationsPage";
 import { HistoryPage } from "@/features/history/HistoryPage";
 import { ExpertisePage } from "@/features/expertise/ExpertisePage";
 import { AdminSourcesPage } from "@/features/admin/AdminSourcesPage";
+import { AdminSourceDetailPage } from "@/features/admin/AdminSourceDetailPage";
+import { AdminAddSourceWizard } from "@/features/admin/AdminAddSourceWizard";
 import { AppLayout } from "./AppLayout";
-import { PlaceholderPage } from "./PlaceholderPage";
 
 function requireAuth() {
   if (!authStorage.hasToken()) {
@@ -24,6 +26,12 @@ const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
   component: LoginPage,
+});
+
+const signupRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/signup",
+  component: SignUpPage,
 });
 
 const appRoute = createRoute({
@@ -85,20 +93,27 @@ const expertiseRoute = createRoute({
   component: ExpertisePage,
 });
 
-const settingsRoute = createRoute({
-  getParentRoute: () => appRoute,
-  path: "/settings/profile",
-  component: () => <PlaceholderPage title="Settings" />,
-});
-
 const adminRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/admin",
   component: AdminSourcesPage,
 });
 
+const adminAddSourceRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/admin/sources/new",
+  component: AdminAddSourceWizard,
+});
+
+const adminSourceDetailRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/admin/sources/$sourceId",
+  component: AdminSourceDetailPage,
+});
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
+  signupRoute,
   appRoute.addChildren([
     indexRoute,
     searchRoute,
@@ -108,8 +123,9 @@ const routeTree = rootRoute.addChildren([
     notificationsRoute,
     historyRoute,
     expertiseRoute,
-    settingsRoute,
     adminRoute,
+    adminAddSourceRoute,
+    adminSourceDetailRoute,
   ]),
 ]);
 

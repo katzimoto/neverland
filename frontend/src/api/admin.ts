@@ -21,7 +21,16 @@ export interface Source {
   path: string | null;
   source_language: string | null;
   enabled: boolean;
-  created_at: string;
+  created_at: string | null;
+  last_sync_status: "success" | "failed" | null;
+  last_sync_indexed: number | null;
+  last_sync_skipped: number | null;
+  last_sync_failed: number | null;
+  last_sync_error: string | null;
+  last_sync_at: string | null;
+  last_validation_status: "ok" | "unreachable" | "auth_failed" | "permission_denied" | "config_invalid" | null;
+  last_validation_error: string | null;
+  last_validated_at: string | null;
 }
 
 export interface CreateSourcePayload {
@@ -34,9 +43,28 @@ export interface CreateSourcePayload {
 }
 
 export interface SyncResult {
+  status: "success" | "failed";
   indexed: number;
   skipped: number;
   failed: number;
+}
+
+export interface SourceTestResult {
+  source_id: string;
+  status: "ok" | "unreachable" | "auth_failed" | "permission_denied" | "config_invalid";
+  checked_at: string;
+  details?: Record<string, unknown>;
+  error?: string;
+}
+
+export interface SourceGroup {
+  id: string;
+  name: string;
+}
+
+export interface SourceDetail extends Source {
+  config: Record<string, unknown>;
+  groups: SourceGroup[];
 }
 
 export const adminApi = {
@@ -46,4 +74,29 @@ export const adminApi = {
     api.post<Source>("/admin/sources", payload),
   syncSource: (sourceId: string) =>
     api.post<SyncResult>(`/admin/ingestion/${sourceId}/sync-now`, {}),
+  testSource: (sourceId: string) =>
+    api.post<SourceTestResult>(`/admin/sources/${sourceId}/test-connection`, {}),
+  getSource: (sourceId: string) =>
+    api.get<SourceDetail>(`/admin/sources/${sourceId}`),
+  listGroups: () => api.get<{id: string; name: string}[]>("/admin/groups"),
+  grantPermission: (sourceId: string, groupId: string) =>
+    api.post(`/admin/sources/${sourceId}/permissions`, { group_id: groupId }),
+  revokePermission: (sourceId: string, groupId: string) =>
+    api.delete(`/admin/sources/${sourceId}/permissions/${groupId}`),
+  updateSource: (sourceId: string, payload: Record<string, unknown>) =>
+    api.put(`/admin/sources/${sourceId}`, payload),
+  listUsers: () => api.get<UserDetail[]>("/admin/users"),
+  getUser: (userId: string) => api.get<UserDetail>(`/admin/users/${userId}`),
+  setUserGroups: (userId: string, groupNames: string[]) =>
+    api.put(`/admin/users/${userId}/groups`, { group_names: groupNames }),
 };
+
+export interface UserDetail {
+  id: string;
+  email: string;
+  display_name: string | null;
+  auth_source: string;
+  is_admin: boolean;
+  created_at: string | null;
+  groups: SourceGroup[];
+}

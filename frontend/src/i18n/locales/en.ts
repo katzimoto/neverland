@@ -29,6 +29,15 @@ export interface Translations {
     genericError: string;
     signIn: string;
     signInLabel: string;
+    signUp: string;
+    signUpLink: string;
+    signUpTitle: string;
+    displayName: string;
+    confirmPassword: string;
+    passwordMismatch: string;
+    duplicateEmail: string;
+    signUpSuccess: string;
+    signInLink: string;
   };
   search: {
     title: string;
@@ -49,6 +58,10 @@ export interface Translations {
     emptyTitle: string;
     emptyBody: string;
     failedToast: string;
+    keyboardHelp: string;
+    quickPreviewTitle: string;
+    openSelected: string;
+    closePreview: string;
   };
   filters: {
     panel: string;
@@ -231,9 +244,21 @@ export interface Translations {
     colType: string;
     colLang: string;
     colEnabled: string;
+    colLastSync: string;
     colActions: string;
     syncBtn: string;
+    testConnectionBtn: string;
+    testConnectionOk: string;
+    testConnectionError: string;
+    neverSynced: string;
+    syncStatusSuccess: string;
+    syncStatusFailed: string;
+    lastSynced: (value: string) => string;
     syncResult: (indexed: number, skipped: number, failed: number) => string;
+    syncStarted: (name: string) => string;
+    syncCompleted: (indexed: number, skipped: number, failed: number) => string;
+    syncPartialFailure: (failed: number) => string;
+    syncFailed: string;
     dialogTitle: string;
     nameLabel: string;
     namePlaceholder: string;
@@ -288,6 +313,15 @@ export const en: Translations = {
     genericError: "Something went wrong. Try again.",
     signIn: "Sign in",
     signInLabel: "Sign in",
+    signUp: "Sign up",
+    signUpLink: "Don't have an account? Sign up",
+    signUpTitle: "Create an account",
+    displayName: "Display name",
+    confirmPassword: "Confirm password",
+    passwordMismatch: "Passwords do not match",
+    duplicateEmail: "An account with this email already exists",
+    signUpSuccess: "Account created. You are now signed in.",
+    signInLink: "Already have an account? Sign in",
   },
   search: {
     title: "Search",
@@ -308,6 +342,10 @@ export const en: Translations = {
     emptyTitle: "Start searching",
     emptyBody: "Type a query above and press Enter or Search.",
     failedToast: "Search failed. Check that the backend is reachable.",
+    keyboardHelp: "Use ↑/↓ or j/k to choose a result, Enter to open, Space to preview, and Esc to close preview.",
+    quickPreviewTitle: "Quick preview",
+    openSelected: "Open document",
+    closePreview: "Close preview",
   },
   filters: {
     panel: "Search filters",
@@ -490,10 +528,24 @@ export const en: Translations = {
     colType: "Type",
     colLang: "Language",
     colEnabled: "Enabled",
+    colLastSync: "Last sync",
     colActions: "Actions",
     syncBtn: "Sync",
+    testConnectionBtn: "Test",
+    testConnectionOk: "Connection settings look valid.",
+    testConnectionError: "Connection test failed.",
+    neverSynced: "Never synced",
+    syncStatusSuccess: "Success",
+    syncStatusFailed: "Failed",
+    lastSynced: (value) => `Last run: ${value}`,
     syncResult: (indexed, skipped, failed) =>
       `Indexed: ${indexed}  Skipped: ${skipped}  Failed: ${failed}`,
+    syncStarted: (name) => `Sync started for ${name}.`,
+    syncCompleted: (indexed, skipped, failed) =>
+      `Sync completed. Indexed ${indexed} document${indexed !== 1 ? "s" : ""}. Skipped ${skipped}. Failed ${failed}.`,
+    syncPartialFailure: (failed) =>
+      `Sync completed with failures. ${failed} document${failed !== 1 ? "s" : ""} failed. Check the source configuration.`,
+    syncFailed: "Sync failed. Check the source configuration or retry later.",
     dialogTitle: "Add Source",
     nameLabel: "Name",
     namePlaceholder: "e.g. Legal Documents",
