@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from services.documents.models import DocumentRow
-from services.pipeline.worker import PipelineWorker
+from services.pipeline.worker import PipelineWorker, ProcessResult
 
 
 class _FakeDocumentRepository:
@@ -123,7 +123,9 @@ def _worker(
     )
 
 
-def test_worker_indexes_text_when_encoder_fails(caplog: pytest.LogCaptureFixture) -> None:
+def test_worker_indexes_text_when_encoder_fails(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     doc = _document()
     group_id = uuid4()
     repo = _FakeDocumentRepository(doc, [group_id])
@@ -237,6 +239,36 @@ def test_process_document_returns_translated_text_on_success() -> None:
 
 
 def test_process_document_returns_none_and_raises_on_failure() -> None:
+    doc = _document()
+    repo = _FakeDocumentRepository(doc, [uuid4()])
+    encoder = _FakeEncoder()
+    es = _FakeElasticsearch(fail=True)
+    qdrant = _FakeQdrant()
+    worker = _worker(repo=repo, encoder=encoder, es=es, qdrant=qdrant)
+
+    with pytest.raises(RuntimeError, match="elasticsearch_unavailable"):
+        worker.process_document(doc.id, pre_extracted_text="raw body")
+
+    assert repo.status_updates == [(doc.id, "failed")]
+
+
+def test_process_document_returns_process_result_on_success() -> None:
+    doc = _document()
+    repo = _FakeDocumentRepository(doc, [uuid4()])
+    encoder = _FakeEncoder()
+    es = _FakeElasticsearch()
+    qdrant = _FakeQdrant()
+    translator = _FakeTranslator(translated="translated body")
+    worker = _worker(repo=repo, encoder=encoder, es=es, qdrant=qdrant, translator=translator)
+
+    result = worker.process_document(doc.id, pre_extracted_text="raw body")
+
+    assert isinstance(result, ProcessResult)
+    assert result.extracted_text == "raw body"
+    assert result.translated_text == "translated body"
+
+
+def test_process_document_raises_on_failure() -> None:
     doc = _document()
     repo = _FakeDocumentRepository(doc, [uuid4()])
     encoder = _FakeEncoder()
