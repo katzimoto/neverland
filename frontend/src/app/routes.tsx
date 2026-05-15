@@ -1,5 +1,6 @@
 import { createRouter, createRoute, createRootRoute, redirect } from "@tanstack/react-router";
 import { authStorage } from "@/api/auth";
+import { SignUpPage } from "@/features/auth/SignUpPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { SearchPage } from "@/features/search/SearchPage";
 import { DocumentPage } from "@/features/documents/DocumentPage";
@@ -23,6 +24,12 @@ const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
   component: LoginPage,
+});
+
+const signupRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/signup",
+  component: SignUpPage,
 });
 
 const appRoute = createRoute({
@@ -92,6 +99,7 @@ const adminRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
+  signupRoute,
   appRoute.addChildren([
     indexRoute,
     searchRoute,
