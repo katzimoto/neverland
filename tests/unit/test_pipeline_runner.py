@@ -129,9 +129,9 @@ class TestRunOnce:
             "locked_by": "runner",
         }
         worker = MagicMock()
-
-
-
+        run_once(repo, worker)
+        assert_called_args = worker.process_document.call_args
+        assert_called_args[1]["pre_extracted_text"] == "custom extracted text"
 
     def test_handles_missing_payload_gracefully(self) -> None:
         doc_id = uuid4()
