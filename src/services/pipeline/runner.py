@@ -110,7 +110,7 @@ if __name__ == "__main__":
     from shared.config import Settings
 
     settings = Settings()
-    engine = create_engine(settings.database_url)
+    engine = create_engine(settings.postgres_url)
 
     with engine.begin() as conn:
         doc_repo = DocumentRepository(conn)

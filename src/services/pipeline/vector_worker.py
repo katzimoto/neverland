@@ -7,6 +7,7 @@ and writes Qdrant points. Independent of the text pipeline worker.
 from __future__ import annotations
 
 import logging
+from typing import Any
 from uuid import UUID
 
 from services.chunking.splitter import chunk_text
@@ -68,7 +69,7 @@ def run_vector_once(
             content = extractor.extract(Path(doc.path), doc.mime_type)
 
         chunks = chunk_text(content)
-        qdrant_chunks: list[dict] = []
+        qdrant_chunks: list[dict[str, Any]] = []
         for idx, chunk_text_content in enumerate(chunks):
             vector = encoder.encode(chunk_text_content)
             qdrant_chunks.append(
@@ -106,7 +107,7 @@ if __name__ == "__main__":
     from shared.config import Settings
 
     settings = Settings()
-    engine = create_engine(settings.database_url)
+    engine = create_engine(settings.postgres_url)
 
     with engine.begin() as conn:
         job_repo = PipelineJobRepository(conn)
