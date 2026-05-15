@@ -83,4 +83,18 @@ export const adminApi = {
     api.post(`/admin/sources/${sourceId}/permissions`, { group_id: groupId }),
   revokePermission: (sourceId: string, groupId: string) =>
     api.delete(`/admin/sources/${sourceId}/permissions/${groupId}`),
+  listUsers: () => api.get<UserDetail[]>("/admin/users"),
+  getUser: (userId: string) => api.get<UserDetail>(`/admin/users/${userId}`),
+  setUserGroups: (userId: string, groupNames: string[]) =>
+    api.put(`/admin/users/${userId}/groups`, { group_names: groupNames }),
 };
+
+export interface UserDetail {
+  id: string;
+  email: string;
+  display_name: string | null;
+  auth_source: string;
+  is_admin: boolean;
+  created_at: string | null;
+  groups: SourceGroup[];
+}
