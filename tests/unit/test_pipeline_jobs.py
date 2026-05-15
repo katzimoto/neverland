@@ -345,7 +345,7 @@ def test_payload_store_and_load(engine: Engine) -> None:
         payload = repo.get_payload(doc_id)
         assert payload is not None
         assert payload["content_text"] == "hello world"
-        assert payload["doc_id"] == doc_id.hex
+        assert payload["doc_id"] == doc_id
 
 
 def test_payload_returns_none_for_missing(engine: Engine) -> None:

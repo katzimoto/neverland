@@ -6,6 +6,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import sqlalchemy as sa
+from sqlalchemy.exc import IntegrityError
 
 from shared.db import db_uuid, to_uuid
 
@@ -74,29 +75,44 @@ class PipelineJobRepository:
         now = datetime.now(UTC)
         if run_after is None:
             run_after = now
-        self._connection.execute(
-            sa.text(
+        try:
+            self._connection.execute(
+                sa.text(
+                    """
+                    INSERT INTO pipeline_jobs
+                        (id, doc_id, source_id, job_type, status, priority,
+                         max_attempts, run_after, created_at, updated_at)
+                    VALUES
+                        (:id, :doc_id, :source_id, :job_type, 'pending', :priority,
+                         :max_attempts, :run_after, :created_at, :updated_at)
                 """
-                INSERT INTO pipeline_jobs
-                    (id, doc_id, source_id, job_type, status, priority,
-                     max_attempts, run_after, created_at, updated_at)
-                VALUES
-                    (:id, :doc_id, :source_id, :job_type, 'pending', :priority,
-                     :max_attempts, :run_after, :created_at, :updated_at)
-            """
-            ),
-            {
-                "id": db_uuid(job_id),
-                "doc_id": db_uuid(doc_id),
-                "source_id": db_uuid(source_id),
-                "job_type": job_type,
-                "priority": priority,
-                "max_attempts": max_attempts,
-                "run_after": run_after,
-                "created_at": now,
-                "updated_at": now,
-            },
-        )
+                ),
+                {
+                    "id": db_uuid(job_id),
+                    "doc_id": db_uuid(doc_id),
+                    "source_id": db_uuid(source_id),
+                    "job_type": job_type,
+                    "priority": priority,
+                    "max_attempts": max_attempts,
+                    "run_after": run_after,
+                    "created_at": now,
+                    "updated_at": now,
+                },
+            )
+        except IntegrityError:
+            existing = self._connection.execute(
+                sa.text(
+                    """
+                    SELECT id FROM pipeline_jobs
+                    WHERE doc_id = :doc_id
+                      AND job_type = :job_type
+                      AND status IN ('pending', 'running', 'retry')
+                    LIMIT 1
+                """
+                ),
+                {"doc_id": db_uuid(doc_id), "job_type": job_type},
+            ).scalar()
+            return to_uuid(existing)
 
         if content_text is not None or content_path is not None:
             self._connection.execute(
@@ -199,6 +215,7 @@ class PipelineJobRepository:
             "last_error": row["last_error"],
             "run_after": row["run_after"],
             "locked_by": locker_id,
+            "locked_at": now,
         }
 
     def mark_running_stage(self, job_id: UUID, stage: str) -> None:
@@ -235,7 +252,8 @@ class PipelineJobRepository:
         )
 
     def mark_retry(
-        self, job_id: UUID, error: str | BaseException, retry_delay_seconds: int = 60
+        self, job_id: UUID, error: str | BaseException,
+        retry_delay_seconds: int = 60, stage: str = "process",
     ) -> None:
         """Mark a running job for retry with a sanitized error and backoff."""
         now = datetime.now(UTC)
@@ -254,7 +272,7 @@ class PipelineJobRepository:
             ),
             {
                 "id": db_uuid(job_id),
-                "last_error": _sanitize_error(error, stage="process"),
+                "last_error": _sanitize_error(error, stage=stage),
                 "run_after": now + timedelta(seconds=retry_delay_seconds),
                 "updated_at": now,
             },
@@ -297,4 +315,9 @@ class PipelineJobRepository:
             .mappings()
             .first()
         )
-        return dict(row) if row else None
+        return {
+            "doc_id": to_uuid(row["doc_id"]),
+            "content_text": row["content_text"],
+            "content_path": row["content_path"],
+            "content_sha256": row["content_sha256"],
+        } if row else None

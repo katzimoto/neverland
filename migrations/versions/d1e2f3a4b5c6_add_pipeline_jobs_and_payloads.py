@@ -45,7 +45,7 @@ def upgrade() -> None:
             "run_after",
             sa.DateTime(timezone=True),
             nullable=False,
-            server_default=sa.func.now(),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
         ),
         sa.Column("locked_by", sa.Text(), nullable=True),
         sa.Column("locked_at", sa.DateTime(timezone=True), nullable=True),
@@ -53,13 +53,13 @@ def upgrade() -> None:
             "created_at",
             sa.DateTime(timezone=True),
             nullable=False,
-            server_default=sa.func.now(),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
         ),
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
             nullable=False,
-            server_default=sa.func.now(),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
         ),
     )
     op.create_index("ix_pipeline_jobs_doc_id", "pipeline_jobs", ["doc_id"])
@@ -92,13 +92,13 @@ def upgrade() -> None:
             "created_at",
             sa.DateTime(timezone=True),
             nullable=False,
-            server_default=sa.func.now(),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
         ),
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
             nullable=False,
-            server_default=sa.func.now(),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
         ),
     )
 
