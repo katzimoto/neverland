@@ -14,6 +14,26 @@ logger = logging.getLogger(__name__)
 
 _MAX_ERROR_LENGTH = 200
 
+# Safe category strings for the string branch of _sanitize_error.
+# Any string input that does not match one of these is replaced with "unknown".
+_ALLOWED_ERROR_CATEGORIES = frozenset(
+    {
+        "process",
+        "extract",
+        "translate",
+        "chunk",
+        "index",
+        "enqueue",
+        "vector_encode",
+        "vector_upsert",
+        "intelligence",
+        "timeout",
+        "connection_refused",
+        "not_found",
+        "invalid_input",
+    }
+)
+
 
 def _is_sqlite(conn: sa.Connection) -> bool:
     """Return True when the connection uses SQLite dialect."""
@@ -25,7 +45,7 @@ def _sanitize_error(exc_or_msg: BaseException | str, stage: str = "") -> str:
     if isinstance(exc_or_msg, BaseException):
         tag = type(exc_or_msg).__name__
     elif isinstance(exc_or_msg, str):
-        tag = exc_or_msg.strip()
+        tag = exc_or_msg.strip() if exc_or_msg.strip() in _ALLOWED_ERROR_CATEGORIES else "unknown"
     else:
         tag = "unknown"
     result = f"{tag}:{stage}" if stage else tag
