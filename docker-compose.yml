@@ -59,13 +59,9 @@ services:
         condition: service_completed_successfully
       elasticsearch:
         condition: service_healthy
-      qdrant:
+      postgres:
         condition: service_healthy
-      meilisearch:
-        condition: service_healthy
-      libretranslate:
-        condition: service_healthy
-      ollama:
+      kafka:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).close()\""]
@@ -73,6 +69,52 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
+    logging:
+      driver: json-file
+    volumes:
+      - files_data:/data
+      - ./data:/data/mounted:ro
+
+  pipeline-worker:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    restart: unless-stopped
+    environment: *app-environment
+    command: python -m services.pipeline.runner
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    logging:
+      driver: json-file
+    volumes:
+      - files_data:/data
+      - ./data:/data/mounted:ro
+
+  vector-worker:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    restart: unless-stopped
+    environment: *app-environment
+    command: python -m services.pipeline.vector_worker
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
     logging:
       driver: json-file
     volumes:
