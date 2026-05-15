@@ -85,4 +85,18 @@ export const adminApi = {
     api.delete(`/admin/sources/${sourceId}/permissions/${groupId}`),
   updateSource: (sourceId: string, payload: Record<string, unknown>) =>
     api.put(`/admin/sources/${sourceId}`, payload),
+  listUsers: () => api.get<UserDetail[]>("/admin/users"),
+  getUser: (userId: string) => api.get<UserDetail>(`/admin/users/${userId}`),
+  setUserGroups: (userId: string, groupNames: string[]) =>
+    api.put(`/admin/users/${userId}/groups`, { group_names: groupNames }),
 };
+
+export interface UserDetail {
+  id: string;
+  email: string;
+  display_name: string | null;
+  auth_source: string;
+  is_admin: boolean;
+  created_at: string | null;
+  groups: SourceGroup[];
+}
