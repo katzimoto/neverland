@@ -110,7 +110,7 @@ class RagService:
         # 4. Build citations
         citations = [
             Citation(
-                documantions_id=c["documantions_id"],
+                documant_id=c["documant_id"],
                 doc_title=c.get("doc_title"),
                 chunk_text=c["chunk_text"],
                 score=c["score"],
@@ -145,13 +145,13 @@ class RagService:
             limit=top_k,
         )
 
-        # Deduplicate by documantions_id (keep highest score)
+        # Deduplicate by documant_id (keep highest score)
         seen: dict[str, dict[str, Any]] = {}
         for r in results:
-            documantions_id = r.documantions_id
-            if documantions_id not in seen or r.score > seen[documantions_id]["score"]:
-                seen[documantions_id] = {
-                    "documantions_id": documantions_id,
+            documant_id = r.documant_id
+            if documant_id not in seen or r.score > seen[documant_id]["score"]:
+                seen[documant_id] = {
+                    "documant_id": documant_id,
                     "chunk_text": r.chunk_text or "",
                     "score": r.score,
                     "doc_title": None,
@@ -159,10 +159,10 @@ class RagService:
 
         # Look up doc titles
         doc_repo = DocumentRepository(self._connection)
-        for documantions_id in seen:
-            doc = doc_repo.get_by_id(UUID(documantions_id))
+        for documant_id in seen:
+            doc = doc_repo.get_by_id(UUID(documant_id))
             if doc:
-                seen[documantions_id]["doc_title"] = doc.title
+                seen[documant_id]["doc_title"] = doc.title
 
         # Return sorted by score descending
         return sorted(seen.values(), key=lambda c: c["score"], reverse=True)

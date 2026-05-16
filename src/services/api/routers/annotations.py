@@ -17,22 +17,20 @@ from shared.db import to_uuid
 router = APIRouter(tags=["annotations"])
 
 
-@router.get("/documents/{documantions_id}/annotations")
+@router.get("/documents/{documant_id}/annotations")
 def list_annotations(
-    documantions_id: UUID,
+    documant_id: UUID,
     request: Request,
     user: Annotated[TokenPayload, Depends(current_user)],
 ) -> dict[str, Any]:
     with request.app.state.engine.begin() as connection:
         auth_repo = AuthRepository(connection)
-        assert_doc_access(documantions_id, user, auth_repo)
+        assert_doc_access(documant_id, user, auth_repo)
 
         repo = AnnotationRepository(connection)
-        annotations = repo.list_annotations(
-            documantions_id, user.sub, is_admin=user.is_admin
-        )
+        annotations = repo.list_annotations(documant_id, user.sub, is_admin=user.is_admin)
         return {
-            "documantions_id": str(documantions_id),
+            "documant_id": str(documant_id),
             "annotations": [
                 {
                     "id": str(to_uuid(a["id"])),
@@ -49,20 +47,20 @@ def list_annotations(
         }
 
 
-@router.post("/documents/{documantions_id}/annotations", status_code=201)
+@router.post("/documents/{documant_id}/annotations", status_code=201)
 def create_annotation(
-    documantions_id: UUID,
+    documant_id: UUID,
     body: AnnotationCreateRequest,
     request: Request,
     user: Annotated[TokenPayload, Depends(current_user)],
 ) -> dict[str, Any]:
     with request.app.state.engine.begin() as connection:
         auth_repo = AuthRepository(connection)
-        assert_doc_access(documantions_id, user, auth_repo)
+        assert_doc_access(documant_id, user, auth_repo)
 
         repo = AnnotationRepository(connection)
         annotation = repo.create(
-            documantions_id=documantions_id,
+            documant_id=documant_id,
             user_id=user.sub,
             text=body.text,
             note=body.note,
@@ -70,12 +68,10 @@ def create_annotation(
             is_private=body.is_private,
         )
         visibility = "private" if body.is_private else "shared"
-        request.app.state.metrics.annotations_total.labels(
-            "create", visibility, "success"
-        ).inc()
+        request.app.state.metrics.annotations_total.labels("create", visibility, "success").inc()
         return {
             "id": str(to_uuid(annotation["id"])),
-            "documantions_id": str(to_uuid(annotation["documantions_id"])),
+            "documant_id": str(to_uuid(annotation["documant_id"])),
             "user_id": str(to_uuid(annotation["user_id"])),
             "text": annotation["text"],
             "note": annotation["note"],
@@ -100,7 +96,7 @@ def update_annotation(
 
         # Verify doc access
         auth_repo = AuthRepository(connection)
-        assert_doc_access(to_uuid(annotation["documantions_id"]), user, auth_repo)
+        assert_doc_access(to_uuid(annotation["documant_id"]), user, auth_repo)
 
         if not repo.can_modify(annotation_id, user.sub, user.is_admin):
             raise HTTPException(status_code=403, detail="Cannot modify this annotation")
@@ -113,9 +109,7 @@ def update_annotation(
             is_private=body.is_private,
         )
         visibility = "private" if body.is_private else "shared"
-        request.app.state.metrics.annotations_total.labels(
-            "update", visibility, "success"
-        ).inc()
+        request.app.state.metrics.annotations_total.labels("update", visibility, "success").inc()
         updated = repo.get_by_id(annotation_id)
         if updated is None:
             raise HTTPException(status_code=404, detail="Annotation not found")
@@ -146,13 +140,11 @@ def delete_annotation(
 
         # Verify doc access
         auth_repo = AuthRepository(connection)
-        assert_doc_access(to_uuid(annotation["documantions_id"]), user, auth_repo)
+        assert_doc_access(to_uuid(annotation["documant_id"]), user, auth_repo)
 
         if not repo.can_modify(annotation_id, user.sub, user.is_admin):
             raise HTTPException(status_code=403, detail="Cannot delete this annotation")
 
         visibility = "private" if annotation["is_private"] else "shared"
         repo.delete(annotation_id)
-        request.app.state.metrics.annotations_total.labels(
-            "delete", visibility, "success"
-        ).inc()
+        request.app.state.metrics.annotations_total.labels("delete", visibility, "success").inc()

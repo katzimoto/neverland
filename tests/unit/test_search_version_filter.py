@@ -104,9 +104,7 @@ def test_filter_non_latest_set_excludes_older_versions(migrated_engine: Engine) 
 
     # v1 should be excluded, v2 should be kept
     filtered = [
-        documantions_id
-        for documantions_id in fake_merged_ids
-        if str(documantions_id) not in non_latest
+        documant_id for documant_id in fake_merged_ids if str(documant_id) not in non_latest
     ]
     assert len(filtered) == 1
     assert filtered[0] == v2.id

@@ -113,9 +113,7 @@ class AuthRepository:
         for group_name in group_names:
             group_id = self.ensure_group(group_name)
             self._connection.execute(
-                sa.text(
-                    "INSERT INTO user_groups (user_id, group_id) VALUES (:user_id, :group_id)"
-                ),
+                sa.text("INSERT INTO user_groups (user_id, group_id) VALUES (:user_id, :group_id)"),
                 {"user_id": db_uuid(user_id), "group_id": db_uuid(group_id)},
             )
 
@@ -175,23 +173,21 @@ class AuthRepository:
         except sa.exc.IntegrityError:
             pass
 
-    def create_document(
-        self, source_id: UUID, external_id: str = "file:/data/a.txt"
-    ) -> UUID:
+    def create_document(self, source_id: UUID, external_id: str = "file:/data/a.txt") -> UUID:
         """Create a minimal document tied to an ingestion source."""
-        documantions_id = uuid4()
+        documant_id = uuid4()
         self._connection.execute(
             sa.text("""
                 INSERT INTO documents (id, source_id, external_id, source, mime_type)
                 VALUES (:id, :source_id, :external_id, 'folder', 'text/plain')
                 """),
             {
-                "id": db_uuid(documantions_id),
+                "id": db_uuid(documant_id),
                 "source_id": db_uuid(source_id),
                 "external_id": external_id,
             },
         )
-        return documantions_id
+        return documant_id
 
     def _group_would_create_cycle(self, parent_id: UUID, child_id: UUID) -> bool:
         """Return True if adding (parent_id, child_id) to group_memberships would create a cycle.
@@ -228,9 +224,7 @@ class AuthRepository:
         if not group_ids:
             return []
         placeholders = ", ".join(f":g{i}" for i in range(len(group_ids)))
-        params: dict[str, object] = {
-            f"g{i}": db_uuid(g) for i, g in enumerate(group_ids)
-        }
+        params: dict[str, object] = {f"g{i}": db_uuid(g) for i, g in enumerate(group_ids)}
         rows = self._connection.execute(
             sa.text(f"""
                 WITH RECURSIVE ancestors(id, depth) AS (
@@ -279,11 +273,11 @@ class AuthRepository:
             return False
         return to_uuid(admins_id) in user.groups
 
-    def document_source_id(self, documantions_id: UUID) -> UUID | None:
+    def document_source_id(self, documant_id: UUID) -> UUID | None:
         """Return the ingestion source for a document when it exists."""
         value = self._connection.execute(
             sa.text("SELECT source_id FROM documents WHERE id = :id"),
-            {"id": db_uuid(documantions_id)},
+            {"id": db_uuid(documant_id)},
         ).scalar_one_or_none()
         return None if value is None else to_uuid(value)
 

@@ -23,7 +23,7 @@ def upgrade() -> None:
         "dlq",
         sa.Column("id", sa.Uuid(), primary_key=True),
         sa.Column(
-            "documantions_id",
+            "documant_id",
             sa.Uuid(),
             sa.ForeignKey("documents.id", ondelete="CASCADE"),
             nullable=False,
@@ -70,9 +70,7 @@ def upgrade() -> None:
         ),
     )
     op.create_index("ix_audit_log_user_id", "audit_log", ["user_id"])
-    op.create_index(
-        "ix_audit_log_resource", "audit_log", ["resource_type", "resource_id"]
-    )
+    op.create_index("ix_audit_log_resource", "audit_log", ["resource_type", "resource_id"])
 
 
 def downgrade() -> None:

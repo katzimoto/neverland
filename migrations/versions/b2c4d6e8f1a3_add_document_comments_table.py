@@ -23,7 +23,7 @@ def upgrade() -> None:
         "document_comments",
         sa.Column("id", sa.Uuid(), primary_key=True),
         sa.Column(
-            "documantions_id",
+            "documant_id",
             sa.Uuid(),
             sa.ForeignKey("documents.id", ondelete="CASCADE"),
             nullable=False,
@@ -64,7 +64,7 @@ def upgrade() -> None:
     )
     op.execute("""
         CREATE INDEX ix_document_comments_doc_id_created_at
-        ON document_comments (documantions_id, created_at DESC)
+        ON document_comments (documant_id, created_at DESC)
         """)
     op.create_index(
         "ix_document_comments_author_id",

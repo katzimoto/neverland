@@ -53,7 +53,7 @@ are no per-document grants and no user-to-source direct grants.
 |---|---|---|
 | `require_admin(user)` | `permissions/enforcer.py` | Guards admin-only operations |
 | `assert_source_access(source_id, user, repo)` | `permissions/enforcer.py` | Checks steps 1–3 above |
-| `assert_doc_access(documantions_id, user, repo)` | `permissions/enforcer.py` | Resolves doc→source then delegates |
+| `assert_doc_access(documant_id, user, repo)` | `permissions/enforcer.py` | Resolves doc→source then delegates |
 | `AuthRepository.user_can_access_source()` | `auth/repository.py` | SQL implementation of group intersection |
 
 All API routes that expose document content or metadata must call

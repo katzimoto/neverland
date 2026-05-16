@@ -75,7 +75,7 @@ export function AnnotationEditor({
       } else {
         const optimistic: Annotation = {
           id: `optimistic-${Date.now()}`,
-          documantions_id: docId,
+          documant_id: docId,
           author_id: "current-user",
           author_name: "Reader",
           body: values.body,

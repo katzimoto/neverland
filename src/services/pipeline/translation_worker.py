@@ -47,7 +47,7 @@ def run_translation_once(
         return False
 
     job_id: UUID = claimed["id"]
-    documantions_id: UUID = claimed["documantions_id"]
+    documant_id: UUID = claimed["documant_id"]
     job_type: str = claimed["job_type"]
     attempts: int = claimed["attempts"]
     max_attempts: int = claimed["max_attempts"]
@@ -62,17 +62,17 @@ def run_translation_once(
 
     start = time.monotonic()
     try:
-        doc = doc_repo.get_by_id(documantions_id)
+        doc = doc_repo.get_by_id(documant_id)
         if doc is None:
-            raise ValueError(f"Document {documantions_id} not found")
+            raise ValueError(f"Document {documant_id} not found")
 
-        payload = job_repo.get_payload(documantions_id)
+        payload = job_repo.get_payload(documant_id)
         content_text = (payload["content_text"] if payload else None) or ""
         if not content_text:
-            raise ValueError(f"No content_text for document {documantions_id}")
+            raise ValueError(f"No content_text for document {documant_id}")
 
         translated = translator.translate(content_text, source_lang=doc.source_language)
-        job_repo.update_translated_text(documantions_id, translated)
+        job_repo.update_translated_text(documant_id, translated)
 
     except Exception as exc:
         elapsed = time.monotonic() - start
@@ -144,14 +144,14 @@ def run_translation_once(
 
     try:
         job_repo.enqueue_document(
-            documantions_id=documantions_id,
+            documant_id=documant_id,
             source_id=source_id,
             job_type="index_document",
         )
         logger.debug(
-            "index job enqueued: worker_id=%s documantions_id=%s",
+            "index job enqueued: worker_id=%s documant_id=%s",
             worker_id,
-            documantions_id,
+            documant_id,
         )
     except Exception:
         logger.exception(
@@ -187,9 +187,7 @@ def run_translation_loop(
                 ).set_to_current_time()
                 counts = job_repo.count_by_status()
                 for (status, jt), count in counts.items():
-                    metrics.pipeline_queue_depth.labels(status=status, job_type=jt).set(
-                        count
-                    )
+                    metrics.pipeline_queue_depth.labels(status=status, job_type=jt).set(count)
 
             if now - last_reap >= _REAP_INTERVAL_SECONDS:
                 reaped = job_repo.reap_stale_locks()
@@ -246,6 +244,4 @@ if __name__ == "__main__":
         doc_repo = DocumentRepository(conn)
         translator = LibreTranslateClient(base_url=settings.libretranslate_url)
 
-        run_translation_loop(
-            job_repo, doc_repo, translator, worker_id="translation-worker"
-        )
+        run_translation_loop(job_repo, doc_repo, translator, worker_id="translation-worker")

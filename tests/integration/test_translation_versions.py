@@ -24,17 +24,13 @@ TEST_JWT_SECRET = "x" * 32
 
 
 def _admin_token(client: TestClient) -> str:
-    login = client.post(
-        "/auth/login", json={"email": "admin@example.com", "password": "secret"}
-    )
+    login = client.post("/auth/login", json={"email": "admin@example.com", "password": "secret"})
     assert login.status_code == 200
     return login.json()["access_token"]
 
 
 def _user_token(client: TestClient) -> str:
-    login = client.post(
-        "/auth/login", json={"email": "user@example.com", "password": "secret"}
-    )
+    login = client.post("/auth/login", json={"email": "user@example.com", "password": "secret"})
     assert login.status_code == 200
     return login.json()["access_token"]
 
@@ -84,9 +80,7 @@ def _create_source_with_doc(
         assert doc is not None
         if translation_quality is not None:
             connection.execute(
-                sa.text(
-                    "UPDATE documents SET translation_quality = :quality WHERE id = :id"
-                ),
+                sa.text("UPDATE documents SET translation_quality = :quality WHERE id = :id"),
                 {"quality": translation_quality, "id": db_uuid(doc.id)},
             )
         return str(source_id), str(doc.id)
@@ -103,7 +97,7 @@ def test_list_translation_versions(
     test_file = files_root / "test.txt"
     test_file.write_text("Content")
 
-    _source_id, documantions_id = _create_source_with_doc(
+    _source_id, documant_id = _create_source_with_doc(
         migrated_engine, "users", path=str(test_file), translation_quality="fast"
     )
 
@@ -111,14 +105,14 @@ def test_list_translation_versions(
     with migrated_engine.begin() as connection:
         version_repo = TranslationVersionRepository(connection)
         version_repo.create_version(
-            documantions_id=UUID(documantions_id),
+            documant_id=UUID(documant_id),
             label="Manual en",
             quality="high",
             request_type="manual",
             target_language="en",
         )
         version_repo.create_version(
-            documantions_id=UUID(documantions_id),
+            documant_id=UUID(documant_id),
             label="Auto-enrich",
             quality="high",
             request_type="auto_enrich",
@@ -134,7 +128,7 @@ def test_list_translation_versions(
     token = _user_token(client)
 
     response = client.get(
-        f"/documents/{documantions_id}/translation-versions",
+        f"/documents/{documant_id}/translation-versions",
         headers={"Authorization": f"Bearer {token}"},
     )
 
@@ -173,7 +167,7 @@ def test_list_versions_requires_doc_access(
             path=str(test_file),
         )
         assert doc is not None
-        documantions_id = str(doc.id)
+        documant_id = str(doc.id)
 
     client = TestClient(
         create_app(
@@ -184,7 +178,7 @@ def test_list_versions_requires_doc_access(
     token = _user_token(client)
 
     response = client.get(
-        f"/documents/{documantions_id}/translation-versions",
+        f"/documents/{documant_id}/translation-versions",
         headers={"Authorization": f"Bearer {token}"},
     )
 
@@ -202,15 +196,13 @@ def test_preview_with_translation_version(
     test_file = files_root / "test.txt"
     test_file.write_text("Original content here.")
 
-    _source_id, documantions_id = _create_source_with_doc(
-        migrated_engine, "users", path=str(test_file)
-    )
+    _source_id, documant_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
 
     # Create an available version with translated text
     with migrated_engine.begin() as connection:
         version_repo = TranslationVersionRepository(connection)
         version = version_repo.create_version(
-            documantions_id=UUID(documantions_id),
+            documant_id=UUID(documant_id),
             label="Manual en",
             quality="high",
             request_type="manual",
@@ -231,7 +223,7 @@ def test_preview_with_translation_version(
 
     # Preview with version should return translated text
     response = client.get(
-        f"/preview/{documantions_id}?translation_version_id={version_id}",
+        f"/preview/{documant_id}?translation_version_id={version_id}",
         headers={"Authorization": f"Bearer {token}"},
     )
 
@@ -251,15 +243,13 @@ def test_preview_with_unavailable_version_falls_back(
     test_file = files_root / "test.txt"
     test_file.write_text("Original content here.")
 
-    _source_id, documantions_id = _create_source_with_doc(
-        migrated_engine, "users", path=str(test_file)
-    )
+    _source_id, documant_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
 
     # Create a pending version (not available)
     with migrated_engine.begin() as connection:
         version_repo = TranslationVersionRepository(connection)
         version = version_repo.create_version(
-            documantions_id=UUID(documantions_id),
+            documant_id=UUID(documant_id),
             label="Manual en",
             quality="high",
             request_type="manual",
@@ -277,7 +267,7 @@ def test_preview_with_unavailable_version_falls_back(
 
     # Preview with pending version should fall back to original
     response = client.get(
-        f"/preview/{documantions_id}?translation_version_id={version_id}",
+        f"/preview/{documant_id}?translation_version_id={version_id}",
         headers={"Authorization": f"Bearer {token}"},
     )
 
@@ -297,7 +287,7 @@ def test_duplicate_pending_request_returns_existing(
     test_file = files_root / "test.txt"
     test_file.write_text("Content")
 
-    _source_id, documantions_id = _create_source_with_doc(
+    _source_id, documant_id = _create_source_with_doc(
         migrated_engine, "users", path=str(test_file), translation_quality="fast"
     )
 
@@ -311,7 +301,7 @@ def test_duplicate_pending_request_returns_existing(
 
     # First request
     response1 = client.post(
-        f"/documents/{documantions_id}/translate",
+        f"/documents/{documant_id}/translate",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response1.status_code == 200
@@ -319,7 +309,7 @@ def test_duplicate_pending_request_returns_existing(
 
     # Second request should return the same pending version
     response2 = client.post(
-        f"/documents/{documantions_id}/translate",
+        f"/documents/{documant_id}/translate",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response2.status_code == 200
@@ -339,7 +329,7 @@ def test_slow_worker_with_version_repository(
     test_file = files_root / "test.txt"
     test_file.write_text("Hello world document content.")
 
-    _source_id, documantions_id = _create_source_with_doc(
+    _source_id, documant_id = _create_source_with_doc(
         migrated_engine, "users", path=str(test_file), translation_quality="fast"
     )
 
@@ -347,7 +337,7 @@ def test_slow_worker_with_version_repository(
     with migrated_engine.begin() as connection:
         version_repo = TranslationVersionRepository(connection)
         version = version_repo.create_version(
-            documantions_id=UUID(documantions_id),
+            documant_id=UUID(documant_id),
             label="Manual en",
             quality="high",
             request_type="manual",
@@ -355,7 +345,7 @@ def test_slow_worker_with_version_repository(
         )
         version_id = version["id"]
         doc_repo = DocumentRepository(connection)
-        doc_repo.update_translation_quality(UUID(documantions_id), "pending_high")
+        doc_repo.update_translation_quality(UUID(documant_id), "pending_high")
 
     mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
@@ -377,7 +367,7 @@ def test_slow_worker_with_version_repository(
             qdrant_client=mock_qdrant,
             version_repository=version_repo,
         )
-        worker.process_document(UUID(documantions_id))
+        worker.process_document(UUID(documant_id))
 
     # Verify version updated to available
     with migrated_engine.begin() as connection:
@@ -396,7 +386,7 @@ def test_slow_worker_with_version_repository(
     with migrated_engine.begin() as connection:
         row = connection.execute(
             sa.text("SELECT translation_quality FROM documents WHERE id = :id"),
-            {"id": db_uuid(UUID(documantions_id))},
+            {"id": db_uuid(UUID(documant_id))},
         ).fetchone()
         assert row[0] == "high"
 
@@ -415,7 +405,7 @@ def test_slow_worker_version_failure_marks_version_failed(
     test_file = files_root / "test.txt"
     test_file.write_text("Content")
 
-    _source_id, documantions_id = _create_source_with_doc(
+    _source_id, documant_id = _create_source_with_doc(
         migrated_engine, "users", path=str(test_file), translation_quality="fast"
     )
 
@@ -423,7 +413,7 @@ def test_slow_worker_version_failure_marks_version_failed(
     with migrated_engine.begin() as connection:
         version_repo = TranslationVersionRepository(connection)
         version = version_repo.create_version(
-            documantions_id=UUID(documantions_id),
+            documant_id=UUID(documant_id),
             label="Manual en",
             quality="high",
             request_type="manual",
@@ -431,7 +421,7 @@ def test_slow_worker_version_failure_marks_version_failed(
         )
         version_id = version["id"]
         doc_repo = DocumentRepository(connection)
-        doc_repo.update_translation_quality(UUID(documantions_id), "pending_high")
+        doc_repo.update_translation_quality(UUID(documant_id), "pending_high")
 
     mock_es = MagicMock(spec=ElasticsearchSearchClient)
     mock_qdrant = MagicMock(spec=QdrantSearchClient)
@@ -453,7 +443,7 @@ def test_slow_worker_version_failure_marks_version_failed(
             qdrant_client=mock_qdrant,
             version_repository=version_repo,
         )
-        worker.process_document(UUID(documantions_id))
+        worker.process_document(UUID(documant_id))
 
     # Verify version is failed, document status is not failed
     with migrated_engine.begin() as connection:
@@ -469,7 +459,7 @@ def test_slow_worker_version_failure_marks_version_failed(
 
         doc_row = connection.execute(
             sa.text("SELECT status FROM documents WHERE id = :id"),
-            {"id": db_uuid(UUID(documantions_id))},
+            {"id": db_uuid(UUID(documant_id))},
         ).fetchone()
         assert doc_row[0] != "failed"
 
@@ -488,14 +478,12 @@ def test_preview_defaults_to_latest_available_translation(
     test_file = files_root / "test.txt"
     test_file.write_text("Original content here.")
 
-    _source_id, documantions_id = _create_source_with_doc(
-        migrated_engine, "users", path=str(test_file)
-    )
+    _source_id, documant_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
 
     with migrated_engine.begin() as connection:
         version_repo = TranslationVersionRepository(connection)
         version1 = version_repo.create_version(
-            documantions_id=UUID(documantions_id),
+            documant_id=UUID(documant_id),
             label="v1",
             quality="fast",
             request_type="manual",
@@ -505,7 +493,7 @@ def test_preview_defaults_to_latest_available_translation(
             UUID(version1["id"]), "available", translated_text="First translation."
         )
         version2 = version_repo.create_version(
-            documantions_id=UUID(documantions_id),
+            documant_id=UUID(documant_id),
             label="v2",
             quality="high",
             request_type="manual",
@@ -524,7 +512,7 @@ def test_preview_defaults_to_latest_available_translation(
     token = _user_token(client)
 
     response = client.get(
-        f"/preview/{documantions_id}",
+        f"/preview/{documant_id}",
         headers={"Authorization": f"Bearer {token}"},
     )
 
@@ -544,14 +532,12 @@ def test_preview_default_falls_back_when_no_available_translation(
     test_file = files_root / "test.txt"
     test_file.write_text("Original content here.")
 
-    _source_id, documantions_id = _create_source_with_doc(
-        migrated_engine, "users", path=str(test_file)
-    )
+    _source_id, documant_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
 
     with migrated_engine.begin() as connection:
         version_repo = TranslationVersionRepository(connection)
         version = version_repo.create_version(
-            documantions_id=UUID(documantions_id),
+            documant_id=UUID(documant_id),
             label="Pending en",
             quality="fast",
             request_type="manual",
@@ -570,7 +556,7 @@ def test_preview_default_falls_back_when_no_available_translation(
     token = _user_token(client)
 
     response = client.get(
-        f"/preview/{documantions_id}",
+        f"/preview/{documant_id}",
         headers={"Authorization": f"Bearer {token}"},
     )
 
@@ -592,17 +578,13 @@ def test_preview_does_not_render_cross_document_translation_version(
     file_b = files_root / "b.txt"
     file_b.write_text("Document B content.")
 
-    _source_a, doc_a_id = _create_source_with_doc(
-        migrated_engine, "users", path=str(file_a)
-    )
-    _source_b, doc_b_id = _create_source_with_doc(
-        migrated_engine, "users", path=str(file_b)
-    )
+    _source_a, doc_a_id = _create_source_with_doc(migrated_engine, "users", path=str(file_a))
+    _source_b, doc_b_id = _create_source_with_doc(migrated_engine, "users", path=str(file_b))
 
     with migrated_engine.begin() as connection:
         version_repo = TranslationVersionRepository(connection)
         version = version_repo.create_version(
-            documantions_id=UUID(doc_b_id),
+            documant_id=UUID(doc_b_id),
             label="Doc B en",
             quality="high",
             request_type="manual",

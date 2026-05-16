@@ -155,7 +155,7 @@ healthcheck:
 ### 4.2 Document Event (Kafka: documents.raw)
 ```json
 {
-  "documantions_id": "uuid",
+  "documant_id": "uuid",
   "source_id": "uuid",
   "source": "folder|nifi|confluence|jira",
   "path": "/data/file.pdf",
@@ -170,7 +170,7 @@ healthcheck:
 ### 4.3 Intelligence Event (Kafka: documents.intelligence)
 ```json
 {
-  "documantions_id": "uuid",
+  "documant_id": "uuid",
   "content_english": "...",
   "group_id": "uuid",
   "correlation_id": "uuid",
@@ -182,7 +182,7 @@ Only tasks enabled in system config are included in `tasks[]`. Worker-intelligen
 ### 4.4 Indexed Document
 ```json
 {
-  "documantions_id": "...",
+  "documant_id": "...",
   "group_id": "...",
   "source_id": "...",
   "content_original": "...",
@@ -265,17 +265,17 @@ CREATE TABLE user_activity (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users (id) ON DELETE CASCADE,
     action TEXT NOT NULL CHECK (action IN ('search', 'read', 'qa', 'annotate')),
-    documantions_id UUID,
+    documant_id UUID,
     query TEXT,
     correlation_id TEXT,
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE INDEX ON user_activity (user_id, created_at DESC);
-CREATE INDEX ON user_activity (documantions_id) WHERE documantions_id IS NOT NULL;
+CREATE INDEX ON user_activity (documant_id) WHERE documant_id IS NOT NULL;
 
 CREATE TABLE document_view_counts (
-    documantions_id UUID PRIMARY KEY,
+    documant_id UUID PRIMARY KEY,
     view_count INTEGER NOT NULL DEFAULT 0,
     last_viewed TIMESTAMPTZ,
     enrichment_queued BOOLEAN NOT NULL DEFAULT false
@@ -286,7 +286,7 @@ CREATE TABLE document_view_counts (
 ```sql
 -- Auto-generated summary per document
 CREATE TABLE document_summaries (
-    documantions_id UUID PRIMARY KEY,
+    documant_id UUID PRIMARY KEY,
     summary TEXT NOT NULL,
     model TEXT NOT NULL, -- e.g. "mistral"
     created_at TIMESTAMPTZ DEFAULT now(),
@@ -303,19 +303,19 @@ CREATE TABLE entities (
 
 -- Document entity many-to-many
 CREATE TABLE document_entities (
-    documantions_id UUID NOT NULL,
+    documant_id UUID NOT NULL,
     entity_id UUID REFERENCES entities (id) ON DELETE CASCADE,
     frequency INTEGER DEFAULT 1,
-    PRIMARY KEY (documantions_id, entity_id)
+    PRIMARY KEY (documant_id, entity_id)
 );
 
 CREATE INDEX ON document_entities (entity_id);
 
 -- Auto-assigned topic tags
 CREATE TABLE document_tags (
-    documantions_id UUID NOT NULL,
+    documant_id UUID NOT NULL,
     tag TEXT NOT NULL,
-    PRIMARY KEY (documantions_id, tag)
+    PRIMARY KEY (documant_id, tag)
 );
 
 CREATE INDEX ON document_tags (tag);
@@ -325,7 +325,7 @@ CREATE INDEX ON document_tags (tag);
 ```sql
 CREATE TABLE annotations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    documantions_id UUID NOT NULL,
+    documant_id UUID NOT NULL,
     user_id UUID REFERENCES users (id) ON DELETE CASCADE,
     text TEXT NOT NULL,    -- the highlighted passage
     note TEXT,            -- user's comment on the highlight
@@ -335,7 +335,7 @@ CREATE TABLE annotations (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX ON annotations (documantions_id);
+CREATE INDEX ON annotations (documant_id);
 CREATE INDEX ON annotations (user_id);
 -- Annotations are indexed in Elasticsearch under a separate index: "annotations"
 ```
@@ -356,7 +356,7 @@ CREATE TABLE alert_notifications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     subscription_id UUID REFERENCES alert_subscriptions (id) ON DELETE CASCADE,
     user_id UUID REFERENCES users (id) ON DELETE CASCADE,
-    documantions_id UUID NOT NULL,
+    documant_id UUID NOT NULL,
     similarity FLOAT NOT NULL,
     read BOOLEAN DEFAULT false,
     created_at TIMESTAMPTZ DEFAULT now()
@@ -450,33 +450,33 @@ On every `read`:
 * Returns summary from `document_summaries` if available
 * `POST /search`
   * Body: `{ query, filters?: { tags, source_type, date_from, date_to }, page, page_size }`
-  * Returns: `{ results: [{ documantions_id, title, summary, score, tags, translation_quality, source }], total }`
+  * Returns: `{ results: [{ documant_id, title, summary, score, tags, translation_quality, source }], total }`
 
 **Q&A (feature-flagged: `feature.rag_qa`)**
 * `POST /qa`
   * Body: `{ question, group_filter?: [group_ids] }`
-  * Returns: `{ answer: "...", citations: [{ documantions_id, title, chunk, score }], model: "mistral", latency_ms: 420 }`
+  * Returns: `{ answer: "...", citations: [{ documant_id, title, chunk, score }], model: "mistral", latency_ms: 420 }`
 * Fails gracefully with 503 if Ollama is unreachable
 * Logs to `user_activity` with `action='qa'`
 
 **Preview**
-* `GET /preview/{documantions_id}`
-  * Returns: `{ documantions_id, preview_mode, content, content_type, summary?, annotations?, entities? }`
+* `GET /preview/{documant_id}`
+  * Returns: `{ documant_id, preview_mode, content, content_type, summary?, annotations?, entities? }`
 
 **Download**
-* `GET /download/{documantions_id}`
+* `GET /download/{documant_id}`
 
 **Related Documents (feature-flagged: `feature.related_docs`)**
-* `GET /doc/{documantions_id}/related`
-  * Returns: `[{ documantions_id, title, score, summary }]` # top N from `system_config`
+* `GET /doc/{documant_id}/related`
+  * Returns: `[{ documant_id, title, score, summary }]` # top N from `system_config`
 
 **Translation**
-* `POST /doc/{documantions_id}/request-translation`
+* `POST /doc/{documant_id}/request-translation`
   * Returns: 200 (queued) | 202 (already queued) | 204 (already high quality)
 
 **Annotations (feature-flagged: `feature.annotations`)**
-* `GET /doc/{documantions_id}/annotations` # own + shared annotations on this doc
-* `POST /doc/{documantions_id}/annotations` # create
+* `GET /doc/{documant_id}/annotations` # own + shared annotations on this doc
+* `POST /doc/{documant_id}/annotations` # create
 * `PUT /annotations/{id}` # update note or is_private
 * `DELETE /annotations/{id}` # own annotations only; admin can delete any
 
@@ -504,7 +504,7 @@ On every `read`:
 * **Activity audit:** `GET /admin/activity?user_id=&action=&from=&to=`
 * **System Config:** `GET /admin/config`, `PUT /admin/config/{key}`, `POST /admin/config/reset`
 * **Entities:** `GET /admin/entities?type=&search=`, `GET /admin/entities/{id}/documents`
-* **Delete:** `DELETE /doc/{documantions_id}` # admin only
+* **Delete:** `DELETE /doc/{documant_id}` # admin only
 
 ### 6.4 Permission Enforcement
 ```python
@@ -561,7 +561,7 @@ Token TTL: 8 hours. No refresh tokens in v1.
 ```sql
 CREATE TABLE ingested_files (
     sha256 TEXT PRIMARY KEY,
-    documantions_id UUID NOT NULL,
+    documant_id UUID NOT NULL,
     source_id UUID NOT NULL,
     ingested_at TIMESTAMPTZ DEFAULT now()
 );
@@ -574,7 +574,7 @@ CREATE TABLE ingested_files (
 * **Jira flow:** Fetch issues updated since `last_sync_at` via JQL. Concatenate summary + description + comments as content. Fetch attachments as separate events.
 
 **Content mapping:**
-| Object | documantions_id key | mime_type |
+| Object | documant_id key | mime_type |
 | :--- | :--- | :--- |
 | Confluence page | `confluence:{page_id}` | `text/html` |
 | Confluence attachment | `confluence:{page_id}:att:{att_id}` | original |
@@ -592,20 +592,20 @@ CREATE TABLE ingested_files (
 -> `chunk()` # 512 tokens, 50 overlap, sentence boundary
 -> `embed()` # batch via sentence-transformers (min 32/batch)
 -> `index_elastic()` # BM25 on `content_english`
--> `index_qdrant()` # vector per chunk, payload: `{ documantions_id, group_id, chunk_index }`
+-> `index_qdrant()` # vector per chunk, payload: `{ documant_id, group_id, chunk_index }`
 -> `publish_intelligence()` # -> `documents.intelligence` (tasks from `system_config`)
 -> `mark_complete()`
 
 ### 9.2 publish_intelligence()
 ```python
-def publish_intelligence(documantions_id, content_english, group_id):
+def publish_intelligence(documant_id, content_english, group_id):
     tasks = []
     if get_flag("feature.summarization"): tasks.append("summarize")
     if get_flag("feature.entity_extraction"): tasks.append("extract_entities")
     if get_flag("feature.auto_tagging"): tasks.append("auto_tag")
     if get_flag("alerts.check_on_ingest"): tasks.append("match_alerts")
     if tasks:
-        publish("documents.intelligence", { documantions_id, content_english, group_id, tasks })
+        publish("documents.intelligence", { documant_id, content_english, group_id, tasks })
 ```
 
 ### 9.3 Translation Fallback
@@ -629,18 +629,18 @@ worker-intelligence/
 
 ### 10.2 Task: Summarize
 ```python
-def summarize(documantions_id: str, content: str):
+def summarize(documant_id: str, content: str):
     prompt = get_config("llm.summarization_prompt") + "
 
 " + content[:8000]
     summary = ollama_generate(prompt)
-    upsert("document_summaries", { documantions_id, summary, model: OLLAMA_MODEL })
+    upsert("document_summaries", { documant_id, summary, model: OLLAMA_MODEL })
     # Also update Elasticsearch document with summary field
 ```
 
 ### 10.3 Task: Extract Entities
 ```python
-def extract_entities(documantions_id: str, content: str):
+def extract_entities(documant_id: str, content: str):
     prompt = get_config("llm.entity_extraction_prompt") + "
 
 " + content[:6000]
@@ -648,23 +648,23 @@ def extract_entities(documantions_id: str, content: str):
     entities = parse_json(result) # [{ name, type }]
     for entity in entities:
         entity_id = upsert_entity(entity.name, entity.type)
-        upsert("document_entities", { documantions_id, entity_id })
+        upsert("document_entities", { documant_id, entity_id })
 ```
 
 ### 10.4 Task: Auto Tag
 ```python
-def auto_tag(documantions_id: str, content: str):
+def auto_tag(documant_id: str, content: str):
     prompt = get_config("llm.auto_tag_prompt") + "
 
 " + content[:4000]
     tags = parse_json(ollama_generate(prompt)) # ["finance", "Q3", ...]
-    replace("document_tags", documantions_id, tags)
+    replace("document_tags", documant_id, tags)
     # Update Elasticsearch document tags[] field
 ```
 
 ### 10.5 Task: Match Alerts
 ```python
-def match_alerts(documantions_id: str, content: str, group_id: str):
+def match_alerts(documant_id: str, content: str, group_id: str):
     doc_vector = embed(content)
     subscriptions = get_active_subscriptions() # from DB
     for sub in subscriptions:
@@ -678,7 +678,7 @@ def match_alerts(documantions_id: str, content: str, group_id: str):
             insert("alert_notifications", {
                 subscription_id: sub.id,
                 user_id: sub.user_id,
-                documantions_id,
+                documant_id,
                 similarity
             })
 ```
@@ -722,7 +722,7 @@ async def answer_question(question: str, user: TokenPayload) -> QAResponse:
 ---
 
 ".join([
-        f"Source: {c.documantions_id}\n{c.text}" for c in chunks
+        f"Source: {c.documant_id}\n{c.text}" for c in chunks
     ])
     # 3. Build prompt
     system_prompt = get_config("llm.qa_system_prompt")
@@ -734,7 +734,7 @@ async def answer_question(question: str, user: TokenPayload) -> QAResponse:
     
     return QAResponse(
         answer=answer,
-        citations=[{ documantions_id: c.documantions_id, chunk: c.text, score: c.score } for c in chunks],
+        citations=[{ documant_id: c.documant_id, chunk: c.text, score: c.score } for c in chunks],
         model=get_config("llm.model")
     )
 ```
@@ -772,14 +772,14 @@ async def answer_question(question: str, user: TokenPayload) -> QAResponse:
 | plaintext | `text` | Raw text |
 
 ### 13.2 API
-* `GET /preview/{documantions_id}`
-* `GET /archive/{documantions_id}/contents`
-* `GET /archive/{documantions_id}/file?path=...`
+* `GET /preview/{documant_id}`
+* `GET /archive/{documant_id}/contents`
+* `GET /archive/{documant_id}/file?path=...`
 
 ### 13.3 Response Schema
 ```json
 {
-  "documantions_id": "...",
+  "documant_id": "...",
   "preview_mode": "html|table|slides|image|text|archive|email",
   "content": "...",
   "content_type": "text/html|application/json|...",
@@ -788,7 +788,7 @@ async def answer_question(question: str, user: TokenPayload) -> QAResponse:
   "entities": [{ "name": "...", "type": "..." }],
   "annotations": [{ "id", "user_display_name", "text", "note", "position", "is_private" }],
   "translation_quality": "fast|high|null",
-  "related": [{ "documantions_id", "title", "score" }]
+  "related": [{ "documant_id", "title", "score" }]
 }
 ```
 
@@ -828,11 +828,11 @@ client.search(
 
 **Related Documents**
 ```python
-def get_related(documantions_id: str, user: TokenPayload):
-    doc_vector = qdrant.get_vector(documantions_id)
+def get_related(documant_id: str, user: TokenPayload):
+    doc_vector = qdrant.get_vector(documant_id)
     return qdrant.search(
         query_vector=doc_vector,
-        query_filter=group_id IN user.groups AND documantions_id != documantions_id,
+        query_filter=group_id IN user.groups AND documant_id != documant_id,
         limit=get_config("search.related_docs_limit")
     )
 ```
@@ -841,7 +841,7 @@ def get_related(documantions_id: str, user: TokenPayload):
 * Size: 512 tokens, 50-token overlap
 * Split on sentence boundaries; hard cut at token limit
 * Uniform across all file types
-* Each chunk = one Qdrant point with payload `{ documantions_id, group_id, chunk_index, text }`
+* Each chunk = one Qdrant point with payload `{ documant_id, group_id, chunk_index, text }`
 * Elasticsearch indexes full `content_english` per document (not per chunk)
 
 ## 16. Translation Strategy
@@ -916,7 +916,7 @@ def assert_annotation_owner(annotation, user):
 ```
 
 **Delete rules:**
-* `DELETE /doc/{documantions_id}` — admin only, enforced at router level
+* `DELETE /doc/{documant_id}` — admin only, enforced at router level
 * `DELETE /annotations/{id}` — own annotations only; admin can delete any
 * Workers never publish delete events
 

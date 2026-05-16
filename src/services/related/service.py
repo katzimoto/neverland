@@ -78,16 +78,16 @@ class RelatedService:
             limit=max(limit * RELATED_SEARCH_MULTIPLIER, limit + 1),
         )
         metadata = self._repository.document_metadata(
-            [result.documantions_id for result in related], group_ids
+            [result.documant_id for result in related], group_ids
         )
         return [
             {
-                "documantions_id": result.documantions_id,
-                "title": metadata.get(result.documantions_id, {}).get("title"),
+                "documant_id": result.documant_id,
+                "title": metadata.get(result.documant_id, {}).get("title"),
                 "score": result.score,
             }
             for result in related
-            if result.documantions_id in metadata
+            if result.documant_id in metadata
         ][:limit]
 
     def expertise(self, topic: str, group_ids: list[str]) -> list[dict[str, Any]]:
@@ -98,11 +98,9 @@ class RelatedService:
             group_ids=group_ids,
             limit=EXPERTISE_SEARCH_LIMIT,
         )
-        matching_docs = _dedupe_results(
-            results, exclude_doc_id=None, limit=EXPERTISE_SEARCH_LIMIT
-        )
-        doc_ids = [result.documantions_id for result in matching_docs]
-        doc_scores = {result.documantions_id: result.score for result in matching_docs}
+        matching_docs = _dedupe_results(results, exclude_doc_id=None, limit=EXPERTISE_SEARCH_LIMIT)
+        doc_ids = [result.documant_id for result in matching_docs]
+        doc_scores = {result.documant_id: result.score for result in matching_docs}
 
         aggregates: dict[str, _ExpertiseAggregate] = {}
         for signal in self._repository.expertise_signals(doc_ids, group_ids):
@@ -116,7 +114,7 @@ class RelatedService:
             )
             signal_type = str(signal["signal_type"])
             aggregate.score += SIGNAL_WEIGHTS[signal_type] * doc_scores.get(
-                str(signal["documantions_id"]), 1.0
+                str(signal["documant_id"]), 1.0
             )
             if signal_type == "view":
                 aggregate.view_count += 1
@@ -124,13 +122,13 @@ class RelatedService:
                 aggregate.comment_count += 1
             elif signal_type == "annotation":
                 aggregate.annotation_count += 1
-            documantions_id = str(signal["documantions_id"])
+            documant_id = str(signal["documant_id"])
             aggregate.docs.setdefault(
-                documantions_id,
+                documant_id,
                 {
-                    "documantions_id": documantions_id,
+                    "documant_id": documant_id,
                     "title": signal["doc_title"],
-                    "score": doc_scores.get(documantions_id, 0.0),
+                    "score": doc_scores.get(documant_id, 0.0),
                 },
             )
 
@@ -141,9 +139,7 @@ class RelatedService:
             ):
                 continue
             subscription_query = str(subscription["query"])
-            similarity = _cosine_similarity(
-                topic_vector, self._encoder.encode(subscription_query)
-            )
+            similarity = _cosine_similarity(topic_vector, self._encoder.encode(subscription_query))
             if not _topics_match(topic, subscription_query, similarity):
                 continue
             user_id = str(subscription["user_id"])
@@ -157,9 +153,7 @@ class RelatedService:
             aggregate.subscription_count += 1
             aggregate.score += SIGNAL_WEIGHTS["subscription"] * similarity
 
-        return [
-            _expertise_response(aggregate) for aggregate in _rank_aggregates(aggregates)
-        ]
+        return [_expertise_response(aggregate) for aggregate in _rank_aggregates(aggregates)]
 
 
 def _dedupe_results(
@@ -169,16 +163,11 @@ def _dedupe_results(
 ) -> list[SearchResult]:
     seen: dict[str, SearchResult] = {}
     for result in results:
-        if not result.documantions_id or result.documantions_id == exclude_doc_id:
+        if not result.documant_id or result.documant_id == exclude_doc_id:
             continue
-        if (
-            result.documantions_id not in seen
-            or result.score > seen[result.documantions_id].score
-        ):
-            seen[result.documantions_id] = result
-    return sorted(seen.values(), key=lambda item: (-item.score, item.documantions_id))[
-        :limit
-    ]
+        if result.documant_id not in seen or result.score > seen[result.documant_id].score:
+            seen[result.documant_id] = result
+    return sorted(seen.values(), key=lambda item: (-item.score, item.documant_id))[:limit]
 
 
 def _rank_aggregates(
@@ -193,7 +182,7 @@ def _rank_aggregates(
 def _expertise_response(aggregate: _ExpertiseAggregate) -> dict[str, Any]:
     evidence = sorted(
         aggregate.docs.values(),
-        key=lambda item: (-float(item["score"]), str(item["documantions_id"])),
+        key=lambda item: (-float(item["score"]), str(item["documant_id"])),
     )[:5]
     return {
         "user_id": aggregate.user_id,

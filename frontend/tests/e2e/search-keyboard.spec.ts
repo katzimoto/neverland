@@ -6,7 +6,7 @@ const searchResults = {
   query: "vendor risk",
   results: [
     {
-      documantions_id: "doc-1",
+      documant_id: "doc-1",
       source_id: "src-1",
       external_id: null,
       title: "Vendor Risk Assessment 2024",
@@ -22,7 +22,7 @@ const searchResults = {
       why: [{ kind: "term", label: 'Matched "vendor risk" in title' }],
     },
     {
-      documantions_id: "doc-2",
+      documant_id: "doc-2",
       source_id: "src-1",
       external_id: null,
       title: "Supplier Security Notes",

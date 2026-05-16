@@ -48,7 +48,7 @@ def run_index_once(
         return False
 
     job_id: UUID = claimed["id"]
-    documantions_id: UUID = claimed["documantions_id"]
+    documant_id: UUID = claimed["documant_id"]
     job_type: str = claimed["job_type"]
     attempts: int = claimed["attempts"]
     max_attempts: int = claimed["max_attempts"]
@@ -63,25 +63,21 @@ def run_index_once(
 
     start = time.monotonic()
     try:
-        doc = doc_repo.get_by_id(documantions_id)
+        doc = doc_repo.get_by_id(documant_id)
         if doc is None:
-            raise ValueError(f"Document {documantions_id} not found")
+            raise ValueError(f"Document {documant_id} not found")
 
         allowed_group_ids = [str(gid) for gid in doc_repo.source_group_ids(source_id)]
 
-        payload = job_repo.get_payload(documantions_id)
+        payload = job_repo.get_payload(documant_id)
         content_original = (payload["content_text"] if payload else None) or ""
-        content_english = (
-            payload["translated_text"] if payload else None
-        ) or content_original
-        translation_quality: str | None = (
-            "fast" if content_english != content_original else None
-        )
+        content_english = (payload["translated_text"] if payload else None) or content_original
+        translation_quality: str | None = "fast" if content_english != content_original else None
 
         es_client.index_document(
-            str(documantions_id),
+            str(documant_id),
             {
-                "documantions_id": str(documantions_id),
+                "documant_id": str(documant_id),
                 "path": doc.path or "",
                 "filename": Path(doc.path).name if doc.path else doc.title or "",
                 "content_original": content_original,
@@ -94,12 +90,12 @@ def run_index_once(
             },
         )
 
-        doc_repo.update_indexed(documantions_id, "indexed", translation_quality)
+        doc_repo.update_indexed(documant_id, "indexed", translation_quality)
 
     except Exception as exc:
         elapsed = time.monotonic() - start
         error_type = type(exc).__name__
-        doc_repo.update_status(documantions_id, "failed")
+        doc_repo.update_status(documant_id, "failed")
         if attempts < max_attempts:
             job_repo.mark_retry(job_id, exc, stage="index")
             if metrics is not None:
@@ -167,14 +163,14 @@ def run_index_once(
 
     try:
         job_repo.enqueue_document(
-            documantions_id=documantions_id,
+            documant_id=documant_id,
             source_id=source_id,
             job_type="vector_index_document",
         )
         logger.debug(
-            "vector job enqueued: worker_id=%s documantions_id=%s",
+            "vector job enqueued: worker_id=%s documant_id=%s",
             worker_id,
-            documantions_id,
+            documant_id,
         )
     except Exception:
         logger.exception(
@@ -210,9 +206,7 @@ def run_index_loop(
                 ).set_to_current_time()
                 counts = job_repo.count_by_status()
                 for (status, jt), count in counts.items():
-                    metrics.pipeline_queue_depth.labels(status=status, job_type=jt).set(
-                        count
-                    )
+                    metrics.pipeline_queue_depth.labels(status=status, job_type=jt).set(count)
 
             if now - last_reap >= _REAP_INTERVAL_SECONDS:
                 reaped = job_repo.reap_stale_locks()

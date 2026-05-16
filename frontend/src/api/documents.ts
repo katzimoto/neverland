@@ -3,7 +3,7 @@ import type { RelatedDocument } from "./generated-or-shared-types";
 
 export interface DocAnnotation {
   id: string;
-  documantions_id: string;
+  documant_id: string;
   user_id: string;
   text: string;
   note: string | null;
@@ -21,7 +21,7 @@ export interface AnnotationCreate {
 }
 
 export interface DocumentPreview {
-  documantions_id: string;
+  documant_id: string;
   title: string | null;
   mime_type: string;
   translation_quality: "fast" | "high" | null;
@@ -35,7 +35,7 @@ export interface DocumentPreview {
 }
 
 export interface DocumentVersion {
-  documantions_id: string;
+  documant_id: string;
   version_number: number;
   is_latest: boolean;
   title: string | null;
@@ -62,7 +62,7 @@ interface BackendDocumentEntity {
 }
 
 interface DocumentEntitiesEnvelope {
-  documantions_id?: string;
+  documant_id?: string;
   entities: Array<DocumentEntity | BackendDocumentEntity>;
 }
 
@@ -81,7 +81,7 @@ function normalizeDocumentEntity(entity: DocumentEntity | BackendDocumentEntity)
 
 export interface Comment {
   id: string;
-  documantions_id: string;
+  documant_id: string;
   author_id: string;
   author_display_name: string;
   body: string;
@@ -126,26 +126,26 @@ export function getSummary(docId: string): Promise<DocumentSummary> {
   return api.get<DocumentSummary>(`/documents/${docId}/summary`);
 }
 
-export async function getEntities(docId: string): Promise<{ documantions_id: string; entities: DocumentEntity[] }> {
+export async function getEntities(docId: string): Promise<{ documant_id: string; entities: DocumentEntity[] }> {
   const response = await api.get<DocumentEntitiesResponse>(`/documents/${docId}/entities`);
   if (Array.isArray(response)) {
-    return { documantions_id: docId, entities: response.map(normalizeDocumentEntity) };
+    return { documant_id: docId, entities: response.map(normalizeDocumentEntity) };
   }
   return {
-    documantions_id: response.documantions_id ?? docId,
+    documant_id: response.documant_id ?? docId,
     entities: response.entities.map(normalizeDocumentEntity),
   };
 }
 
-export function getTags(docId: string): Promise<{ documantions_id: string; tags: string[] }> {
+export function getTags(docId: string): Promise<{ documant_id: string; tags: string[] }> {
   return api.get(`/documents/${docId}/tags`);
 }
 
-export function getRelated(docId: string): Promise<{ documantions_id: string; related: RelatedDocument[] }> {
+export function getRelated(docId: string): Promise<{ documant_id: string; related: RelatedDocument[] }> {
   return api.get(`/documents/${docId}/related`);
 }
 
-export function requestTranslation(docId: string): Promise<{ documantions_id: string; translation_version_id: string; status: string }> {
+export function requestTranslation(docId: string): Promise<{ documant_id: string; translation_version_id: string; status: string }> {
   return api.post(`/documents/${docId}/translate`, {});
 }
 

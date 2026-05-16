@@ -25,7 +25,7 @@ class _FakeJobRepo:
         self.claim_next_calls.append(worker_id)
         return self.claimed_job
 
-    def get_payload(self, documantions_id: UUID) -> dict | None:
+    def get_payload(self, documant_id: UUID) -> dict | None:
         return self.payload
 
     def mark_running_stage(self, job_id: UUID, stage: str) -> None:
@@ -34,31 +34,25 @@ class _FakeJobRepo:
     def mark_succeeded(self, job_id: UUID) -> None:
         self.succeeded = job_id
 
-    def mark_retry(
-        self, job_id: UUID, error: str | BaseException, stage: str = "process"
-    ) -> None:
+    def mark_retry(self, job_id: UUID, error: str | BaseException, stage: str = "process") -> None:
         self.retried = (job_id, error, stage)
 
     def mark_dead_letter(self, job_id: UUID, error: str | BaseException) -> None:
         self.dead_lettered = (job_id, error)
 
-    def update_content_text(self, documantions_id: UUID, content_text: str) -> None:
-        self.content_text_updates.append((documantions_id, content_text))
+    def update_content_text(self, documant_id: UUID, content_text: str) -> None:
+        self.content_text_updates.append((documant_id, content_text))
 
-    def update_translated_text(
-        self, documantions_id: UUID, translated_text: str
-    ) -> None:
-        self.translated_text_updates.append((documantions_id, translated_text))
+    def update_translated_text(self, documant_id: UUID, translated_text: str) -> None:
+        self.translated_text_updates.append((documant_id, translated_text))
 
-    def enqueue_document(
-        self, *, documantions_id: UUID, source_id: UUID, job_type: str
-    ) -> UUID:
+    def enqueue_document(self, *, documant_id: UUID, source_id: UUID, job_type: str) -> UUID:
         from uuid import uuid4
 
         job_id = uuid4()
         self.enqueue_calls.append(
             {
-                "documantions_id": documantions_id,
+                "documant_id": documant_id,
                 "source_id": source_id,
                 "job_type": job_type,
             }
@@ -75,11 +69,11 @@ class TestRunOnce:
         worker.process_document.assert_not_called()
 
     def test_processes_job_and_marks_succeeded(self) -> None:
-        documantions_id = uuid4()
+        documant_id = uuid4()
         repo = _FakeJobRepo()
         repo.claimed_job = {
             "id": uuid4(),
-            "documantions_id": documantions_id,
+            "documant_id": documant_id,
             "source_id": uuid4(),
             "job_type": "process_document",
             "priority": 0,
@@ -94,7 +88,7 @@ class TestRunOnce:
         result = run_once(repo, worker)
         assert result is True
         worker.process_document.assert_called_once_with(
-            documantions_id, pre_extracted_text="extracted text"
+            documant_id, pre_extracted_text="extracted text"
         )
         assert repo.succeeded == repo.claimed_job["id"]
 
@@ -102,7 +96,7 @@ class TestRunOnce:
         repo = _FakeJobRepo()
         repo.claimed_job = {
             "id": uuid4(),
-            "documantions_id": uuid4(),
+            "documant_id": uuid4(),
             "source_id": uuid4(),
             "job_type": "process_document",
             "priority": 0,
@@ -124,7 +118,7 @@ class TestRunOnce:
         repo = _FakeJobRepo()
         repo.claimed_job = {
             "id": uuid4(),
-            "documantions_id": uuid4(),
+            "documant_id": uuid4(),
             "source_id": uuid4(),
             "job_type": "process_document",
             "priority": 0,
@@ -143,12 +137,12 @@ class TestRunOnce:
         assert repo.dead_lettered[0] == repo.claimed_job["id"]
 
     def test_loads_payload_and_passes_to_worker(self) -> None:
-        documantions_id = uuid4()
+        documant_id = uuid4()
         repo = _FakeJobRepo()
         repo.payload = {"content_text": "custom extracted text"}
         repo.claimed_job = {
             "id": uuid4(),
-            "documantions_id": documantions_id,
+            "documant_id": documant_id,
             "source_id": uuid4(),
             "job_type": "process_document",
             "priority": 0,
@@ -165,12 +159,12 @@ class TestRunOnce:
         worker.process_document.assert_called_once()  # noqa: B015
 
     def test_handles_missing_payload_gracefully(self) -> None:
-        documantions_id = uuid4()
+        documant_id = uuid4()
         repo = _FakeJobRepo()
         repo.payload = None
         repo.claimed_job = {
             "id": uuid4(),
-            "documantions_id": documantions_id,
+            "documant_id": documant_id,
             "source_id": uuid4(),
             "job_type": "process_document",
             "priority": 0,
@@ -183,18 +177,16 @@ class TestRunOnce:
         }
         worker = MagicMock()
         run_once(repo, worker)
-        worker.process_document.assert_called_once_with(
-            documantions_id, pre_extracted_text=None
-        )
+        worker.process_document.assert_called_once_with(documant_id, pre_extracted_text=None)
 
     def test_persists_extracted_and_translated_text_after_successful_process_document(
         self,
     ) -> None:
-        documantions_id = uuid4()
+        documant_id = uuid4()
         repo = _FakeJobRepo()
         repo.claimed_job = {
             "id": uuid4(),
-            "documantions_id": documantions_id,
+            "documant_id": documant_id,
             "source_id": uuid4(),
             "job_type": "process_document",
             "priority": 0,
@@ -214,11 +206,11 @@ class TestRunOnce:
         run_once(repo, worker)
 
         assert len(repo.content_text_updates) == 1
-        assert repo.content_text_updates[0] == (documantions_id, "raw document text")
+        assert repo.content_text_updates[0] == (documant_id, "raw document text")
 
         assert len(repo.translated_text_updates) == 1
         assert repo.translated_text_updates[0] == (
-            documantions_id,
+            documant_id,
             "translated document body",
         )
 
@@ -226,7 +218,7 @@ class TestRunOnce:
         repo = _FakeJobRepo()
         repo.claimed_job = {
             "id": uuid4(),
-            "documantions_id": uuid4(),
+            "documant_id": uuid4(),
             "source_id": uuid4(),
             "job_type": "process_document",
             "priority": 0,

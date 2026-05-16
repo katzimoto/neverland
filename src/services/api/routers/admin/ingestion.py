@@ -66,21 +66,17 @@ def sync_now(
         source_language = source_row.get("source_language")
 
         def _record_sync_dlq(
-            documantions_id: UUID | None,
+            documant_id: UUID | None,
             message: str,
         ) -> None:
             connection.execute(
                 sa.text("""
-                    INSERT INTO dlq (id, documantions_id, error_message, status)
-                    VALUES (:id, :documantions_id, :error_message, 'pending')
+                    INSERT INTO dlq (id, documant_id, error_message, status)
+                    VALUES (:id, :documant_id, :error_message, 'pending')
                     """),
                 {
                     "id": db_uuid(uuid4()),
-                    "documantions_id": (
-                        db_uuid(documantions_id)
-                        if documantions_id is not None
-                        else None
-                    ),
+                    "documant_id": (db_uuid(documant_id) if documant_id is not None else None),
                     "error_message": message,
                 },
             )
@@ -133,7 +129,7 @@ def sync_now(
                 results["created"] += 1
                 try:
                     job_repo.enqueue_document(
-                        documantions_id=doc.id,
+                        documant_id=doc.id,
                         source_id=source_id,
                         content_text=item.text_content,
                     )
@@ -146,9 +142,7 @@ def sync_now(
                     request.app.state.metrics.ingestion_documents_total.labels(
                         safe_label_value(connector_type), "failure"
                     ).inc()
-                    _record_sync_dlq(
-                        doc.id, "Failed to enqueue document for processing"
-                    )
+                    _record_sync_dlq(doc.id, "Failed to enqueue document for processing")
             except Exception:
                 results["failed_discovery"] += 1
                 request.app.state.metrics.ingestion_documents_total.labels(

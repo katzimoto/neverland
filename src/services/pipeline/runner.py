@@ -54,7 +54,7 @@ def run_once(
         return False
 
     job_id: UUID = claimed["id"]
-    documantions_id: UUID = claimed["documantions_id"]
+    documant_id: UUID = claimed["documant_id"]
     job_type: str = claimed["job_type"]
     attempts: int = claimed["attempts"]
     max_attempts: int = claimed["max_attempts"]
@@ -65,7 +65,7 @@ def run_once(
         ).inc()
 
     # Load durable payload
-    payload = job_repo.get_payload(documantions_id)
+    payload = job_repo.get_payload(documant_id)
     pre_extracted_text: str | None = payload["content_text"] if payload else None
 
     job_repo.mark_running_stage(job_id, "process")
@@ -73,9 +73,7 @@ def run_once(
     start = time.monotonic()
     process_result = None
     try:
-        process_result = worker.process_document(
-            documantions_id, pre_extracted_text=pre_extracted_text
-        )
+        process_result = worker.process_document(documant_id, pre_extracted_text=pre_extracted_text)
     except Exception as exc:
         elapsed = time.monotonic() - start
         error_type = type(exc).__name__
@@ -148,16 +146,14 @@ def run_once(
     # workers (translation-worker, index-worker) can operate from IDs only.
     if job_type == "process_document" and process_result is not None:
         try:
-            job_repo.update_content_text(documantions_id, process_result.extracted_text)
+            job_repo.update_content_text(documant_id, process_result.extracted_text)
         except Exception:
             logger.exception(
                 "failed to persist extracted text: worker_id=%s error_type=PersistError",
                 worker_id,
             )
         try:
-            job_repo.update_translated_text(
-                documantions_id, process_result.translated_text
-            )
+            job_repo.update_translated_text(documant_id, process_result.translated_text)
         except Exception:
             logger.exception(
                 "failed to persist translated text: worker_id=%s error_type=PersistError",
@@ -168,14 +164,14 @@ def run_once(
     if job_type == "process_document":
         try:
             job_repo.enqueue_document(
-                documantions_id=documantions_id,
+                documant_id=documant_id,
                 source_id=claimed["source_id"],
                 job_type="vector_index_document",
             )
             logger.debug(
-                "vector job enqueued: worker_id=%s documantions_id=%s",
+                "vector job enqueued: worker_id=%s documant_id=%s",
                 worker_id,
-                documantions_id,
+                documant_id,
             )
         except Exception:
             logger.exception(
@@ -214,9 +210,7 @@ def run_loop(
                 ).set_to_current_time()
                 counts = job_repo.count_by_status()
                 for (status, jt), count in counts.items():
-                    metrics.pipeline_queue_depth.labels(status=status, job_type=jt).set(
-                        count
-                    )
+                    metrics.pipeline_queue_depth.labels(status=status, job_type=jt).set(count)
 
             if now - last_reap >= _REAP_INTERVAL_SECONDS:
                 reaped = job_repo.reap_stale_locks()

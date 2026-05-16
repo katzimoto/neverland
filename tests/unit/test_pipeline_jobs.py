@@ -14,7 +14,8 @@ from services.pipeline.jobs import PipelineJobRepository
 def engine() -> Engine:
     eng = create_engine("sqlite://", echo=False)
     with eng.begin() as conn:
-        conn.execute(sa.text("""
+        conn.execute(
+            sa.text("""
             CREATE TABLE ingestion_sources (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -26,8 +27,10 @@ def engine() -> Engine:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """))
-        conn.execute(sa.text("""
+        """)
+        )
+        conn.execute(
+            sa.text("""
             CREATE TABLE documents (
                 id TEXT PRIMARY KEY,
                 source_id TEXT NOT NULL REFERENCES ingestion_sources(id),
@@ -44,11 +47,13 @@ def engine() -> Engine:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        """))
-        conn.execute(sa.text("""
+        """)
+        )
+        conn.execute(
+            sa.text("""
             CREATE TABLE pipeline_jobs (
                 id TEXT PRIMARY KEY,
-                documantions_id TEXT NOT NULL REFERENCES documents(id),
+                documant_id TEXT NOT NULL REFERENCES documents(id),
                 source_id TEXT NOT NULL REFERENCES ingestion_sources(id),
                 job_type TEXT NOT NULL,
                 status TEXT NOT NULL DEFAULT 'pending',
@@ -63,10 +68,12 @@ def engine() -> Engine:
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
-        """))
-        conn.execute(sa.text("""
+        """)
+        )
+        conn.execute(
+            sa.text("""
             CREATE TABLE document_payloads (
-                documantions_id TEXT PRIMARY KEY REFERENCES documents(id),
+                documant_id TEXT PRIMARY KEY REFERENCES documents(id),
                 content_text TEXT,
                 content_path TEXT,
                 content_sha256 TEXT,
@@ -74,18 +81,17 @@ def engine() -> Engine:
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
-        """))
+        """)
+        )
     return eng
 
 
 def test_creates_pending_job(engine: Engine) -> None:
     with engine.begin() as conn:
         source_id = uuid4()
-        documantions_id = uuid4()
+        documant_id = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
-            ),
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
             {"id": source_id.hex, "name": "test", "type": "folder"},
         )
         conn.execute(
@@ -94,7 +100,7 @@ def test_creates_pending_job(engine: Engine) -> None:
                 "VALUES (:id, :source_id, :eid, :source, :mime)"
             ),
             {
-                "id": documantions_id.hex,
+                "id": documant_id.hex,
                 "source_id": source_id.hex,
                 "eid": "ext1",
                 "source": "folder",
@@ -103,14 +109,12 @@ def test_creates_pending_job(engine: Engine) -> None:
         )
 
         repo = PipelineJobRepository(conn)
-        job_id = repo.enqueue_document(documantions_id, source_id)
+        job_id = repo.enqueue_document(documant_id, source_id)
 
         assert isinstance(job_id, UUID)
 
         row = conn.execute(
-            sa.text(
-                "SELECT status, priority, max_attempts FROM pipeline_jobs WHERE id = :id"
-            ),
+            sa.text("SELECT status, priority, max_attempts FROM pipeline_jobs WHERE id = :id"),
             {"id": job_id.hex},
         ).one()
         assert row.status == "pending"
@@ -121,11 +125,9 @@ def test_creates_pending_job(engine: Engine) -> None:
 def test_duplicate_active_returns_existing(engine: Engine) -> None:
     with engine.begin() as conn:
         source_id = uuid4()
-        documantions_id = uuid4()
+        documant_id = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
-            ),
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
             {"id": source_id.hex, "name": "test", "type": "folder"},
         )
         conn.execute(
@@ -134,7 +136,7 @@ def test_duplicate_active_returns_existing(engine: Engine) -> None:
                 "VALUES (:id, :source_id, :eid, :source, :mime)"
             ),
             {
-                "id": documantions_id.hex,
+                "id": documant_id.hex,
                 "source_id": source_id.hex,
                 "eid": "ext1",
                 "source": "folder",
@@ -143,8 +145,8 @@ def test_duplicate_active_returns_existing(engine: Engine) -> None:
         )
 
         repo = PipelineJobRepository(conn)
-        jid1 = repo.enqueue_document(documantions_id, source_id)
-        jid2 = repo.enqueue_document(documantions_id, source_id)
+        jid1 = repo.enqueue_document(documant_id, source_id)
+        jid2 = repo.enqueue_document(documant_id, source_id)
 
         assert jid1 == jid2
         count = conn.execute(sa.text("SELECT COUNT(*) FROM pipeline_jobs")).scalar()
@@ -154,11 +156,9 @@ def test_duplicate_active_returns_existing(engine: Engine) -> None:
 def test_completed_job_allows_new_enqueue(engine: Engine) -> None:
     with engine.begin() as conn:
         source_id = uuid4()
-        documantions_id = uuid4()
+        documant_id = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
-            ),
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
             {"id": source_id.hex, "name": "test", "type": "folder"},
         )
         conn.execute(
@@ -167,7 +167,7 @@ def test_completed_job_allows_new_enqueue(engine: Engine) -> None:
                 "VALUES (:id, :source_id, :eid, :source, :mime)"
             ),
             {
-                "id": documantions_id.hex,
+                "id": documant_id.hex,
                 "source_id": source_id.hex,
                 "eid": "ext1",
                 "source": "folder",
@@ -176,13 +176,13 @@ def test_completed_job_allows_new_enqueue(engine: Engine) -> None:
         )
 
         repo = PipelineJobRepository(conn)
-        jid1 = repo.enqueue_document(documantions_id, source_id)
+        jid1 = repo.enqueue_document(documant_id, source_id)
         claimed = repo.claim_next("worker1")
         assert claimed is not None
         assert claimed["id"] == jid1
         repo.mark_succeeded(jid1)
 
-        jid2 = repo.enqueue_document(documantions_id, source_id)
+        jid2 = repo.enqueue_document(documant_id, source_id)
         assert jid2 != jid1
         count = conn.execute(sa.text("SELECT COUNT(*) FROM pipeline_jobs")).scalar()
         assert count == 2
@@ -194,9 +194,7 @@ def test_claims_by_priority(engine: Engine) -> None:
         doc_low = uuid4()
         doc_high = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
-            ),
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
             {"id": source_id.hex, "name": "test", "type": "folder"},
         )
         for d in (doc_low, doc_high):
@@ -232,11 +230,9 @@ def test_claims_by_priority(engine: Engine) -> None:
 def test_retry_not_claimable_before_run_after(engine: Engine) -> None:
     with engine.begin() as conn:
         source_id = uuid4()
-        documantions_id = uuid4()
+        documant_id = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
-            ),
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
             {"id": source_id.hex, "name": "test", "type": "folder"},
         )
         conn.execute(
@@ -245,7 +241,7 @@ def test_retry_not_claimable_before_run_after(engine: Engine) -> None:
                 "VALUES (:id, :source_id, :eid, :source, :mime)"
             ),
             {
-                "id": documantions_id.hex,
+                "id": documant_id.hex,
                 "source_id": source_id.hex,
                 "eid": "ext1",
                 "source": "folder",
@@ -254,7 +250,7 @@ def test_retry_not_claimable_before_run_after(engine: Engine) -> None:
         )
 
         repo = PipelineJobRepository(conn)
-        job_id = repo.enqueue_document(documantions_id, source_id)
+        job_id = repo.enqueue_document(documant_id, source_id)
         claimed = repo.claim_next("worker1")
         assert claimed is not None
         assert claimed["id"] == job_id
@@ -268,11 +264,9 @@ def test_retry_not_claimable_before_run_after(engine: Engine) -> None:
 def test_mark_succeeded_updates_status(engine: Engine) -> None:
     with engine.begin() as conn:
         source_id = uuid4()
-        documantions_id = uuid4()
+        documant_id = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
-            ),
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
             {"id": source_id.hex, "name": "test", "type": "folder"},
         )
         conn.execute(
@@ -281,7 +275,7 @@ def test_mark_succeeded_updates_status(engine: Engine) -> None:
                 "VALUES (:id, :source_id, :eid, :source, :mime)"
             ),
             {
-                "id": documantions_id.hex,
+                "id": documant_id.hex,
                 "source_id": source_id.hex,
                 "eid": "ext1",
                 "source": "folder",
@@ -290,7 +284,7 @@ def test_mark_succeeded_updates_status(engine: Engine) -> None:
         )
 
         repo = PipelineJobRepository(conn)
-        job_id = repo.enqueue_document(documantions_id, source_id)
+        job_id = repo.enqueue_document(documant_id, source_id)
         claimed = repo.claim_next("worker1")
         assert claimed is not None
         assert claimed["id"] == job_id
@@ -313,11 +307,9 @@ def test_mark_succeeded_updates_status(engine: Engine) -> None:
 def test_mark_retry_schedules_backoff(engine: Engine) -> None:
     with engine.begin() as conn:
         source_id = uuid4()
-        documantions_id = uuid4()
+        documant_id = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
-            ),
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
             {"id": source_id.hex, "name": "test", "type": "folder"},
         )
         conn.execute(
@@ -326,7 +318,7 @@ def test_mark_retry_schedules_backoff(engine: Engine) -> None:
                 "VALUES (:id, :source_id, :eid, :source, :mime)"
             ),
             {
-                "id": documantions_id.hex,
+                "id": documant_id.hex,
                 "source_id": source_id.hex,
                 "eid": "ext1",
                 "source": "folder",
@@ -335,16 +327,14 @@ def test_mark_retry_schedules_backoff(engine: Engine) -> None:
         )
 
         repo = PipelineJobRepository(conn)
-        job_id = repo.enqueue_document(documantions_id, source_id)
+        job_id = repo.enqueue_document(documant_id, source_id)
         claimed = repo.claim_next("worker1")
         assert claimed is not None
 
         repo.mark_retry(job_id, ValueError("boom"), retry_delay_seconds=60)
 
         row = conn.execute(
-            sa.text(
-                "SELECT status, last_error, run_after FROM pipeline_jobs WHERE id = :id"
-            ),
+            sa.text("SELECT status, last_error, run_after FROM pipeline_jobs WHERE id = :id"),
             {"id": job_id.hex},
         ).one()
         assert row.status == "retry"
@@ -362,11 +352,9 @@ def test_mark_retry_schedules_backoff(engine: Engine) -> None:
 def test_mark_dead_letter(engine: Engine) -> None:
     with engine.begin() as conn:
         source_id = uuid4()
-        documantions_id = uuid4()
+        documant_id = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
-            ),
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
             {"id": source_id.hex, "name": "test", "type": "folder"},
         )
         conn.execute(
@@ -375,7 +363,7 @@ def test_mark_dead_letter(engine: Engine) -> None:
                 "VALUES (:id, :source_id, :eid, :source, :mime)"
             ),
             {
-                "id": documantions_id.hex,
+                "id": documant_id.hex,
                 "source_id": source_id.hex,
                 "eid": "ext1",
                 "source": "folder",
@@ -384,7 +372,7 @@ def test_mark_dead_letter(engine: Engine) -> None:
         )
 
         repo = PipelineJobRepository(conn)
-        job_id = repo.enqueue_document(documantions_id, source_id)
+        job_id = repo.enqueue_document(documant_id, source_id)
         claimed = repo.claim_next("worker1")
         assert claimed is not None
 
@@ -401,11 +389,9 @@ def test_mark_dead_letter(engine: Engine) -> None:
 def test_payload_store_and_load(engine: Engine) -> None:
     with engine.begin() as conn:
         source_id = uuid4()
-        documantions_id = uuid4()
+        documant_id = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
-            ),
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
             {"id": source_id.hex, "name": "test", "type": "folder"},
         )
         conn.execute(
@@ -414,7 +400,7 @@ def test_payload_store_and_load(engine: Engine) -> None:
                 "VALUES (:id, :source_id, :eid, :source, :mime)"
             ),
             {
-                "id": documantions_id.hex,
+                "id": documant_id.hex,
                 "source_id": source_id.hex,
                 "eid": "ext1",
                 "source": "folder",
@@ -423,14 +409,12 @@ def test_payload_store_and_load(engine: Engine) -> None:
         )
 
         repo = PipelineJobRepository(conn)
-        _ = repo.enqueue_document(
-            documantions_id, source_id, content_text="hello world"
-        )
+        _ = repo.enqueue_document(documant_id, source_id, content_text="hello world")
 
-        payload = repo.get_payload(documantions_id)
+        payload = repo.get_payload(documant_id)
         assert payload is not None
         assert payload["content_text"] == "hello world"
-        assert payload["documantions_id"] == documantions_id
+        assert payload["documant_id"] == documant_id
 
 
 def test_payload_returns_none_for_missing(engine: Engine) -> None:
@@ -443,11 +427,9 @@ def test_payload_returns_none_for_missing(engine: Engine) -> None:
 def test_mark_succeeded_on_non_running_is_noop(engine: Engine) -> None:
     with engine.begin() as conn:
         source_id = uuid4()
-        documantions_id = uuid4()
+        documant_id = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
-            ),
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
             {"id": source_id.hex, "name": "test", "type": "folder"},
         )
         conn.execute(
@@ -456,7 +438,7 @@ def test_mark_succeeded_on_non_running_is_noop(engine: Engine) -> None:
                 "VALUES (:id, :source_id, :eid, :source, :mime)"
             ),
             {
-                "id": documantions_id.hex,
+                "id": documant_id.hex,
                 "source_id": source_id.hex,
                 "eid": "ext1",
                 "source": "folder",
@@ -465,7 +447,7 @@ def test_mark_succeeded_on_non_running_is_noop(engine: Engine) -> None:
         )
 
         repo = PipelineJobRepository(conn)
-        job_id = repo.enqueue_document(documantions_id, source_id)
+        job_id = repo.enqueue_document(documant_id, source_id)
 
         repo.mark_succeeded(job_id)
 
@@ -479,11 +461,9 @@ def test_mark_succeeded_on_non_running_is_noop(engine: Engine) -> None:
 def test_get_payload_translated_text_is_none_by_default(engine: Engine) -> None:
     with engine.begin() as conn:
         source_id = uuid4()
-        documantions_id = uuid4()
+        documant_id = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
-            ),
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
             {"id": source_id.hex, "name": "test", "type": "folder"},
         )
         conn.execute(
@@ -492,7 +472,7 @@ def test_get_payload_translated_text_is_none_by_default(engine: Engine) -> None:
                 "VALUES (:id, :source_id, :eid, :source, :mime)"
             ),
             {
-                "id": documantions_id.hex,
+                "id": documant_id.hex,
                 "source_id": source_id.hex,
                 "eid": "ext1",
                 "source": "folder",
@@ -501,9 +481,9 @@ def test_get_payload_translated_text_is_none_by_default(engine: Engine) -> None:
         )
 
         repo = PipelineJobRepository(conn)
-        repo.enqueue_document(documantions_id, source_id, content_text="raw text")
+        repo.enqueue_document(documant_id, source_id, content_text="raw text")
 
-        payload = repo.get_payload(documantions_id)
+        payload = repo.get_payload(documant_id)
         assert payload is not None
         assert payload["translated_text"] is None
 
@@ -511,11 +491,9 @@ def test_get_payload_translated_text_is_none_by_default(engine: Engine) -> None:
 def test_update_content_text_persists_value(engine: Engine) -> None:
     with engine.begin() as conn:
         source_id = uuid4()
-        documantions_id = uuid4()
+        documant_id = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
-            ),
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
             {"id": source_id.hex, "name": "test", "type": "folder"},
         )
         conn.execute(
@@ -524,7 +502,7 @@ def test_update_content_text_persists_value(engine: Engine) -> None:
                 "VALUES (:id, :source_id, :eid, :source, :mime)"
             ),
             {
-                "id": documantions_id.hex,
+                "id": documant_id.hex,
                 "source_id": source_id.hex,
                 "eid": "ext1",
                 "source": "folder",
@@ -534,10 +512,10 @@ def test_update_content_text_persists_value(engine: Engine) -> None:
 
         repo = PipelineJobRepository(conn)
         # Enqueue with content_path only (file-based doc: content_text starts NULL)
-        repo.enqueue_document(documantions_id, source_id, content_path="/data/file.txt")
-        repo.update_content_text(documantions_id, "extracted file content")
+        repo.enqueue_document(documant_id, source_id, content_path="/data/file.txt")
+        repo.update_content_text(documant_id, "extracted file content")
 
-        payload = repo.get_payload(documantions_id)
+        payload = repo.get_payload(documant_id)
         assert payload is not None
         assert payload["content_text"] == "extracted file content"
 
@@ -545,11 +523,9 @@ def test_update_content_text_persists_value(engine: Engine) -> None:
 def test_update_translated_text_persists_value(engine: Engine) -> None:
     with engine.begin() as conn:
         source_id = uuid4()
-        documantions_id = uuid4()
+        documant_id = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
-            ),
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
             {"id": source_id.hex, "name": "test", "type": "folder"},
         )
         conn.execute(
@@ -558,7 +534,7 @@ def test_update_translated_text_persists_value(engine: Engine) -> None:
                 "VALUES (:id, :source_id, :eid, :source, :mime)"
             ),
             {
-                "id": documantions_id.hex,
+                "id": documant_id.hex,
                 "source_id": source_id.hex,
                 "eid": "ext1",
                 "source": "folder",
@@ -567,10 +543,10 @@ def test_update_translated_text_persists_value(engine: Engine) -> None:
         )
 
         repo = PipelineJobRepository(conn)
-        repo.enqueue_document(documantions_id, source_id, content_text="raw text")
-        repo.update_translated_text(documantions_id, "translated content")
+        repo.enqueue_document(documant_id, source_id, content_text="raw text")
+        repo.update_translated_text(documant_id, "translated content")
 
-        payload = repo.get_payload(documantions_id)
+        payload = repo.get_payload(documant_id)
         assert payload is not None
         assert payload["translated_text"] == "translated content"
 
@@ -578,11 +554,9 @@ def test_update_translated_text_persists_value(engine: Engine) -> None:
 def test_end_to_end(engine: Engine) -> None:
     with engine.begin() as conn:
         source_id = uuid4()
-        documantions_id = uuid4()
+        documant_id = uuid4()
         conn.execute(
-            sa.text(
-                "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"
-            ),
+            sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :name, :type)"),
             {"id": source_id.hex, "name": "test", "type": "folder"},
         )
         conn.execute(
@@ -591,7 +565,7 @@ def test_end_to_end(engine: Engine) -> None:
                 "VALUES (:id, :source_id, :eid, :source, :mime)"
             ),
             {
-                "id": documantions_id.hex,
+                "id": documant_id.hex,
                 "source_id": source_id.hex,
                 "eid": "ext1",
                 "source": "folder",
@@ -600,14 +574,12 @@ def test_end_to_end(engine: Engine) -> None:
         )
 
         repo = PipelineJobRepository(conn)
-        job_id = repo.enqueue_document(
-            documantions_id, source_id, content_text="full lifecycle"
-        )
+        job_id = repo.enqueue_document(documant_id, source_id, content_text="full lifecycle")
 
         claimed = repo.claim_next("worker1")
         assert claimed is not None
         assert claimed["id"] == job_id
-        assert claimed["documantions_id"] == documantions_id
+        assert claimed["documant_id"] == documant_id
 
         repo.mark_running_stage(job_id, "extracting")
 
@@ -617,7 +589,7 @@ def test_end_to_end(engine: Engine) -> None:
         ).scalar()
         assert stage == "extracting"
 
-        payload = repo.get_payload(documantions_id)
+        payload = repo.get_payload(documant_id)
         assert payload is not None
         assert payload["content_text"] == "full lifecycle"
 

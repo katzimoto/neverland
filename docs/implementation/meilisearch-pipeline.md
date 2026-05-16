@@ -76,7 +76,7 @@ The provider exposes `task_status(task_id)` so the caller controls polling.
 The provider itself does not retry. The pipeline layer owns retry logic:
 - Up to 3 attempts with exponential backoff (2 s, 8 s, 32 s)
 - After 3 failures: write to DLQ (`search_index_failures` DB table or Kafka DLQ topic)
-- Record: `documantions_id`, `chunk_index`, `failed_at`, `error_type`, `attempts`
+- Record: `documant_id`, `chunk_index`, `failed_at`, `error_type`, `attempts`
 - Admin `/admin/readiness` probe includes a Meilisearch health check
 - DLQ entries are retried manually or via a background admin action
 

@@ -17,8 +17,8 @@ class _FakeDocumentRepository:
         self.indexed_updates: list[tuple[UUID, str, str | None]] = []
         self.status_updates: list[tuple[UUID, str]] = []
 
-    def get_by_id(self, documantions_id: UUID) -> DocumentRow | None:
-        return self._doc if documantions_id == self._doc.id else None
+    def get_by_id(self, documant_id: UUID) -> DocumentRow | None:
+        return self._doc if documant_id == self._doc.id else None
 
     def source_group_ids(self, source_id: UUID) -> list[UUID]:
         assert source_id == self._doc.source_id
@@ -26,14 +26,14 @@ class _FakeDocumentRepository:
 
     def update_indexed(
         self,
-        documantions_id: UUID,
+        documant_id: UUID,
         status: str,
         translation_quality: str | None,
     ) -> None:
-        self.indexed_updates.append((documantions_id, status, translation_quality))
+        self.indexed_updates.append((documant_id, status, translation_quality))
 
-    def update_status(self, documantions_id: UUID, status: str) -> None:
-        self.status_updates.append((documantions_id, status))
+    def update_status(self, documant_id: UUID, status: str) -> None:
+        self.status_updates.append((documant_id, status))
 
 
 class _FakeExtractor:
@@ -67,8 +67,8 @@ class _FakeElasticsearch:
         self.fail = fail
         self.calls: list[tuple[str, dict[str, object]]] = []
 
-    def index_document(self, documantions_id: str, body: dict[str, object]) -> None:
-        self.calls.append((documantions_id, body))
+    def index_document(self, documant_id: str, body: dict[str, object]) -> None:
+        self.calls.append((documant_id, body))
         if self.fail:
             raise RuntimeError("elasticsearch_unavailable")
 
@@ -291,9 +291,7 @@ def test_process_document_returns_process_result_on_success() -> None:
     es = _FakeElasticsearch()
     qdrant = _FakeQdrant()
     translator = _FakeTranslator(translated="translated body")
-    worker = _worker(
-        repo=repo, encoder=encoder, es=es, qdrant=qdrant, translator=translator
-    )
+    worker = _worker(repo=repo, encoder=encoder, es=es, qdrant=qdrant, translator=translator)
 
     result = worker.process_document(doc.id, pre_extracted_text="raw body")
 

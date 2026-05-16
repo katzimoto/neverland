@@ -17,9 +17,9 @@ from shared.db import to_uuid
 router = APIRouter(tags=["comments"])
 
 
-@router.get("/documents/{documantions_id}/comments")
+@router.get("/documents/{documant_id}/comments")
 def list_comments(
-    documantions_id: UUID,
+    documant_id: UUID,
     request: Request,
     user: Annotated[TokenPayload, Depends(current_user)],
     skip: int = 0,
@@ -28,13 +28,13 @@ def list_comments(
 ) -> dict[str, Any]:
     with request.app.state.engine.begin() as connection:
         auth_repo = AuthRepository(connection)
-        assert_doc_access(documantions_id, user, auth_repo)
+        assert_doc_access(documant_id, user, auth_repo)
 
         repo = CommentRepository(connection)
-        comments = repo.list_comments(documantions_id, skip=skip, limit=limit, sort=sort)  # type: ignore[arg-type]
-        total = repo.count_comments(documantions_id)
+        comments = repo.list_comments(documant_id, skip=skip, limit=limit, sort=sort)  # type: ignore[arg-type]
+        total = repo.count_comments(documant_id)
         return {
-            "documantions_id": str(documantions_id),
+            "documant_id": str(documant_id),
             "comments": [
                 {
                     "id": str(to_uuid(c["id"])),
@@ -56,32 +56,32 @@ def list_comments(
         }
 
 
-@router.post("/documents/{documantions_id}/comments", status_code=201)
+@router.post("/documents/{documant_id}/comments", status_code=201)
 def create_comment(
-    documantions_id: UUID,
+    documant_id: UUID,
     body: CommentCreateRequest,
     request: Request,
     user: Annotated[TokenPayload, Depends(current_user)],
 ) -> dict[str, Any]:
     with request.app.state.engine.begin() as connection:
         auth_repo = AuthRepository(connection)
-        assert_doc_access(documantions_id, user, auth_repo)
+        assert_doc_access(documant_id, user, auth_repo)
 
         repo = CommentRepository(connection)
-        comment = repo.create(documantions_id, user.sub, body.body)
+        comment = repo.create(documant_id, user.sub, body.body)
         request.app.state.metrics.comments_total.labels("create", "success").inc()
         return {
             "id": str(to_uuid(comment["id"])),
-            "documantions_id": str(to_uuid(comment["documantions_id"])),
+            "documant_id": str(to_uuid(comment["documant_id"])),
             "author_id": str(to_uuid(comment["author_id"])),
             "body": comment["body"],
             "created_at": _fmt_dt(comment["created_at"]),
         }
 
 
-@router.patch("/documents/{documantions_id}/comments/{comment_id}")
+@router.patch("/documents/{documant_id}/comments/{comment_id}")
 def update_comment(
-    documantions_id: UUID,
+    documant_id: UUID,
     comment_id: UUID,
     body: CommentUpdateRequest,
     request: Request,
@@ -89,7 +89,7 @@ def update_comment(
 ) -> dict[str, Any]:
     with request.app.state.engine.begin() as connection:
         auth_repo = AuthRepository(connection)
-        assert_doc_access(documantions_id, user, auth_repo)
+        assert_doc_access(documant_id, user, auth_repo)
 
         repo = CommentRepository(connection)
         comment = repo.get_by_id(comment_id)
@@ -111,23 +111,21 @@ def update_comment(
             "created_at": _fmt_dt(updated["created_at"]),
             "edited_at": _fmt_dt(updated["edited_at"]),
             "edited_by_id": (
-                str(to_uuid(updated["edited_by_id"]))
-                if updated["edited_by_id"]
-                else None
+                str(to_uuid(updated["edited_by_id"])) if updated["edited_by_id"] else None
             ),
         }
 
 
-@router.delete("/documents/{documantions_id}/comments/{comment_id}", status_code=204)
+@router.delete("/documents/{documant_id}/comments/{comment_id}", status_code=204)
 def delete_comment(
-    documantions_id: UUID,
+    documant_id: UUID,
     comment_id: UUID,
     request: Request,
     user: Annotated[TokenPayload, Depends(current_user)],
 ) -> None:
     with request.app.state.engine.begin() as connection:
         auth_repo = AuthRepository(connection)
-        assert_doc_access(documantions_id, user, auth_repo)
+        assert_doc_access(documant_id, user, auth_repo)
 
         repo = CommentRepository(connection)
         comment = repo.get_by_id(comment_id)

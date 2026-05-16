@@ -23,7 +23,7 @@ def upgrade() -> None:
         "document_translation_versions",
         sa.Column("id", sa.Uuid(), primary_key=True),
         sa.Column(
-            "documantions_id",
+            "documant_id",
             sa.Uuid(),
             sa.ForeignKey("documents.id", ondelete="CASCADE"),
             nullable=False,
@@ -84,7 +84,7 @@ def upgrade() -> None:
             server_default=sa.text("'{}'"),
         ),
         sa.UniqueConstraint(
-            "documantions_id",
+            "documant_id",
             "version_number",
             name="uq_translation_versions_doc_number",
         ),
@@ -92,7 +92,7 @@ def upgrade() -> None:
     op.create_index(
         "ix_translation_versions_doc_id",
         "document_translation_versions",
-        ["documantions_id"],
+        ["documant_id"],
     )
     op.create_index(
         "ix_translation_versions_status",
@@ -111,10 +111,6 @@ def downgrade() -> None:
         "ix_translation_versions_requested_by",
         table_name="document_translation_versions",
     )
-    op.drop_index(
-        "ix_translation_versions_status", table_name="document_translation_versions"
-    )
-    op.drop_index(
-        "ix_translation_versions_doc_id", table_name="document_translation_versions"
-    )
+    op.drop_index("ix_translation_versions_status", table_name="document_translation_versions")
+    op.drop_index("ix_translation_versions_doc_id", table_name="document_translation_versions")
     op.drop_table("document_translation_versions")

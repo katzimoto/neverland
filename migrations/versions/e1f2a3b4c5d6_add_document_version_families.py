@@ -116,13 +116,13 @@ def upgrade() -> None:
                     SET version_family_id = :family_id,
                         version_number = :version_number,
                         is_latest = :is_latest
-                    WHERE id = :documantions_id
+                    WHERE id = :documant_id
                     """),
                 {
                     "family_id": family_id,
                     "version_number": i,
                     "is_latest": 1 if str(doc_id_val) == latest_doc_id else 0,
-                    "documantions_id": str(doc_id_val),
+                    "documant_id": str(doc_id_val),
                 },
             )
 

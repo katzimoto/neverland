@@ -56,7 +56,7 @@ class DeadLetterSink(Protocol):
         *,
         reason: DLQReason,
         event: NiFiEventEnvelope | None,
-        documantions_id: UUID | None,
+        documant_id: UUID | None,
     ) -> bool:
         """Persist a terminal failure and return True only when durable."""
         ...
@@ -77,23 +77,19 @@ class DatabaseDeadLetterSink:
         *,
         reason: DLQReason,
         event: NiFiEventEnvelope | None,
-        documantions_id: UUID | None,
+        documant_id: UUID | None,
     ) -> bool:
         """Insert a sanitized DLQ row without raw payload, secrets, paths, or backend details."""
         error_message = _safe_dlq_message(reason, event)
         with self._engine.begin() as connection:
             connection.execute(
                 sa.text("""
-                    INSERT INTO dlq (id, documantions_id, error_message, status)
-                    VALUES (:id, :documantions_id, :error_message, 'pending')
+                    INSERT INTO dlq (id, documant_id, error_message, status)
+                    VALUES (:id, :documant_id, :error_message, 'pending')
                     """),
                 {
                     "id": db_uuid(uuid4()),
-                    "documantions_id": (
-                        db_uuid(documantions_id)
-                        if documantions_id is not None
-                        else None
-                    ),
+                    "documant_id": (db_uuid(documant_id) if documant_id is not None else None),
                     "error_message": error_message,
                 },
             )
@@ -148,7 +144,7 @@ class NiFiKafkaDrain:
 
     def _handle_message(self, message: KafkaMessage) -> str:
         event: NiFiEventEnvelope | None = None
-        documantions_id: UUID | None = None
+        documant_id: UUID | None = None
         try:
             value = message.value()
             if value is None:
@@ -158,28 +154,28 @@ class NiFiKafkaDrain:
             connector = NiFiConnector(_connector_config(source_row, event))
             connector.validate()
             item = connector.normalize_event(event)
-            documantions_id = self._create_document(source_row, item)
-            if documantions_id is not None:
-                self._process_document(documantions_id, item.text_content)
+            documant_id = self._create_document(source_row, item)
+            if documant_id is not None:
+                self._process_document(documant_id, item.text_content)
             self._consumer.commit(message)
             return "processed"
         except NiFiEventError as exc:
             return self._route_to_dlq_or_raise(
-                message, reason=str(exc), event=event, documantions_id=documantions_id
+                message, reason=str(exc), event=event, documant_id=documant_id
             )
         except (ValueError, IntegrityError) as exc:
             return self._route_to_dlq_or_raise(
                 message,
                 reason=_classified_reason(exc),
                 event=event,
-                documantions_id=documantions_id,
+                documant_id=documant_id,
             )
         except Exception as exc:
             return self._route_to_dlq_or_raise(
                 message,
                 reason=_classified_reason(exc),
                 event=event,
-                documantions_id=documantions_id,
+                documant_id=documant_id,
             )
 
     def _route_to_dlq_or_raise(
@@ -188,9 +184,9 @@ class NiFiKafkaDrain:
         *,
         reason: DLQReason,
         event: NiFiEventEnvelope | None,
-        documantions_id: UUID | None,
+        documant_id: UUID | None,
     ) -> str:
-        if self._dlq.route(reason=reason, event=event, documantions_id=documantions_id):
+        if self._dlq.route(reason=reason, event=event, documant_id=documant_id):
             self._consumer.commit(message)
             return "dlq"
         raise RuntimeError("NiFi event DLQ routing failed")
@@ -216,9 +212,7 @@ class NiFiKafkaDrain:
                 raise ValueError("nifi_source_disabled")
             return row
 
-    def _create_document(
-        self, source_row: RowMapping, item: ConnectorDocument
-    ) -> UUID | None:
+    def _create_document(self, source_row: RowMapping, item: ConnectorDocument) -> UUID | None:
         with self._engine.begin() as connection:
             existing_id = connection.execute(
                 sa.text("""
@@ -237,8 +231,7 @@ class NiFiKafkaDrain:
                 mime_type=item.mime_type,
                 path=item.path,
                 title=item.title,
-                source_language=item.source_language
-                or source_row.get("source_language"),
+                source_language=item.source_language or source_row.get("source_language"),
                 sha256=item.sha256,
                 metadata=item.metadata,
             )
@@ -246,9 +239,7 @@ class NiFiKafkaDrain:
 
 
 def _source_row_by_key(connection: Connection, source_key: str) -> RowMapping | None:
-    rows = connection.execute(
-        sa.text("SELECT * FROM ingestion_sources WHERE type = 'nifi'")
-    )
+    rows = connection.execute(sa.text("SELECT * FROM ingestion_sources WHERE type = 'nifi'"))
     for row in rows.mappings():
         config = _parse_config(row.get("config"))
         if config.get("source_key") == source_key or row["name"] == source_key:
@@ -256,9 +247,7 @@ def _source_row_by_key(connection: Connection, source_key: str) -> RowMapping | 
     return None
 
 
-def _connector_config(
-    source_row: RowMapping, event: NiFiEventEnvelope
-) -> dict[str, Any]:
+def _connector_config(source_row: RowMapping, event: NiFiEventEnvelope) -> dict[str, Any]:
     config = _parse_config(source_row.get("config"))
     config["source_id"] = str(event.source_id or to_uuid(source_row["id"]))
     if event.source_key is not None:
@@ -286,9 +275,7 @@ def _safe_dlq_message(reason: DLQReason, event: NiFiEventEnvelope | None) -> str
 
 def _safe_token(value: object) -> str:
     text = str(value).lower()
-    return "".join(
-        char if char.isalnum() or char in {"_", "-"} else "_" for char in text
-    )[:96]
+    return "".join(char if char.isalnum() or char in {"_", "-"} else "_" for char in text)[:96]
 
 
 def _classified_reason(exc: BaseException) -> str:

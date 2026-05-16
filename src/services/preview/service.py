@@ -39,11 +39,11 @@ class PreviewService:
 
     def get_preview(
         self,
-        documantions_id: UUID,
+        documant_id: UUID,
         user_id: UUID,
         translation_version_id: UUID | None = None,
     ) -> dict[str, Any]:
-        """Return preview metadata, snippet, and view count for *documantions_id*.
+        """Return preview metadata, snippet, and view count for *documant_id*.
 
         Also records a view by *user_id* if not already present.
         If *translation_version_id* is provided and the version is available,
@@ -56,7 +56,7 @@ class PreviewService:
                     SELECT id, title, mime_type, path, translation_quality, metadata
                     FROM documents WHERE id = :id
                     """),
-                {"id": db_uuid(documantions_id)},
+                {"id": db_uuid(documant_id)},
             )
             .mappings()
             .first()
@@ -64,37 +64,35 @@ class PreviewService:
         if row is None:
             return {}
 
-        # Record view (deduplicated by documantions_id + user_id)
+        # Record view (deduplicated by documant_id + user_id)
         self._connection.execute(
             sa.text("""
-                INSERT INTO document_views (id, documantions_id, user_id, viewed_at)
-                VALUES (:id, :documantions_id, :user_id, CURRENT_TIMESTAMP)
+                INSERT INTO document_views (id, documant_id, user_id, viewed_at)
+                VALUES (:id, :documant_id, :user_id, CURRENT_TIMESTAMP)
                 ON CONFLICT DO NOTHING
                 """),
             {
                 "id": db_uuid(uuid4()),
-                "documantions_id": db_uuid(documantions_id),
+                "documant_id": db_uuid(documant_id),
                 "user_id": db_uuid(user_id),
             },
         )
 
         # Get global view count
         view_count = self._connection.execute(
-            sa.text(
-                "SELECT COUNT(*) FROM document_views WHERE documantions_id = :documantions_id"
-            ),
-            {"documantions_id": db_uuid(documantions_id)},
+            sa.text("SELECT COUNT(*) FROM document_views WHERE documant_id = :documant_id"),
+            {"documant_id": db_uuid(documant_id)},
         ).scalar_one()
 
         # Auto-enrich: queue for high-quality translation when view threshold is crossed
-        self._maybe_auto_enrich(documantions_id, view_count, row["translation_quality"])
+        self._maybe_auto_enrich(documant_id, view_count, row["translation_quality"])
 
         snippet = self._generate_snippet(
-            documantions_id, row["path"], row["mime_type"], translation_version_id
+            documant_id, row["path"], row["mime_type"], translation_version_id
         )
 
         return {
-            "documantions_id": str(documantions_id),
+            "documant_id": str(documant_id),
             "title": row["title"],
             "mime_type": row["mime_type"],
             "translation_quality": row["translation_quality"],
@@ -105,7 +103,7 @@ class PreviewService:
 
     def _generate_snippet(
         self,
-        documantions_id: UUID,
+        documant_id: UUID,
         file_path: str | None,
         mime_type: str,
         translation_version_id: UUID | None = None,
@@ -124,11 +122,11 @@ class PreviewService:
 
         if version_id is not None:
             # Verify the requested version is available and belongs to
-            # the same documantions_id (prevent cross-document version leaks).
+            # the same documant_id (prevent cross-document version leaks).
             version_row = (
                 self._connection.execute(
                     sa.text("""
-                        SELECT dv.translated_text, dv.documantions_id
+                        SELECT dv.translated_text, dv.documant_id
                         FROM document_translation_versions dv
                         WHERE dv.id = :id AND dv.status = 'available'
                         """),
@@ -137,9 +135,7 @@ class PreviewService:
                 .mappings()
                 .first()
             )
-            if version_row is None or version_row["documantions_id"] != db_uuid(
-                documantions_id
-            ):
+            if version_row is None or version_row["documant_id"] != db_uuid(documant_id):
                 version_id = None
 
         if version_id is None:
@@ -149,11 +145,11 @@ class PreviewService:
                     sa.text("""
                         SELECT id, translated_text
                         FROM document_translation_versions
-                        WHERE documantions_id = :documantions_id AND status = 'available'
+                        WHERE documant_id = :documant_id AND status = 'available'
                         ORDER BY version_number DESC
                         LIMIT 1
                         """),
-                    {"documantions_id": db_uuid(documantions_id)},
+                    {"documant_id": db_uuid(documant_id)},
                 )
                 .mappings()
                 .first()
@@ -208,7 +204,7 @@ class PreviewService:
 
     def _maybe_auto_enrich(
         self,
-        documantions_id: UUID,
+        documant_id: UUID,
         view_count: int,
         current_quality: str | None,
     ) -> None:
@@ -221,9 +217,7 @@ class PreviewService:
 
         threshold_row = (
             self._connection.execute(
-                sa.text(
-                    "SELECT value FROM system_config WHERE key = 'auto_enrich.threshold'"
-                ),
+                sa.text("SELECT value FROM system_config WHERE key = 'auto_enrich.threshold'"),
             )
             .mappings()
             .first()
@@ -239,12 +233,12 @@ class PreviewService:
         existing = self._connection.execute(
             sa.text("""
                     SELECT id FROM document_translation_versions
-                    WHERE documantions_id = :documantions_id
+                    WHERE documant_id = :documant_id
                       AND request_type = 'auto_enrich'
                       AND status IN ('pending', 'running')
                     LIMIT 1
                     """),
-            {"documantions_id": db_uuid(documantions_id)},
+            {"documant_id": db_uuid(documant_id)},
         ).scalar_one_or_none()
         if existing:
             return
@@ -254,25 +248,25 @@ class PreviewService:
             sa.text("""
                     SELECT COALESCE(MAX(version_number), 0) + 1
                     FROM document_translation_versions
-                    WHERE documantions_id = :documantions_id
+                    WHERE documant_id = :documant_id
                     """),
-            {"documantions_id": db_uuid(documantions_id)},
+            {"documant_id": db_uuid(documant_id)},
         ).scalar_one()
 
         self._connection.execute(
             sa.text("""
                 INSERT INTO document_translation_versions (
-                    id, documantions_id, version_number, label, quality, request_type,
+                    id, documant_id, version_number, label, quality, request_type,
                     status, target_language
                 )
                 VALUES (
-                    :id, :documantions_id, :version_number, 'Auto-enrich', 'high',
+                    :id, :documant_id, :version_number, 'Auto-enrich', 'high',
                     'auto_enrich', 'pending', 'en'
                 )
                 """),
             {
                 "id": db_uuid(uuid4()),
-                "documantions_id": db_uuid(documantions_id),
+                "documant_id": db_uuid(documant_id),
                 "version_number": next_number,
             },
         )
@@ -283,7 +277,7 @@ class PreviewService:
                 SET translation_quality = 'pending_high'
                 WHERE id = :id
                 """),
-            {"id": db_uuid(documantions_id)},
+            {"id": db_uuid(documant_id)},
         )
 
     @staticmethod
@@ -306,12 +300,8 @@ class PreviewService:
     def _sanitize_html(raw: str) -> str:
         """Strip dangerous tags and attributes from HTML."""
         # Remove script and style tags with content
-        raw = re.sub(
-            r"<script[^>]*>.*?</script>", "", raw, flags=re.DOTALL | re.IGNORECASE
-        )
-        raw = re.sub(
-            r"<style[^>]*>.*?</style>", "", raw, flags=re.DOTALL | re.IGNORECASE
-        )
+        raw = re.sub(r"<script[^>]*>.*?</script>", "", raw, flags=re.DOTALL | re.IGNORECASE)
+        raw = re.sub(r"<style[^>]*>.*?</style>", "", raw, flags=re.DOTALL | re.IGNORECASE)
         # Remove event handlers
         raw = re.sub(r"\s*on\w+\s*=\s*['\"][^'\"]*['\"]", "", raw, flags=re.IGNORECASE)
         raw = re.sub(r"\s*on\w+\s*=\s*[^\s>]+", "", raw, flags=re.IGNORECASE)
@@ -350,7 +340,7 @@ class PreviewService:
             sa.text("""
                 SELECT d.id, d.title, d.mime_type, v.viewed_at
                 FROM document_views v
-                JOIN documents d ON d.id = v.documantions_id
+                JOIN documents d ON d.id = v.documant_id
                 WHERE v.user_id = :user_id
                 ORDER BY v.viewed_at DESC
                 LIMIT :limit
@@ -365,7 +355,7 @@ class PreviewService:
 
         return [
             {
-                "documantions_id": str(UUID(str(row["id"]))),
+                "documant_id": str(UUID(str(row["id"]))),
                 "title": row["title"],
                 "mime_type": row["mime_type"],
                 "viewed_at": str(row["viewed_at"]) if row["viewed_at"] else None,

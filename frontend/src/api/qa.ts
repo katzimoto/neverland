@@ -1,7 +1,7 @@
 import { api } from "./client";
 
 export interface QACitation {
-  documantions_id: string;
+  documant_id: string;
   doc_title: string;
   chunk_text: string;
   score: number;

@@ -18,7 +18,7 @@ export function CommentComposer({ docId }: CommentComposerProps) {
       const previous = queryClient.getQueryData<Comment[]>(["comments", docId]);
       const optimistic: Comment = {
         id: `optimistic-${Date.now()}`,
-        documantions_id: docId,
+        documant_id: docId,
         author_id: "current-user",
         author_name: "Reader",
         body: draft,

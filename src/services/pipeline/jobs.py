@@ -45,11 +45,7 @@ def _sanitize_error(exc_or_msg: BaseException | str, stage: str = "") -> str:
     if isinstance(exc_or_msg, BaseException):
         tag = type(exc_or_msg).__name__
     elif isinstance(exc_or_msg, str):
-        tag = (
-            exc_or_msg.strip()
-            if exc_or_msg.strip() in _ALLOWED_ERROR_CATEGORIES
-            else "unknown"
-        )
+        tag = exc_or_msg.strip() if exc_or_msg.strip() in _ALLOWED_ERROR_CATEGORIES else "unknown"
     else:
         tag = "unknown"
     result = f"{tag}:{stage}" if stage else tag
@@ -64,7 +60,7 @@ class PipelineJobRepository:
 
     def enqueue_document(
         self,
-        documantions_id: UUID,
+        documant_id: UUID,
         source_id: UUID,
         job_type: str = "process_document",
         priority: int = 0,
@@ -77,18 +73,18 @@ class PipelineJobRepository:
         """Create a pending pipeline job for a document.
 
         If an active job (pending/running/retry) already exists for
-        the same (documantions_id, job_type), returns the existing job ID
+        the same (documant_id, job_type), returns the existing job ID
         instead of creating a duplicate.
         """
         existing = self._connection.execute(
             sa.text("""
                 SELECT id FROM pipeline_jobs
-                WHERE documantions_id = :documantions_id
+                WHERE documant_id = :documant_id
                   AND job_type = :job_type
                   AND status IN ('pending', 'running', 'retry')
                 LIMIT 1
             """),
-            {"documantions_id": db_uuid(documantions_id), "job_type": job_type},
+            {"documant_id": db_uuid(documant_id), "job_type": job_type},
         ).scalar()
         if existing:
             return to_uuid(existing)
@@ -101,15 +97,15 @@ class PipelineJobRepository:
             self._connection.execute(
                 sa.text("""
                     INSERT INTO pipeline_jobs
-                        (id, documantions_id, source_id, job_type, status, priority,
+                        (id, documant_id, source_id, job_type, status, priority,
                          max_attempts, run_after, created_at, updated_at)
                     VALUES
-                        (:id, :documantions_id, :source_id, :job_type, 'pending', :priority,
+                        (:id, :documant_id, :source_id, :job_type, 'pending', :priority,
                          :max_attempts, :run_after, :created_at, :updated_at)
                 """),
                 {
                     "id": db_uuid(job_id),
-                    "documantions_id": db_uuid(documantions_id),
+                    "documant_id": db_uuid(documant_id),
                     "source_id": db_uuid(source_id),
                     "job_type": job_type,
                     "priority": priority,
@@ -123,12 +119,12 @@ class PipelineJobRepository:
             existing = self._connection.execute(
                 sa.text("""
                     SELECT id FROM pipeline_jobs
-                    WHERE documantions_id = :documantions_id
+                    WHERE documant_id = :documant_id
                       AND job_type = :job_type
                       AND status IN ('pending', 'running', 'retry')
                     LIMIT 1
                 """),
-                {"documantions_id": db_uuid(documantions_id), "job_type": job_type},
+                {"documant_id": db_uuid(documant_id), "job_type": job_type},
             ).scalar()
             return to_uuid(existing)
 
@@ -136,19 +132,19 @@ class PipelineJobRepository:
             self._connection.execute(
                 sa.text("""
                     INSERT INTO document_payloads
-                        (documantions_id, content_text, content_path, content_sha256,
+                        (documant_id, content_text, content_path, content_sha256,
                          created_at, updated_at)
                     VALUES
-                        (:documantions_id, :content_text, :content_path, :content_sha256,
+                        (:documant_id, :content_text, :content_path, :content_sha256,
                          :created_at, :updated_at)
-                    ON CONFLICT (documantions_id) DO UPDATE SET
+                    ON CONFLICT (documant_id) DO UPDATE SET
                         content_text = EXCLUDED.content_text,
                         content_path = EXCLUDED.content_path,
                         content_sha256 = EXCLUDED.content_sha256,
                         updated_at = :updated_at
                 """),
                 {
-                    "documantions_id": db_uuid(documantions_id),
+                    "documant_id": db_uuid(documant_id),
                     "content_text": content_text,
                     "content_path": content_path,
                     "content_sha256": content_sha256,
@@ -176,12 +172,10 @@ class PipelineJobRepository:
             type_filter = "AND job_type IN :job_types"
             params["job_types"] = tuple(job_types)
 
-        lock_clause = (
-            "FOR UPDATE SKIP LOCKED" if not _is_sqlite(self._connection) else ""
-        )
+        lock_clause = "FOR UPDATE SKIP LOCKED" if not _is_sqlite(self._connection) else ""
 
         stmt = sa.text(f"""
-            SELECT id, documantions_id, source_id, job_type, priority, attempts,
+            SELECT id, documant_id, source_id, job_type, priority, attempts,
                    max_attempts, stage, last_error, run_after
             FROM pipeline_jobs
             WHERE status IN ('pending', 'retry')
@@ -219,7 +213,7 @@ class PipelineJobRepository:
 
         return {
             "id": to_uuid(row["id"]),
-            "documantions_id": to_uuid(row["documantions_id"]),
+            "documant_id": to_uuid(row["documant_id"]),
             "source_id": to_uuid(row["source_id"]),
             "job_type": row["job_type"],
             "priority": row["priority"],
@@ -308,23 +302,23 @@ class PipelineJobRepository:
             },
         )
 
-    def get_payload(self, documantions_id: UUID) -> dict[str, Any] | None:
-        """Return the stored document payload for a documantions_id."""
+    def get_payload(self, documant_id: UUID) -> dict[str, Any] | None:
+        """Return the stored document payload for a documant_id."""
         row = (
             self._connection.execute(
                 sa.text("""
-                SELECT documantions_id, content_text, content_path, content_sha256, translated_text
+                SELECT documant_id, content_text, content_path, content_sha256, translated_text
                 FROM document_payloads
-                WHERE documantions_id = :documantions_id
+                WHERE documant_id = :documant_id
             """),
-                {"documantions_id": db_uuid(documantions_id)},
+                {"documant_id": db_uuid(documant_id)},
             )
             .mappings()
             .first()
         )
         return (
             {
-                "documantions_id": to_uuid(row["documantions_id"]),
+                "documant_id": to_uuid(row["documant_id"]),
                 "content_text": row["content_text"],
                 "content_path": row["content_path"],
                 "content_sha256": row["content_sha256"],
@@ -334,7 +328,7 @@ class PipelineJobRepository:
             else None
         )
 
-    def update_content_text(self, documantions_id: UUID, content_text: str) -> None:
+    def update_content_text(self, documant_id: UUID, content_text: str) -> None:
         """Persist the extracted document text so downstream workers (e.g. translation-worker)
         can read raw content from the DB without re-running file extraction."""
         self._connection.execute(
@@ -342,28 +336,26 @@ class PipelineJobRepository:
                 UPDATE document_payloads
                 SET content_text = :content_text,
                     updated_at = :updated_at
-                WHERE documantions_id = :documantions_id
+                WHERE documant_id = :documant_id
             """),
             {
-                "documantions_id": db_uuid(documantions_id),
+                "documant_id": db_uuid(documant_id),
                 "content_text": content_text,
                 "updated_at": datetime.now(UTC),
             },
         )
 
-    def update_translated_text(
-        self, documantions_id: UUID, translated_text: str
-    ) -> None:
+    def update_translated_text(self, documant_id: UUID, translated_text: str) -> None:
         """Persist the pipeline-translated text for later use by the index-worker."""
         self._connection.execute(
             sa.text("""
                 UPDATE document_payloads
                 SET translated_text = :translated_text,
                     updated_at = :updated_at
-                WHERE documantions_id = :documantions_id
+                WHERE documant_id = :documant_id
             """),
             {
-                "documantions_id": db_uuid(documantions_id),
+                "documant_id": db_uuid(documant_id),
                 "translated_text": translated_text,
                 "updated_at": datetime.now(UTC),
             },
@@ -374,11 +366,13 @@ class PipelineJobRepository:
 
         Used to populate queue-depth gauges for operator visibility.
         """
-        rows = self._connection.execute(sa.text("""
+        rows = self._connection.execute(
+            sa.text("""
                 SELECT status, job_type, COUNT(*) AS cnt
                 FROM pipeline_jobs
                 GROUP BY status, job_type
-                """)).fetchall()
+                """)
+        ).fetchall()
         return {(row[0], row[1]): row[2] for row in rows}
 
     def reap_stale_locks(self, max_age_seconds: int = 300) -> int:

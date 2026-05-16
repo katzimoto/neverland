@@ -21,7 +21,7 @@ def test_index_document_success() -> None:
     client, mock_es = make_client()
 
     doc = {
-        "documantions_id": "doc-1",
+        "documant_id": "doc-1",
         "content_english": "hello world",
         "title": "Test Doc",
         "summary": "A summary",
@@ -52,9 +52,9 @@ def test_search_bm25() -> None:
     results = client.search("hello world", group_ids=["group-1"], size=10)
 
     assert len(results) == 2
-    assert results[0].documantions_id == "doc-1"
+    assert results[0].documant_id == "doc-1"
     assert results[0].score == 1.5
-    assert results[1].documantions_id == "doc-2"
+    assert results[1].documant_id == "doc-2"
 
 
 def test_search_without_group_ids_returns_empty() -> None:
@@ -202,9 +202,7 @@ def test_create_index_has_autocomplete_subfields() -> None:
         "filename",
         "content_original",
     ):
-        assert (
-            "autocomplete" in props[field]["fields"]
-        ), f"{field} missing .autocomplete subfield"
+        assert "autocomplete" in props[field]["fields"], f"{field} missing .autocomplete subfield"
         subfield = props[field]["fields"]["autocomplete"]
         assert subfield["analyzer"] == "autocomplete_index"
         assert subfield["search_analyzer"] == "autocomplete_search"

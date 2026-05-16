@@ -64,18 +64,14 @@ class BackfillService:
                 try:
                     self._process_document(row, summary)
                 except Exception:
-                    logger.exception(
-                        "Backfill failed for documantions_id=%s", row["id"]
-                    )
+                    logger.exception("Backfill failed for documant_id=%s", row["id"])
                     summary.documents_failed += 1
 
             offset += _DOC_PAGE_SIZE
 
         return summary
 
-    def _fetch_indexed_documents(
-        self, conn: Connection, offset: int
-    ) -> list[dict[str, Any]]:
+    def _fetch_indexed_documents(self, conn: Connection, offset: int) -> list[dict[str, Any]]:
         rows = conn.execute(
             sa.text("""
                 SELECT id, source_id, source, path, mime_type, title,
@@ -94,9 +90,9 @@ class BackfillService:
         doc_row: dict[str, Any],
         summary: BackfillSummary,
     ) -> None:
-        documantions_id = to_uuid(doc_row["id"])
+        documant_id = to_uuid(doc_row["id"])
 
-        translated = self._fetch_translated_text(documantions_id)
+        translated = self._fetch_translated_text(documant_id)
         if translated is None:
             summary.documents_skipped_no_translation += 1
             return
@@ -109,7 +105,7 @@ class BackfillService:
 
         records = [
             SearchChunkRecord.from_parts(
-                document_id=str(documantions_id),
+                document_id=str(documant_id),
                 chunk_index=idx,
                 title=doc_row.get("title") or "",
                 content=chunk_text_content,
@@ -117,9 +113,7 @@ class BackfillService:
                 metadata=ChunkMetadata(
                     source=doc_row.get("source"),
                     mime_type=doc_row.get("mime_type"),
-                    file_name=(
-                        Path(doc_row["path"]).name if doc_row.get("path") else None
-                    ),
+                    file_name=(Path(doc_row["path"]).name if doc_row.get("path") else None),
                     language=doc_row.get("source_language"),
                 ),
                 position_kwargs={},
@@ -127,9 +121,7 @@ class BackfillService:
             for idx, chunk_text_content in enumerate(chunks)
         ]
 
-        existing = self._provider.existing_chunk_checksums(
-            str(documantions_id), shadow=True
-        )
+        existing = self._provider.existing_chunk_checksums(str(documant_id), shadow=True)
 
         to_index: list[SearchChunkRecord] = []
         for record in records:
@@ -148,18 +140,18 @@ class BackfillService:
 
         summary.chunks_indexed += len(to_index)
 
-    def _fetch_translated_text(self, documantions_id: UUID) -> str | None:
+    def _fetch_translated_text(self, documant_id: UUID) -> str | None:
         with self._engine.connect() as conn:
             row = conn.execute(
                 sa.text("""
                     SELECT translated_text
                     FROM document_translation_versions
-                    WHERE documantions_id = :documantions_id
+                    WHERE documant_id = :documant_id
                       AND status = 'available'
                     ORDER BY version_number DESC
                     LIMIT 1
                     """),
-                {"documantions_id": db_uuid(documantions_id)},
+                {"documant_id": db_uuid(documant_id)},
             ).one_or_none()
         return row[0] if row else None
 

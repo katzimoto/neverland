@@ -4,7 +4,7 @@
 export type TranslationQuality = "fast" | "high" | null;
 
 export interface RelatedDocument {
-  documantions_id: string;
+  documant_id: string;
   title: string;
   source_label: string;
   reason: "same_source" | "shared_entities" | "semantic_similarity" | "linked_issue";
@@ -26,7 +26,7 @@ export interface PreviewAnchor {
 
 export interface Annotation {
   annotation_id: string;
-  documantions_id: string;
+  documant_id: string;
   author_id: string;
   author_display_name: string;
   body: string;

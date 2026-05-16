@@ -34,9 +34,7 @@ def list_subscriptions(
     with request.app.state.engine.begin() as connection:
         require_subscriptions_enabled(connection, request.app.state.settings)
         repo = AlertRepository(connection)
-        return [
-            _subscription_response(row) for row in repo.list_subscriptions(user.sub)
-        ]
+        return [_subscription_response(row) for row in repo.list_subscriptions(user.sub)]
 
 
 @router.post("/subscriptions", status_code=201)
@@ -138,9 +136,9 @@ def mark_notification_read(
         }
 
 
-@router.post("/admin/alerts/{documantions_id}/trigger")
+@router.post("/admin/alerts/{documant_id}/trigger")
 def trigger_alert_matching(
-    documantions_id: UUID,
+    documant_id: UUID,
     request: Request,
     user: Annotated[TokenPayload, Depends(current_user)],
 ) -> dict[str, Any]:
@@ -148,7 +146,7 @@ def trigger_alert_matching(
     with request.app.state.engine.begin() as connection:
         require_subscriptions_enabled(connection, request.app.state.settings)
         doc_repo = DocumentRepository(connection)
-        doc = doc_repo.get_by_id(documantions_id)
+        doc = doc_repo.get_by_id(documant_id)
         if doc is None or doc.path is None:
             raise HTTPException(status_code=404, detail="Document not found")
 
@@ -160,6 +158,6 @@ def trigger_alert_matching(
         )
         created = matcher.match_document(doc, content)
         return {
-            "documantions_id": str(documantions_id),
+            "documant_id": str(documant_id),
             "notifications_created": created,
         }

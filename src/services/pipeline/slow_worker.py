@@ -46,7 +46,7 @@ class SlowWorker:
         self._version_repo = version_repository
         self._alert_matcher = alert_matcher
 
-    def process_document(self, documantions_id: UUID) -> None:
+    def process_document(self, documant_id: UUID) -> None:
         """Run the enrichment pipeline for a single document.
 
         On success the document translation_quality is set to ``"high"`` and
@@ -55,25 +55,25 @@ class SlowWorker:
         best-effort).
         """
         try:
-            self._run(documantions_id)
+            self._run(documant_id)
         except Exception:
             logger.exception(
-                "Slow worker failed for documantions_id=%s correlation=%s",
-                documantions_id,
+                "Slow worker failed for documant_id=%s correlation=%s",
+                documant_id,
                 get_correlation_id(),
             )
             # Best-effort: mark the document status as failed only if no
             # version repository is wired (backward compat). When versioned,
             # only the version is marked failed.
             if self._version_repo is None:
-                self._doc_repo.update_status(documantions_id, "failed")
+                self._doc_repo.update_status(documant_id, "failed")
 
-    def _run(self, documantions_id: UUID) -> None:
-        doc = self._doc_repo.get_by_id(documantions_id)
+    def _run(self, documant_id: UUID) -> None:
+        doc = self._doc_repo.get_by_id(documant_id)
         if doc is None:
-            raise ValueError(f"Document {documantions_id} not found")
+            raise ValueError(f"Document {documant_id} not found")
         if doc.path is None:
-            raise ValueError(f"Document {documantions_id} has no path")
+            raise ValueError(f"Document {documant_id} has no path")
 
         # If version repository is available, process pending versions
         if self._version_repo is not None:
@@ -102,9 +102,7 @@ class SlowWorker:
             text = self._extractor.extract(Path(doc.path), doc.mime_type)
 
             # 2. Translate
-            translated = self._translator.translate(
-                text, source_lang=doc.source_language
-            )
+            translated = self._translator.translate(text, source_lang=doc.source_language)
 
             # 3. Store translated text on version
             self._version_repo.update_version_status(
@@ -139,7 +137,7 @@ class SlowWorker:
 
     def _index_document(self, doc: Any, translated: str) -> None:
         """Chunk, embed, and index a translated document."""
-        documantions_id = doc.id
+        documant_id = doc.id
         chunks = chunk_text(translated)
         allowed_group_ids = [
             str(group_id) for group_id in self._doc_repo.source_group_ids(doc.source_id)
@@ -151,8 +149,8 @@ class SlowWorker:
             vector = self._encoder.encode(chunk_text_content)
             qdrant_chunks.append(
                 {
-                    "chunk_id": f"{documantions_id}-{idx}",
-                    "documantions_id": str(documantions_id),
+                    "chunk_id": f"{documant_id}-{idx}",
+                    "documant_id": str(documant_id),
                     "group_id": allowed_group_ids,
                     "chunk_index": idx,
                     "text": chunk_text_content,
@@ -162,9 +160,9 @@ class SlowWorker:
 
         # Index full document in Elasticsearch
         self._es.index_document(
-            str(documantions_id),
+            str(documant_id),
             {
-                "documantions_id": str(documantions_id),
+                "documant_id": str(documant_id),
                 "content_english": translated,
                 "title": doc.title or "",
                 "summary": "",

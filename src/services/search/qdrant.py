@@ -62,7 +62,7 @@ class QdrantSearchClient:
 
         Each chunk dict must contain:
         - chunk_id: str
-        - documantions_id: str
+        - documant_id: str
         - group_id: str | list[str]
         - chunk_index: int
         - text: str
@@ -80,7 +80,7 @@ class QdrantSearchClient:
                     id=chunk["chunk_id"],
                     vector=vector,
                     payload={
-                        "documantions_id": chunk["documantions_id"],
+                        "documant_id": chunk["documant_id"],
                         "group_id": chunk["group_id"],
                         "chunk_index": chunk["chunk_index"],
                         "text": chunk["text"],
@@ -122,7 +122,7 @@ class QdrantSearchClient:
             payload = point.payload or {}
             search_results.append(
                 SearchResult(
-                    documantions_id=payload.get("documantions_id", ""),
+                    documant_id=payload.get("documant_id", ""),
                     score=float(point.score),
                     chunk_text=payload.get("text"),
                 )
@@ -130,16 +130,12 @@ class QdrantSearchClient:
 
         return search_results
 
-    def delete_by_doc_id(self, documantions_id: str) -> None:
-        """Remove all chunks belonging to *documantions_id*."""
+    def delete_by_doc_id(self, documant_id: str) -> None:
+        """Remove all chunks belonging to *documant_id*."""
         self._client.delete(
             collection_name=self._collection_name,
             points_selector=Filter(
-                must=[
-                    FieldCondition(
-                        key="documantions_id", match=MatchValue(value=documantions_id)
-                    )
-                ]
+                must=[FieldCondition(key="documant_id", match=MatchValue(value=documant_id))]
             ),
         )
 

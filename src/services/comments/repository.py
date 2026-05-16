@@ -20,7 +20,7 @@ class CommentRepository:
 
     def list_comments(
         self,
-        documantions_id: UUID,
+        documant_id: UUID,
         skip: int = 0,
         limit: int = 50,
         sort: str = "newest",
@@ -34,7 +34,7 @@ class CommentRepository:
             sa.text(f"""
                 SELECT
                     c.id,
-                    c.documantions_id,
+                    c.documant_id,
                     c.author_id,
                     u.display_name AS author_display_name,
                     c.body,
@@ -46,34 +46,34 @@ class CommentRepository:
                     c.deleted_by_id
                 FROM document_comments c
                 JOIN users u ON u.id = c.author_id
-                WHERE c.documantions_id = :documantions_id
+                WHERE c.documant_id = :documant_id
                   AND c.deleted_at IS NULL
                 ORDER BY c.created_at {order}, c.updated_at {order}, c.id {order}
                 LIMIT :limit
                 OFFSET :skip
                 """),
             {
-                "documantions_id": db_uuid(documantions_id),
+                "documant_id": db_uuid(documant_id),
                 "limit": limit,
                 "skip": skip,
             },
         ).mappings()
         return [dict(row) for row in rows]
 
-    def count_comments(self, documantions_id: UUID) -> int:
+    def count_comments(self, documant_id: UUID) -> int:
         """Return the number of visible comments for a document."""
         result = self._connection.execute(
             sa.text("""
                 SELECT COUNT(*) FROM document_comments
-                WHERE documantions_id = :documantions_id AND deleted_at IS NULL
+                WHERE documant_id = :documant_id AND deleted_at IS NULL
                 """),
-            {"documantions_id": db_uuid(documantions_id)},
+            {"documant_id": db_uuid(documant_id)},
         ).scalar_one()
         return int(result)
 
     def create(
         self,
-        documantions_id: UUID,
+        documant_id: UUID,
         author_id: UUID,
         body: str,
     ) -> dict[str, Any]:
@@ -84,19 +84,19 @@ class CommentRepository:
             self._connection.execute(
                 sa.text("""
                     INSERT INTO document_comments (
-                        id, documantions_id, author_id, body,
+                        id, documant_id, author_id, body,
                         created_at, updated_at
                     )
                     VALUES (
-                        :id, :documantions_id, :author_id, :body,
+                        :id, :documant_id, :author_id, :body,
                         :created_at, :updated_at
                     )
-                    RETURNING id, documantions_id, author_id, body,
+                    RETURNING id, documant_id, author_id, body,
                               created_at, updated_at
                     """),
                 {
                     "id": db_uuid(comment_id),
-                    "documantions_id": db_uuid(documantions_id),
+                    "documant_id": db_uuid(documant_id),
                     "author_id": db_uuid(author_id),
                     "body": body,
                     "created_at": now,
@@ -117,7 +117,7 @@ class CommentRepository:
                 sa.text("""
                     SELECT
                         c.id,
-                        c.documantions_id,
+                        c.documant_id,
                         c.author_id,
                         u.display_name AS author_display_name,
                         c.body,

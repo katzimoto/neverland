@@ -54,7 +54,7 @@ class DocumentEvent(BaseModel):
 
     model_config = ConfigDict(use_enum_values=True)
 
-    documantions_id: UUID
+    documant_id: UUID
     source_id: UUID
     source: DocumentSource
     external_id: str = Field(min_length=1)
@@ -71,7 +71,7 @@ class IntelligenceEvent(BaseModel):
 
     model_config = ConfigDict(use_enum_values=True)
 
-    documantions_id: UUID
+    documant_id: UUID
     content_english: str
     allowed_group_ids: list[UUID]
     correlation_id: UUID

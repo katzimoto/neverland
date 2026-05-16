@@ -137,7 +137,7 @@ export function SearchPage() {
   useEffect(() => {
     if (!selectedResult) return;
     document
-      .getElementById(`search-result-${selectedResult.documantions_id}`)
+      .getElementById(`search-result-${selectedResult.documant_id}`)
       ?.scrollIntoView?.({
         block: "nearest",
       });
@@ -156,7 +156,7 @@ export function SearchPage() {
     if (!result) return;
     void navigate({
       to: "/doc/$docId",
-      params: { docId: result.documantions_id },
+      params: { docId: result.documant_id },
     });
   }
 
@@ -311,9 +311,7 @@ export function SearchPage() {
             aria-label={t.search.resultsLabel}
             aria-live="polite"
             aria-busy={isFetching}
-            aria-activedescendant={resultOptionId(
-              selectedResult?.documantions_id
-            )}
+            aria-activedescendant={resultOptionId(selectedResult?.documant_id)}
             aria-describedby="search-keyboard-help"
             tabIndex={0}
             onKeyDown={handleResultsKeyDown}
@@ -361,14 +359,14 @@ export function SearchPage() {
               !isError &&
               results.map((result, index) => (
                 <ResultRow
-                  key={result.documantions_id}
-                  id={resultOptionId(result.documantions_id)}
+                  key={result.documant_id}
+                  id={resultOptionId(result.documant_id)}
                   result={result}
                   selected={index === activeSelectedIndex}
                   onSelect={() => setSelectedIndex(index)}
                   onPreview={() => setPreviewResult(result)}
                   onClick={() => openResult(result)}
-                  onPrefetch={() => prefetchPreview(result.documantions_id)}
+                  onPrefetch={() => prefetchPreview(result.documant_id)}
                 />
               ))}
           </div>

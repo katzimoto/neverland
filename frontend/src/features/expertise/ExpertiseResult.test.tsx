@@ -11,7 +11,7 @@ test("uses neutral evidence language with backend-shaped results", () => {
         score: 1.4,
         signals: { views: 2, comments: 1, annotations: 0, subscriptions: 1 },
         reason: "Has activity on matching documents",
-        top_docs: [{ documantions_id: "d1", title: "Risk memo", score: 0.9 }],
+        top_docs: [{ documant_id: "d1", title: "Risk memo", score: 0.9 }],
       }}
     />
   );

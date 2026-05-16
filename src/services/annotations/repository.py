@@ -20,11 +20,11 @@ class AnnotationRepository:
 
     def list_annotations(
         self,
-        documantions_id: UUID,
+        documant_id: UUID,
         user_id: UUID,
         is_admin: bool = False,
     ) -> list[dict[str, Any]]:
-        """List annotations visible to *user_id* on *documantions_id*.
+        """List annotations visible to *user_id* on *documant_id*.
 
         Returns:
         - All shared (is_private = false) annotations
@@ -35,7 +35,7 @@ class AnnotationRepository:
                 sa.text("""
                     SELECT
                         a.id,
-                        a.documantions_id,
+                        a.documant_id,
                         a.user_id,
                         u.display_name AS user_display_name,
                         a.text,
@@ -46,17 +46,17 @@ class AnnotationRepository:
                         a.updated_at
                     FROM annotations a
                     JOIN users u ON u.id = a.user_id
-                    WHERE a.documantions_id = :documantions_id
+                    WHERE a.documant_id = :documant_id
                     ORDER BY a.created_at DESC
                     """),
-                {"documantions_id": db_uuid(documantions_id)},
+                {"documant_id": db_uuid(documant_id)},
             ).mappings()
         else:
             rows = self._connection.execute(
                 sa.text("""
                     SELECT
                         a.id,
-                        a.documantions_id,
+                        a.documant_id,
                         a.user_id,
                         u.display_name AS user_display_name,
                         a.text,
@@ -67,7 +67,7 @@ class AnnotationRepository:
                         a.updated_at
                     FROM annotations a
                     JOIN users u ON u.id = a.user_id
-                    WHERE a.documantions_id = :documantions_id
+                    WHERE a.documant_id = :documant_id
                       AND (
                           a.is_private = false
                           OR a.user_id = :user_id
@@ -75,7 +75,7 @@ class AnnotationRepository:
                     ORDER BY a.created_at DESC
                     """),
                 {
-                    "documantions_id": db_uuid(documantions_id),
+                    "documant_id": db_uuid(documant_id),
                     "user_id": db_uuid(user_id),
                 },
             ).mappings()
@@ -83,7 +83,7 @@ class AnnotationRepository:
 
     def create(
         self,
-        documantions_id: UUID,
+        documant_id: UUID,
         user_id: UUID,
         text: str,
         note: str | None = None,
@@ -96,19 +96,19 @@ class AnnotationRepository:
             self._connection.execute(
                 sa.text("""
                     INSERT INTO annotations (
-                        id, documantions_id, user_id, text, note, position,
+                        id, documant_id, user_id, text, note, position,
                         is_private, created_at, updated_at
                     )
                     VALUES (
-                        :id, :documantions_id, :user_id, :text, :note, :position,
+                        :id, :documant_id, :user_id, :text, :note, :position,
                         :is_private, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                     )
-                    RETURNING id, documantions_id, user_id, text, note, position,
+                    RETURNING id, documant_id, user_id, text, note, position,
                               is_private, created_at, updated_at
                     """),
                 {
                     "id": db_uuid(annotation_id),
-                    "documantions_id": db_uuid(documantions_id),
+                    "documant_id": db_uuid(documant_id),
                     "user_id": db_uuid(user_id),
                     "text": text,
                     "note": note,
@@ -130,7 +130,7 @@ class AnnotationRepository:
                 sa.text("""
                     SELECT
                         a.id,
-                        a.documantions_id,
+                        a.documant_id,
                         a.user_id,
                         u.display_name AS user_display_name,
                         a.text,

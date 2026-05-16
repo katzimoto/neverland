@@ -47,7 +47,7 @@ Add a `document_translation_versions` table:
 ```sql
 CREATE TABLE document_translation_versions (
     id UUID PRIMARY KEY,
-    documantions_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    documant_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
     version_number INTEGER NOT NULL,
     label TEXT NOT NULL,
     source_language TEXT NULL,
@@ -65,11 +65,11 @@ CREATE TABLE document_translation_versions (
     source_content_hash TEXT NULL,
     translated_text TEXT NULL,
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-    UNIQUE (documantions_id, version_number)
+    UNIQUE (documant_id, version_number)
 );
 
 CREATE INDEX ix_translation_versions_doc_id
-    ON document_translation_versions (documantions_id);
+    ON document_translation_versions (documant_id);
 CREATE INDEX ix_translation_versions_status
     ON document_translation_versions (status);
 CREATE INDEX ix_translation_versions_requested_by
@@ -128,14 +128,14 @@ Worker:
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| GET | `/documents/{documantions_id}/translation-versions` | Document access | List versions |
-| POST | `/documents/{documantions_id}/translation-versions` | Document access | Request manual translation |
-| POST | `/documents/{documantions_id}/translation-versions/{version_id}/retry` | Admin or allowed requester | Retry failed version |
-| GET | `/preview/{documantions_id}?translation_version_id=...` | Document access | Render selected version |
+| GET | `/documents/{documant_id}/translation-versions` | Document access | List versions |
+| POST | `/documents/{documant_id}/translation-versions` | Document access | Request manual translation |
+| POST | `/documents/{documant_id}/translation-versions/{version_id}/retry` | Admin or allowed requester | Retry failed version |
+| GET | `/preview/{documant_id}?translation_version_id=...` | Document access | Render selected version |
 
 Compatibility endpoint:
 
-- Keep `POST /documents/{documantions_id}/translate` as an alias for creating a
+- Keep `POST /documents/{documant_id}/translate` as an alias for creating a
   high-quality manual version until clients migrate.
 
 Contracts are defined in `docs/design/translation-versions-spec.md`.

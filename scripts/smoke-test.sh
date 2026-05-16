@@ -144,13 +144,13 @@ wait_for_url() {
 
 wait_for_search_result() {
   local deadline=$((SECONDS + SMOKE_TIMEOUT_SECONDS))
-  local body documantions_id
+  local body documant_id
   body="$(SMOKE_QUERY="$SMOKE_QUERY" python -c 'import json, os; print(json.dumps({"query": os.environ["SMOKE_QUERY"], "page": 1, "page_size": 10}))')"
 
   while true; do
-    documantions_id="$(curl_json POST "${API_URL}/search" "$body" | python -c 'import json, sys; fixture_name=sys.argv[1]; query=sys.argv[2]; data=json.load(sys.stdin); print(next((result["documantions_id"] for result in data.get("results", []) if result.get("title") == fixture_name or query in (result.get("chunk_text") or "")), ""))' "$SMOKE_FIXTURE_NAME" "$SMOKE_QUERY")"
-    if [[ -n "$documantions_id" ]]; then
-      echo "$documantions_id"
+    documant_id="$(curl_json POST "${API_URL}/search" "$body" | python -c 'import json, sys; fixture_name=sys.argv[1]; query=sys.argv[2]; data=json.load(sys.stdin); print(next((result["documant_id"] for result in data.get("results", []) if result.get("title") == fixture_name or query in (result.get("chunk_text") or "")), ""))' "$SMOKE_FIXTURE_NAME" "$SMOKE_QUERY")"
+    if [[ -n "$documant_id" ]]; then
+      echo "$documant_id"
       return 0
     fi
     if (( SECONDS >= deadline )); then

@@ -52,11 +52,11 @@ def test_source_and_document_access_follow_source_permissions(
             group_names=["analysts"],
         )
         source_id = repository.create_ingestion_source("Finance")
-        documantions_id = repository.create_document(source_id)
+        documant_id = repository.create_document(source_id)
         repository.grant_source_to_group(source_id, user.groups[0])
 
         assert_source_access(source_id, user, repository)
-        assert_doc_access(documantions_id, user, repository)
+        assert_doc_access(documant_id, user, repository)
 
 
 def test_document_access_rejects_missing_or_ungranted_documents(
@@ -70,10 +70,10 @@ def test_document_access_rejects_missing_or_ungranted_documents(
             group_names=["analysts"],
         )
         source_id = repository.create_ingestion_source("Finance")
-        documantions_id = repository.create_document(source_id)
+        documant_id = repository.create_document(source_id)
 
         with pytest.raises(HTTPException) as denied:
-            assert_doc_access(documantions_id, user, repository)
+            assert_doc_access(documant_id, user, repository)
         with pytest.raises(HTTPException) as missing:
             assert_doc_access(uuid4(), user, repository)
 
@@ -84,13 +84,9 @@ def test_document_access_rejects_missing_or_ungranted_documents(
 # Nested group tests
 
 
-def _insert_group_membership(
-    connection: object, parent_id: object, child_id: object
-) -> None:
+def _insert_group_membership(connection: object, parent_id: object, child_id: object) -> None:
     connection.execute(  # type: ignore[attr-defined]
-        sa.text(
-            "INSERT INTO group_memberships (parent_group_id, child_group_id) VALUES (:p, :c)"
-        ),
+        sa.text("INSERT INTO group_memberships (parent_group_id, child_group_id) VALUES (:p, :c)"),
         {"p": db_uuid(parent_id), "c": db_uuid(child_id)},  # type: ignore[arg-type]
     )
 
@@ -113,9 +109,7 @@ def test_user_can_access_source_via_parent_group(migrated_engine: Engine) -> Non
         user_nested = repo.create_local_user(
             "nested@example.com", hash_password("x"), group_names=["child"]
         )
-        user_none = repo.create_local_user(
-            "none@example.com", hash_password("x"), group_names=[]
-        )
+        user_none = repo.create_local_user("none@example.com", hash_password("x"), group_names=[])
 
         assert repo.user_can_access_source(user_direct, source_id)
         assert repo.user_can_access_source(user_nested, source_id)

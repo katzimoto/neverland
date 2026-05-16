@@ -1,7 +1,7 @@
 import { api } from "./client";
 
 export interface ActivityItem {
-  documantions_id: string;
+  documant_id: string;
   title: string | null;
   mime_type: string;
   viewed_at: string | null;

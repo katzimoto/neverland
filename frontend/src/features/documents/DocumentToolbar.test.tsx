@@ -14,7 +14,7 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 const mockPreview: DocumentPreview = {
-  documantions_id: "doc-1",
+  documant_id: "doc-1",
   title: "Vendor Risk Assessment",
   mime_type: "text/plain",
   translation_quality: "fast",

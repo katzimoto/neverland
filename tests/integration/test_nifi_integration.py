@@ -83,20 +83,18 @@ def test_nifi_documents_preserve_source_grant_permissions(
     result = NiFiKafkaDrain(
         consumer=consumer,
         engine=migrated_engine,
-        process_document=lambda documantions_id, text: processed.append(
-            documantions_id
-        ),
+        process_document=lambda documant_id, text: processed.append(documant_id),
         sleep=lambda seconds: None,
     ).drain(max_messages=1)
 
     assert result["processed"] == 1
     assert consumer.committed is True
-    documantions_id = processed[0]
+    documant_id = processed[0]
 
     with migrated_engine.begin() as connection:
         repository = AuthRepository(connection)
-        assert_doc_access(documantions_id, allowed, repository)
+        assert_doc_access(documant_id, allowed, repository)
         with pytest.raises(HTTPException) as exc_info:
-            assert_doc_access(documantions_id, denied, repository)
+            assert_doc_access(documant_id, denied, repository)
 
     assert exc_info.value.status_code == 403

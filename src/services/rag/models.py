@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 class Citation(BaseModel):
     """A citation backing an answer."""
 
-    documantions_id: str
+    documant_id: str
     doc_title: str | None = None
     chunk_text: str
     score: float

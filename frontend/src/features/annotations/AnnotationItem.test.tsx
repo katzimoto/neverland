@@ -5,7 +5,7 @@ import type { Annotation } from "@/api/annotations";
 
 const annotation: Annotation = {
   id: "a1",
-  documantions_id: "d1",
+  documant_id: "d1",
   author_id: "u1",
   author_name: "Ari",
   body: "note",
