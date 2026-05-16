@@ -26,16 +26,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["admin"])
 
 
-@router.post("/admin/intelligence/{doc_id}/trigger")
+@router.post("/admin/intelligence/{documantions_id}/trigger")
 def trigger_intelligence(
-    doc_id: UUID,
+    documantions_id: UUID,
     request: Request,
     user: Annotated[TokenPayload, Depends(current_user)],
 ) -> dict[str, Any]:
     require_admin(user)
     with request.app.state.engine.begin() as connection:
         doc_repo = DocumentRepository(connection)
-        doc = doc_repo.get_by_id(doc_id)
+        doc = doc_repo.get_by_id(documantions_id)
         if doc is None or doc.path is None:
             raise HTTPException(status_code=404, detail="Document not found")
 
@@ -56,17 +56,17 @@ def trigger_intelligence(
                 ollama_client=ollama_client,
                 es_client=es_client,
             )
-            worker.process_document(doc_id, text)
+            worker.process_document(documantions_id, text)
         except Exception as exc:
             logger.warning(
                 "Intelligence trigger degraded route=/admin/intelligence/%s/trigger "
                 "error_type=%s correlation_id=%s",
-                doc_id,
+                documantions_id,
                 exc.__class__.__name__,
                 get_correlation_id(),
             )
 
-        return {"doc_id": str(doc_id), "triggered": True}
+        return {"documantions_id": str(documantions_id), "triggered": True}
 
 
 @router.get("/admin/enrichment-queue")
@@ -80,7 +80,7 @@ def enrichment_queue(
         pending = doc_repo.list_pending_enrichment()
         return [
             {
-                "doc_id": str(doc.id),
+                "documantions_id": str(doc.id),
                 "title": doc.title,
                 "mime_type": doc.mime_type,
                 "status": doc.status,
@@ -96,12 +96,10 @@ def admin_list_activity(
 ) -> list[dict[str, Any]]:
     require_admin(user)
     with request.app.state.engine.begin() as connection:
-        rows = connection.execute(
-            sa.text("""
+        rows = connection.execute(sa.text("""
                 SELECT id, user_id, action, resource_type, resource_id, details, created_at
                 FROM audit_log ORDER BY created_at DESC LIMIT 100
-                """)
-        ).mappings()
+                """)).mappings()
         return [
             {
                 "id": str(to_uuid(row["id"])),

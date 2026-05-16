@@ -9,7 +9,9 @@ interface NotificationItemProps {
   notification: Notification;
 }
 
-export const NotificationItem = memo(function NotificationItem({ notification }: NotificationItemProps) {
+export const NotificationItem = memo(function NotificationItem({
+  notification,
+}: NotificationItemProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const read = useMutation({
@@ -19,40 +21,72 @@ export const NotificationItem = memo(function NotificationItem({ notification }:
         queryClient.cancelQueries({ queryKey: ["notifications"] }),
         queryClient.cancelQueries({ queryKey: ["notifications-unread"] }),
       ]);
-      const previousAll = queryClient.getQueryData<Notification[]>(["notifications"]);
-      const previousUnread = queryClient.getQueryData<Notification[]>(["notifications-unread"]);
-      queryClient.setQueryData<Notification[]>(["notifications"], (current = []) =>
-        current.map((item) => item.id === notification.id ? { ...item, read: true } : item),
+      const previousAll = queryClient.getQueryData<Notification[]>([
+        "notifications",
+      ]);
+      const previousUnread = queryClient.getQueryData<Notification[]>([
+        "notifications-unread",
+      ]);
+      queryClient.setQueryData<Notification[]>(
+        ["notifications"],
+        (current = []) =>
+          current.map((item) =>
+            item.id === notification.id ? { ...item, read: true } : item
+          )
       );
-      queryClient.setQueryData<Notification[]>(["notifications-unread"], (current = []) =>
-        current.filter((item) => item.id !== notification.id),
+      queryClient.setQueryData<Notification[]>(
+        ["notifications-unread"],
+        (current = []) => current.filter((item) => item.id !== notification.id)
       );
       return { previousAll, previousUnread };
     },
     onError: (_error, _variables, context) => {
-      if (context?.previousAll) queryClient.setQueryData(["notifications"], context.previousAll);
-      if (context?.previousUnread) queryClient.setQueryData(["notifications-unread"], context.previousUnread);
+      if (context?.previousAll)
+        queryClient.setQueryData(["notifications"], context.previousAll);
+      if (context?.previousUnread)
+        queryClient.setQueryData(
+          ["notifications-unread"],
+          context.previousUnread
+        );
     },
     onSettled: (_data, error) => {
       if (!error) {
         void queryClient.invalidateQueries({ queryKey: ["notifications"] });
-        void queryClient.invalidateQueries({ queryKey: ["notifications-unread"] });
+        void queryClient.invalidateQueries({
+          queryKey: ["notifications-unread"],
+        });
       }
     },
   });
 
   function openNotification() {
     if (!notification.read) read.mutate();
-    void navigate({ to: "/doc/$docId", params: { docId: notification.doc_id } });
+    void navigate({
+      to: "/doc/$docId",
+      params: { docId: notification.documantions_id },
+    });
   }
 
   return (
-    <button className={`${styles.row} ${!notification.read ? styles.rowUnread : ""}`} onClick={openNotification}>
+    <button
+      className={`${styles.row} ${!notification.read ? styles.rowUnread : ""}`}
+      onClick={openNotification}
+    >
       <div className={styles.rowMain}>
-        <span className={styles.docTitle}>{notification.doc_title || "Accessible document"}</span>
-        <span className={styles.subInfo}>Matched <em>{notification.subscription_name}</em> · {Math.round(notification.similarity * 100)}% evidence match</span>
+        <span className={styles.docTitle}>
+          {notification.doc_title || "Accessible document"}
+        </span>
+        <span className={styles.subInfo}>
+          Matched <em>{notification.subscription_name}</em> ·{" "}
+          {Math.round(notification.similarity * 100)}% evidence match
+        </span>
       </div>
-      <div className={styles.rowMeta}>{!notification.read && <Badge variant="warning">New</Badge>}<span className={styles.date}>{new Date(notification.created_at).toLocaleDateString()}</span></div>
+      <div className={styles.rowMeta}>
+        {!notification.read && <Badge variant="warning">New</Badge>}
+        <span className={styles.date}>
+          {new Date(notification.created_at).toLocaleDateString()}
+        </span>
+      </div>
     </button>
   );
 });

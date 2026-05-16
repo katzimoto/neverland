@@ -18,7 +18,9 @@ from services.permissions.enforcer import (
 from shared.db import db_uuid
 
 
-def test_admin_guard_allows_admin_and_rejects_regular_user(migrated_engine: Engine) -> None:
+def test_admin_guard_allows_admin_and_rejects_regular_user(
+    migrated_engine: Engine,
+) -> None:
     with migrated_engine.begin() as connection:
         repository = AuthRepository(connection)
         admin = repository.create_local_user(
@@ -39,7 +41,9 @@ def test_admin_guard_allows_admin_and_rejects_regular_user(migrated_engine: Engi
     assert exc_info.value.status_code == 403
 
 
-def test_source_and_document_access_follow_source_permissions(migrated_engine: Engine) -> None:
+def test_source_and_document_access_follow_source_permissions(
+    migrated_engine: Engine,
+) -> None:
     with migrated_engine.begin() as connection:
         repository = AuthRepository(connection)
         user = repository.create_local_user(
@@ -48,14 +52,16 @@ def test_source_and_document_access_follow_source_permissions(migrated_engine: E
             group_names=["analysts"],
         )
         source_id = repository.create_ingestion_source("Finance")
-        doc_id = repository.create_document(source_id)
+        documantions_id = repository.create_document(source_id)
         repository.grant_source_to_group(source_id, user.groups[0])
 
         assert_source_access(source_id, user, repository)
-        assert_doc_access(doc_id, user, repository)
+        assert_doc_access(documantions_id, user, repository)
 
 
-def test_document_access_rejects_missing_or_ungranted_documents(migrated_engine: Engine) -> None:
+def test_document_access_rejects_missing_or_ungranted_documents(
+    migrated_engine: Engine,
+) -> None:
     with migrated_engine.begin() as connection:
         repository = AuthRepository(connection)
         user = repository.create_local_user(
@@ -64,10 +70,10 @@ def test_document_access_rejects_missing_or_ungranted_documents(migrated_engine:
             group_names=["analysts"],
         )
         source_id = repository.create_ingestion_source("Finance")
-        doc_id = repository.create_document(source_id)
+        documantions_id = repository.create_document(source_id)
 
         with pytest.raises(HTTPException) as denied:
-            assert_doc_access(doc_id, user, repository)
+            assert_doc_access(documantions_id, user, repository)
         with pytest.raises(HTTPException) as missing:
             assert_doc_access(uuid4(), user, repository)
 
@@ -78,9 +84,13 @@ def test_document_access_rejects_missing_or_ungranted_documents(migrated_engine:
 # Nested group tests
 
 
-def _insert_group_membership(connection: object, parent_id: object, child_id: object) -> None:
+def _insert_group_membership(
+    connection: object, parent_id: object, child_id: object
+) -> None:
     connection.execute(  # type: ignore[attr-defined]
-        sa.text("INSERT INTO group_memberships (parent_group_id, child_group_id) VALUES (:p, :c)"),
+        sa.text(
+            "INSERT INTO group_memberships (parent_group_id, child_group_id) VALUES (:p, :c)"
+        ),
         {"p": db_uuid(parent_id), "c": db_uuid(child_id)},  # type: ignore[arg-type]
     )
 
@@ -103,7 +113,9 @@ def test_user_can_access_source_via_parent_group(migrated_engine: Engine) -> Non
         user_nested = repo.create_local_user(
             "nested@example.com", hash_password("x"), group_names=["child"]
         )
-        user_none = repo.create_local_user("none@example.com", hash_password("x"), group_names=[])
+        user_none = repo.create_local_user(
+            "none@example.com", hash_password("x"), group_names=[]
+        )
 
         assert repo.user_can_access_source(user_direct, source_id)
         assert repo.user_can_access_source(user_nested, source_id)
@@ -125,7 +137,9 @@ def test_get_effective_group_ids_returns_ancestors(migrated_engine: Engine) -> N
         assert c not in effective  # seed not included
 
 
-def test_get_effective_group_ids_empty_when_no_memberships(migrated_engine: Engine) -> None:
+def test_get_effective_group_ids_empty_when_no_memberships(
+    migrated_engine: Engine,
+) -> None:
     with migrated_engine.begin() as connection:
         repo = AuthRepository(connection)
         g = repo.ensure_group("solo")
@@ -159,7 +173,9 @@ def test_cycle_detection_safe_insertion(migrated_engine: Engine) -> None:
         assert repo._group_would_create_cycle(a, b) is False
 
 
-def test_removing_nested_group_revokes_inherited_access(migrated_engine: Engine) -> None:
+def test_removing_nested_group_revokes_inherited_access(
+    migrated_engine: Engine,
+) -> None:
     with migrated_engine.begin() as connection:
         repo = AuthRepository(connection)
         parent_id = repo.ensure_group("p-revoke")

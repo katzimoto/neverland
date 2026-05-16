@@ -11,9 +11,12 @@ import styles from "./HistoryPage.module.css";
 function mimeShortLabel(mime: string, t: Translations): string {
   if (mime.startsWith("image/")) return t.history.mimeImage;
   if (mime === "application/pdf") return t.history.mimePdf;
-  if (mime.includes("msword") || mime.includes("wordprocessingml")) return t.history.mimeWord;
-  if (mime.includes("excel") || mime.includes("spreadsheet")) return t.history.mimeExcel;
-  if (mime.includes("powerpoint") || mime.includes("presentation")) return t.history.mimePpt;
+  if (mime.includes("msword") || mime.includes("wordprocessingml"))
+    return t.history.mimeWord;
+  if (mime.includes("excel") || mime.includes("spreadsheet"))
+    return t.history.mimeExcel;
+  if (mime.includes("powerpoint") || mime.includes("presentation"))
+    return t.history.mimePpt;
   if (mime === "text/html") return t.history.mimeHtml;
   if (mime === "text/plain") return t.history.mimeText;
   if (mime === "message/rfc822") return t.history.mimeEmail;
@@ -37,7 +40,9 @@ export function HistoryPage() {
     queryFn: ({ pageParam }) => getActivity(HISTORY_PAGE_SIZE, pageParam),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) =>
-      lastPage.length === HISTORY_PAGE_SIZE ? allPages.length * HISTORY_PAGE_SIZE : undefined,
+      lastPage.length === HISTORY_PAGE_SIZE
+        ? allPages.length * HISTORY_PAGE_SIZE
+        : undefined,
   });
   const items = useMemo(() => data?.pages.flat() ?? [], [data]);
 
@@ -49,25 +54,41 @@ export function HistoryPage() {
       </header>
       <div className={styles.body}>
         {isLoading && <p className={styles.muted}>{t.history.loading}</p>}
-        {isError && <EmptyState title={t.history.failedTitle} body={t.history.failedBody} />}
+        {isError && (
+          <EmptyState
+            title={t.history.failedTitle}
+            body={t.history.failedBody}
+          />
+        )}
         {!isLoading && !isError && items.length === 0 && (
           <EmptyState title={t.history.emptyTitle} body={t.history.emptyBody} />
         )}
         {items.length > 0 && (
           <ul className={styles.list}>
             {items.map((item) => (
-              <li key={item.doc_id}>
+              <li key={item.documantions_id}>
                 <button
                   className={styles.row}
-                  onClick={() => void navigate({ to: "/doc/$docId", params: { docId: item.doc_id } })}
+                  onClick={() =>
+                    void navigate({
+                      to: "/doc/$docId",
+                      params: { docId: item.documantions_id },
+                    })
+                  }
                 >
                   <FileText size={16} className={styles.icon} />
                   <div className={styles.rowMain}>
-                    <span className={styles.docTitle}>{item.title || t.history.untitled}</span>
-                    <span className={styles.docMeta}>{mimeShortLabel(item.mime_type, t)}</span>
+                    <span className={styles.docTitle}>
+                      {item.title || t.history.untitled}
+                    </span>
+                    <span className={styles.docMeta}>
+                      {mimeShortLabel(item.mime_type, t)}
+                    </span>
                   </div>
                   {item.viewed_at && (
-                    <span className={styles.date}>{new Date(item.viewed_at).toLocaleDateString()}</span>
+                    <span className={styles.date}>
+                      {new Date(item.viewed_at).toLocaleDateString()}
+                    </span>
                   )}
                 </button>
               </li>

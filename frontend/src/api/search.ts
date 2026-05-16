@@ -14,7 +14,7 @@ export interface SearchFilters {
 }
 
 export interface SearchResult {
-  doc_id: string;
+  documantions_id: string;
   source_id: string;
   external_id: string | null;
   title: string;

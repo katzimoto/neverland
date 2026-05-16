@@ -19,7 +19,10 @@ from services.api.main import current_user
 from services.api.schemas import PreviewResponse
 from services.auth.models import TokenPayload
 from services.auth.repository import AuthRepository
-from services.documents.repository import DocumentRepository, TranslationVersionRepository
+from services.documents.repository import (
+    DocumentRepository,
+    TranslationVersionRepository,
+)
 from services.intelligence.repository import IntelligenceRepository
 from services.permissions.enforcer import assert_doc_access
 from services.preview.service import PreviewService
@@ -35,23 +38,25 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["documents"])
 
 
-@router.get("/preview/{doc_id}", response_model=PreviewResponse)
+@router.get("/preview/{documantions_id}", response_model=PreviewResponse)
 def preview(
-    doc_id: UUID,
+    documantions_id: UUID,
     request: Request,
     user: Annotated[TokenPayload, Depends(current_user)],
     translation_version_id: UUID | None = None,
 ) -> PreviewResponse:
     with request.app.state.engine.begin() as connection:
         auth_repo = AuthRepository(connection)
-        assert_doc_access(doc_id, user, auth_repo)
+        assert_doc_access(documantions_id, user, auth_repo)
 
         preview_service = PreviewService(connection)
         result = preview_service.get_preview(
-            doc_id, user.sub, translation_version_id=translation_version_id
+            documantions_id, user.sub, translation_version_id=translation_version_id
         )
         if not result:
-            request.app.state.metrics.preview_requests_total.labels("unknown", "failure").inc()
+            request.app.state.metrics.preview_requests_total.labels(
+                "unknown", "failure"
+            ).inc()
             raise HTTPException(status_code=404, detail="Document not found")
 
         request.app.state.metrics.preview_requests_total.labels(
@@ -59,7 +64,7 @@ def preview(
         ).inc()
 
         doc_repo = DocumentRepository(connection)
-        doc_row = doc_repo.get_by_id(doc_id)
+        doc_row = doc_repo.get_by_id(documantions_id)
 
         version_number: int | None = None
         is_latest_val: bool | None = None
@@ -72,12 +77,14 @@ def preview(
             if doc_row.is_latest:
                 latest_document_id = str(doc_row.id)
             elif doc_row.version_family_id:
-                family_map = doc_repo.get_family_current_doc_ids([doc_row.version_family_id])
+                family_map = doc_repo.get_family_current_doc_ids(
+                    [doc_row.version_family_id]
+                )
                 raw = family_map.get(doc_row.version_family_id)
                 latest_document_id = str(raw) if raw else None
 
         return PreviewResponse(
-            doc_id=result["doc_id"],
+            documantions_id=result["documantions_id"],
             title=result["title"],
             mime_type=result["mime_type"],
             translation_quality=result["translation_quality"],
@@ -103,59 +110,61 @@ def me_activity(
         return preview_service.get_user_activity(user.sub, limit=limit, offset=skip)
 
 
-@router.post("/documents/{doc_id}/translate")
+@router.post("/documents/{documantions_id}/translate")
 def request_translation(
-    doc_id: UUID,
+    documantions_id: UUID,
     request: Request,
     user: Annotated[TokenPayload, Depends(current_user)],
 ) -> dict[str, Any]:
     with request.app.state.engine.begin() as connection:
         auth_repo = AuthRepository(connection)
-        assert_doc_access(doc_id, user, auth_repo)
+        assert_doc_access(documantions_id, user, auth_repo)
 
         doc_repo = DocumentRepository(connection)
-        doc = doc_repo.get_by_id(doc_id)
+        doc = doc_repo.get_by_id(documantions_id)
         if doc is None:
             raise HTTPException(status_code=404, detail="Document not found")
 
         version_repo = TranslationVersionRepository(connection)
-        existing = version_repo.find_pending_or_running(doc_id, doc.target_language)
+        existing = version_repo.find_pending_or_running(
+            documantions_id, doc.target_language
+        )
         if existing:
             return {
-                "doc_id": str(doc_id),
+                "documantions_id": str(documantions_id),
                 "translation_version_id": str(existing["id"]),
                 "status": existing["status"],
             }
 
         version = version_repo.create_version(
-            doc_id=doc_id,
+            documantions_id=documantions_id,
             label=f"Manual {doc.target_language}",
             quality="high",
             request_type="manual",
             requested_by_id=user.sub,
             target_language=doc.target_language,
         )
-        doc_repo.update_translation_quality(doc_id, "pending_high")
+        doc_repo.update_translation_quality(documantions_id, "pending_high")
 
         return {
-            "doc_id": str(doc_id),
+            "documantions_id": str(documantions_id),
             "translation_version_id": str(version["id"]),
             "status": version["status"],
         }
 
 
-@router.get("/documents/{doc_id}/translation-versions")
+@router.get("/documents/{documantions_id}/translation-versions")
 def list_translation_versions(
-    doc_id: UUID,
+    documantions_id: UUID,
     request: Request,
     user: Annotated[TokenPayload, Depends(current_user)],
 ) -> list[dict[str, Any]]:
     with request.app.state.engine.begin() as connection:
         auth_repo = AuthRepository(connection)
-        assert_doc_access(doc_id, user, auth_repo)
+        assert_doc_access(documantions_id, user, auth_repo)
 
         version_repo = TranslationVersionRepository(connection)
-        versions = version_repo.list_versions(doc_id)
+        versions = version_repo.list_versions(documantions_id)
         return [
             {
                 "version_id": str(v["id"]),
@@ -170,21 +179,21 @@ def list_translation_versions(
         ]
 
 
-@router.get("/documents/{doc_id}/versions")
+@router.get("/documents/{documantions_id}/versions")
 def list_document_versions(
-    doc_id: UUID,
+    documantions_id: UUID,
     request: Request,
     user: Annotated[TokenPayload, Depends(current_user)],
 ) -> list[dict[str, Any]]:
     with request.app.state.engine.begin() as connection:
         auth_repo = AuthRepository(connection)
-        assert_doc_access(doc_id, user, auth_repo)
+        assert_doc_access(documantions_id, user, auth_repo)
 
         doc_repo = DocumentRepository(connection)
-        versions = doc_repo.list_versions_in_family(doc_id)
+        versions = doc_repo.list_versions_in_family(documantions_id)
         return [
             {
-                "doc_id": str(v.id),
+                "documantions_id": str(v.id),
                 "version_number": v.version_number,
                 "is_latest": v.is_latest,
                 "title": v.title,
@@ -194,40 +203,40 @@ def list_document_versions(
         ]
 
 
-@router.get("/documents/{doc_id}/summary")
+@router.get("/documents/{documantions_id}/summary")
 def get_summary(
-    doc_id: UUID,
+    documantions_id: UUID,
     request: Request,
     user: Annotated[TokenPayload, Depends(current_user)],
 ) -> dict[str, Any]:
     with request.app.state.engine.begin() as connection:
         auth_repo = AuthRepository(connection)
-        assert_doc_access(doc_id, user, auth_repo)
+        assert_doc_access(documantions_id, user, auth_repo)
 
         intelligence_repo = IntelligenceRepository(connection)
-        summary = intelligence_repo.get_summary(doc_id)
+        summary = intelligence_repo.get_summary(documantions_id)
         if summary is None:
             raise HTTPException(status_code=404, detail="Summary not found")
         return {
-            "doc_id": str(doc_id),
+            "documantions_id": str(documantions_id),
             "summary": summary["summary"],
             "model": summary["model"],
             "updated_at": _fmt_dt(summary["updated_at"]),
         }
 
 
-@router.get("/documents/{doc_id}/entities")
+@router.get("/documents/{documantions_id}/entities")
 def get_entities(
-    doc_id: UUID,
+    documantions_id: UUID,
     request: Request,
     user: Annotated[TokenPayload, Depends(current_user)],
 ) -> list[dict[str, Any]]:
     with request.app.state.engine.begin() as connection:
         auth_repo = AuthRepository(connection)
-        assert_doc_access(doc_id, user, auth_repo)
+        assert_doc_access(documantions_id, user, auth_repo)
 
         intelligence_repo = IntelligenceRepository(connection)
-        entities = intelligence_repo.get_entities(doc_id)
+        entities = intelligence_repo.get_entities(documantions_id)
         return [
             {
                 "id": str(e["id"]),
@@ -239,40 +248,40 @@ def get_entities(
         ]
 
 
-@router.get("/documents/{doc_id}/tags")
+@router.get("/documents/{documantions_id}/tags")
 def get_tags(
-    doc_id: UUID,
+    documantions_id: UUID,
     request: Request,
     user: Annotated[TokenPayload, Depends(current_user)],
 ) -> dict[str, Any]:
     with request.app.state.engine.begin() as connection:
         auth_repo = AuthRepository(connection)
-        assert_doc_access(doc_id, user, auth_repo)
+        assert_doc_access(documantions_id, user, auth_repo)
 
         intelligence_repo = IntelligenceRepository(connection)
-        tags = intelligence_repo.get_tags(doc_id)
-        return {"doc_id": str(doc_id), "tags": tags}
+        tags = intelligence_repo.get_tags(documantions_id)
+        return {"documantions_id": str(documantions_id), "tags": tags}
 
 
-@router.get("/documents/{doc_id}/related")
+@router.get("/documents/{documantions_id}/related")
 def related_documents(
-    doc_id: UUID,
+    documantions_id: UUID,
     request: Request,
     user: Annotated[TokenPayload, Depends(current_user)],
 ) -> dict[str, Any]:
     with request.app.state.engine.begin() as connection:
         require_related_docs_enabled(connection, request.app.state.settings)
         auth_repo = AuthRepository(connection)
-        assert_doc_access(doc_id, user, auth_repo)
+        assert_doc_access(documantions_id, user, auth_repo)
 
         doc_repo = DocumentRepository(connection)
-        doc = doc_repo.get_by_id(doc_id)
+        doc = doc_repo.get_by_id(documantions_id)
         if doc is None:
             raise HTTPException(status_code=404, detail="Document not found")
 
         group_ids = [str(group_id) for group_id in user.groups]
         if not group_ids:
-            return {"doc_id": str(doc_id), "related": []}
+            return {"documantions_id": str(documantions_id), "related": []}
 
         encoder = build_encoder(request.app.state.settings)
         qdrant_client = request.app.state.qdrant_client or QdrantSearchClient(
@@ -292,13 +301,13 @@ def related_documents(
             )
         except Exception as exc:
             logger.warning(
-                "Related documents degraded route=/documents/{doc_id}/related "
+                "Related documents degraded route=/documents/{documantions_id}/related "
                 "stage=vector_search error_type=%s correlation_id=%s",
                 exc.__class__.__name__,
                 get_correlation_id(),
             )
             related = []
-        return {"doc_id": str(doc_id), "related": related}
+        return {"documantions_id": str(documantions_id), "related": related}
 
 
 @router.get("/expertise")
@@ -318,7 +327,9 @@ def expertise(
             group_ids: list[str] = []
         else:
             _auth_repo = AuthRepository(connection)
-            _effective = set(user.groups) | set(_auth_repo.get_effective_group_ids(user.groups))
+            _effective = set(user.groups) | set(
+                _auth_repo.get_effective_group_ids(user.groups)
+            )
             group_ids = [str(g) for g in _effective]
         encoder = build_encoder(request.app.state.settings)
         qdrant_client = request.app.state.qdrant_client or QdrantSearchClient(
@@ -342,18 +353,18 @@ def expertise(
             return []
 
 
-@router.get("/download/{doc_id}")
+@router.get("/download/{documantions_id}")
 def download(
-    doc_id: UUID,
+    documantions_id: UUID,
     request: Request,
     user: Annotated[TokenPayload, Depends(current_user)],
 ) -> StreamingResponse:
     with request.app.state.engine.begin() as connection:
         auth_repo = AuthRepository(connection)
-        assert_doc_access(doc_id, user, auth_repo)
+        assert_doc_access(documantions_id, user, auth_repo)
 
         doc_repo = DocumentRepository(connection)
-        doc = doc_repo.get_by_id(doc_id)
+        doc = doc_repo.get_by_id(documantions_id)
         if doc is None or doc.path is None:
             request.app.state.metrics.download_requests_total.labels("failure").inc()
             raise HTTPException(status_code=404, detail="Document not found")

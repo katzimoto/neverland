@@ -20,7 +20,7 @@ class CommentRepository:
 
     def list_comments(
         self,
-        doc_id: UUID,
+        documantions_id: UUID,
         skip: int = 0,
         limit: int = 50,
         sort: str = "newest",
@@ -31,11 +31,10 @@ class CommentRepository:
         """
         order = "DESC" if sort == "newest" else "ASC"
         rows = self._connection.execute(
-            sa.text(
-                f"""
+            sa.text(f"""
                 SELECT
                     c.id,
-                    c.doc_id,
+                    c.documantions_id,
                     c.author_id,
                     u.display_name AS author_display_name,
                     c.body,
@@ -47,37 +46,34 @@ class CommentRepository:
                     c.deleted_by_id
                 FROM document_comments c
                 JOIN users u ON u.id = c.author_id
-                WHERE c.doc_id = :doc_id
+                WHERE c.documantions_id = :documantions_id
                   AND c.deleted_at IS NULL
                 ORDER BY c.created_at {order}, c.updated_at {order}, c.id {order}
                 LIMIT :limit
                 OFFSET :skip
-                """
-            ),
+                """),
             {
-                "doc_id": db_uuid(doc_id),
+                "documantions_id": db_uuid(documantions_id),
                 "limit": limit,
                 "skip": skip,
             },
         ).mappings()
         return [dict(row) for row in rows]
 
-    def count_comments(self, doc_id: UUID) -> int:
+    def count_comments(self, documantions_id: UUID) -> int:
         """Return the number of visible comments for a document."""
         result = self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 SELECT COUNT(*) FROM document_comments
-                WHERE doc_id = :doc_id AND deleted_at IS NULL
-                """
-            ),
-            {"doc_id": db_uuid(doc_id)},
+                WHERE documantions_id = :documantions_id AND deleted_at IS NULL
+                """),
+            {"documantions_id": db_uuid(documantions_id)},
         ).scalar_one()
         return int(result)
 
     def create(
         self,
-        doc_id: UUID,
+        documantions_id: UUID,
         author_id: UUID,
         body: str,
     ) -> dict[str, Any]:
@@ -86,23 +82,21 @@ class CommentRepository:
         now = datetime.now(UTC)
         row = (
             self._connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     INSERT INTO document_comments (
-                        id, doc_id, author_id, body,
+                        id, documantions_id, author_id, body,
                         created_at, updated_at
                     )
                     VALUES (
-                        :id, :doc_id, :author_id, :body,
+                        :id, :documantions_id, :author_id, :body,
                         :created_at, :updated_at
                     )
-                    RETURNING id, doc_id, author_id, body,
+                    RETURNING id, documantions_id, author_id, body,
                               created_at, updated_at
-                    """
-                ),
+                    """),
                 {
                     "id": db_uuid(comment_id),
-                    "doc_id": db_uuid(doc_id),
+                    "documantions_id": db_uuid(documantions_id),
                     "author_id": db_uuid(author_id),
                     "body": body,
                     "created_at": now,
@@ -120,11 +114,10 @@ class CommentRepository:
         """Return a comment by id, including soft-deleted."""
         row = (
             self._connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     SELECT
                         c.id,
-                        c.doc_id,
+                        c.documantions_id,
                         c.author_id,
                         u.display_name AS author_display_name,
                         c.body,
@@ -137,8 +130,7 @@ class CommentRepository:
                     FROM document_comments c
                     JOIN users u ON u.id = c.author_id
                     WHERE c.id = :id
-                    """
-                ),
+                    """),
                 {"id": db_uuid(comment_id)},
             )
             .mappings()
@@ -154,16 +146,14 @@ class CommentRepository:
     ) -> None:
         """Update a comment body and set edited metadata."""
         self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 UPDATE document_comments
                 SET body = :body,
                     edited_at = CURRENT_TIMESTAMP,
                     edited_by_id = :edited_by_id,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = :id
-                """
-            ),
+                """),
             {
                 "body": body,
                 "edited_by_id": db_uuid(edited_by_id),
@@ -178,15 +168,13 @@ class CommentRepository:
     ) -> None:
         """Soft-delete a comment."""
         self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 UPDATE document_comments
                 SET deleted_at = CURRENT_TIMESTAMP,
                     deleted_by_id = :deleted_by_id,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = :id
-                """
-            ),
+                """),
             {
                 "deleted_by_id": db_uuid(deleted_by_id),
                 "id": db_uuid(comment_id),
@@ -204,12 +192,10 @@ class CommentRepository:
             return True
         row = (
             self._connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     SELECT author_id FROM document_comments
                     WHERE id = :id AND deleted_at IS NULL
-                    """
-                ),
+                    """),
                 {"id": db_uuid(comment_id)},
             )
             .mappings()

@@ -21,8 +21,7 @@ class AlertRepository:
     def list_subscriptions(self, user_id: UUID) -> list[dict[str, Any]]:
         """List subscriptions owned by a user."""
         rows = self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 SELECT
                     s.id,
                     s.user_id,
@@ -40,8 +39,7 @@ class AlertRepository:
                 GROUP BY s.id, s.user_id, s.name, s.query, s.similarity_threshold,
                          s.enabled, s.created_at, s.updated_at, s.last_notified
                 ORDER BY s.created_at DESC
-                """
-            ),
+                """),
             {"user_id": db_uuid(user_id)},
         ).mappings()
         return [dict(row) for row in rows]
@@ -58,8 +56,7 @@ class AlertRepository:
         subscription_id = uuid4()
         row = (
             self._connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     INSERT INTO alert_subscriptions (
                         id, user_id, name, query, similarity_threshold, enabled,
                         created_at, updated_at
@@ -70,8 +67,7 @@ class AlertRepository:
                     )
                     RETURNING id, user_id, name, query, similarity_threshold, enabled,
                               created_at, updated_at, last_notified
-                    """
-                ),
+                    """),
                 {
                     "id": db_uuid(subscription_id),
                     "user_id": db_uuid(user_id),
@@ -126,13 +122,11 @@ class AlertRepository:
         if fields:
             fields.append("updated_at = CURRENT_TIMESTAMP")
             self._connection.execute(
-                sa.text(
-                    f"""
+                sa.text(f"""
                     UPDATE alert_subscriptions
                     SET {", ".join(fields)}
                     WHERE id = :id
-                    """
-                ),
+                    """),
                 params,
             )
         return self.get_subscription(subscription_id)
@@ -144,11 +138,12 @@ class AlertRepository:
             {"id": db_uuid(subscription_id)},
         )
 
-    def active_subscriptions_for_doc(self, doc_id: UUID) -> list[dict[str, Any]]:
+    def active_subscriptions_for_doc(
+        self, documantions_id: UUID
+    ) -> list[dict[str, Any]]:
         """Return active subscriptions whose owners can access a document."""
         rows = self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 SELECT DISTINCT
                     s.id,
                     s.user_id,
@@ -157,14 +152,13 @@ class AlertRepository:
                     s.similarity_threshold
                 FROM alert_subscriptions s
                 JOIN user_groups ug ON ug.user_id = s.user_id
-                JOIN documents d ON d.id = :doc_id
+                JOIN documents d ON d.id = :documantions_id
                 JOIN source_permissions sp
                   ON sp.source_id = d.source_id
                  AND sp.group_id = ug.group_id
                 WHERE s.enabled = true
-                """
-            ),
-            {"doc_id": db_uuid(doc_id)},
+                """),
+            {"documantions_id": db_uuid(documantions_id)},
         ).mappings()
         return [dict(row) for row in rows]
 
@@ -172,61 +166,60 @@ class AlertRepository:
         self,
         subscription_id: UUID,
         user_id: UUID,
-        doc_id: UUID,
+        documantions_id: UUID,
         similarity: float,
     ) -> bool:
         """Create a notification if one does not already exist."""
         notification_id = uuid4()
         result = self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 INSERT INTO alert_notifications (
-                    id, subscription_id, user_id, doc_id, similarity, read, created_at
+                    id, subscription_id, user_id, documantions_id, similarity, read, created_at
                 )
                 VALUES (
-                    :id, :subscription_id, :user_id, :doc_id, :similarity,
+                    :id, :subscription_id, :user_id, :documantions_id, :similarity,
                     false, CURRENT_TIMESTAMP
                 )
-                ON CONFLICT (subscription_id, doc_id) DO NOTHING
-                """
-            ),
+                ON CONFLICT (subscription_id, documantions_id) DO NOTHING
+                """),
             {
                 "id": db_uuid(notification_id),
                 "subscription_id": db_uuid(subscription_id),
                 "user_id": db_uuid(user_id),
-                "doc_id": db_uuid(doc_id),
+                "documantions_id": db_uuid(documantions_id),
                 "similarity": similarity,
             },
         )
         if result.rowcount:
             self._connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     UPDATE alert_subscriptions
                     SET last_notified = CURRENT_TIMESTAMP,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE id = :id
-                    """
-                ),
+                    """),
                 {"id": db_uuid(subscription_id)},
             )
         created = bool(result.rowcount)
         metrics = current_metrics()
         if metrics is not None:
-            metrics.notifications_total.labels("create", "success" if created else "skipped").inc()
+            metrics.notifications_total.labels(
+                "create", "success" if created else "skipped"
+            ).inc()
         return created
 
-    def list_notifications(self, user_id: UUID, unread_only: bool = True) -> list[dict[str, Any]]:
+    def list_notifications(
+        self, user_id: UUID, unread_only: bool = True
+    ) -> list[dict[str, Any]]:
         """List notifications for a user."""
         read_filter = "AND n.read = false" if unread_only else ""
         rows = self._connection.execute(
-            sa.text(
-                f"""
+            sa.text(f"""
                 SELECT
                     n.id,
                     n.subscription_id,
                     n.user_id,
-                    n.doc_id,
+                    n.documantions_id,
                     n.similarity,
                     n.read,
                     n.created_at,
@@ -235,12 +228,11 @@ class AlertRepository:
                     d.title AS doc_title
                 FROM alert_notifications n
                 JOIN alert_subscriptions s ON s.id = n.subscription_id
-                JOIN documents d ON d.id = n.doc_id
+                JOIN documents d ON d.id = n.documantions_id
                 WHERE n.user_id = :user_id
                   {read_filter}
                 ORDER BY n.created_at DESC
-                """
-            ),
+                """),
             {"user_id": db_uuid(user_id)},
         ).mappings()
         return [dict(row) for row in rows]

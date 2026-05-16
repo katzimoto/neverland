@@ -13,7 +13,7 @@ class Annotation(BaseModel):
     """Row model for the annotations table."""
 
     id: UUID
-    doc_id: UUID
+    documantions_id: UUID
     user_id: UUID
     text: str
     note: str | None = None

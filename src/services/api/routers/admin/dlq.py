@@ -23,16 +23,18 @@ def admin_list_dlq(
 ) -> list[DlqItem]:
     require_admin(user)
     with request.app.state.engine.begin() as connection:
-        rows = connection.execute(
-            sa.text("""
-                SELECT id, doc_id, error_message, retry_count, status, created_at, updated_at
+        rows = connection.execute(sa.text("""
+                SELECT id, documantions_id, error_message, retry_count, status, created_at, updated_at
                 FROM dlq ORDER BY created_at DESC
-                """)
-        ).mappings()
+                """)).mappings()
         return [
             DlqItem(
                 id=str(to_uuid(row["id"])),
-                doc_id=str(to_uuid(row["doc_id"])) if row["doc_id"] else None,
+                documantions_id=(
+                    str(to_uuid(row["documantions_id"]))
+                    if row["documantions_id"]
+                    else None
+                ),
                 error_message=row["error_message"],
                 retry_count=row["retry_count"],
                 status=row["status"],
@@ -61,6 +63,8 @@ def admin_retry_dlq(
             {"id": dlq_id.hex},
         )
         if result.rowcount == 0:
-            raise HTTPException(status_code=404, detail="DLQ item not found or not pending")
+            raise HTTPException(
+                status_code=404, detail="DLQ item not found or not pending"
+            )
         _audit_log(connection, user.sub, "retry", "dlq", str(dlq_id))
         return {"id": str(dlq_id), "status": "retried"}

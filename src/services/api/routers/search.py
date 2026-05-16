@@ -37,7 +37,9 @@ def search(
     metrics_start = time.perf_counter()
     group_ids = [str(g) for g in user.groups]
     if not group_ids:
-        http_request.app.state.metrics.search_requests_total.labels("hybrid", "success").inc()
+        http_request.app.state.metrics.search_requests_total.labels(
+            "hybrid", "success"
+        ).inc()
         http_request.app.state.metrics.search_results_count.labels("hybrid").observe(0)
         http_request.app.state.metrics.search_duration_seconds.labels("hybrid").observe(
             time.perf_counter() - metrics_start
@@ -49,7 +51,9 @@ def search(
     else:
         with http_request.app.state.engine.begin() as _conn:
             _auth_repo = AuthRepository(_conn)
-            _effective = set(user.groups) | set(_auth_repo.get_effective_group_ids(user.groups))
+            _effective = set(user.groups) | set(
+                _auth_repo.get_effective_group_ids(user.groups)
+            )
         search_group_ids = [str(g) for g in _effective]
 
     es_client = http_request.app.state.es_client or ElasticsearchSearchClient(
@@ -89,11 +93,15 @@ def search(
             exc.__class__.__name__,
             get_correlation_id(),
         )
-    http_request.app.state.metrics.search_requests_total.labels("hybrid", "degraded").inc()
+    http_request.app.state.metrics.search_requests_total.labels(
+        "hybrid", "degraded"
+    ).inc()
 
     with http_request.app.state.engine.begin() as connection:
         vector_row = connection.execute(
-            sa.text("SELECT value FROM system_config WHERE key = 'search.vector_weight'"),
+            sa.text(
+                "SELECT value FROM system_config WHERE key = 'search.vector_weight'"
+            ),
         ).scalar()
         bm25_row = connection.execute(
             sa.text("SELECT value FROM system_config WHERE key = 'search.bm25_weight'"),
@@ -127,7 +135,7 @@ def search(
         all_merged_ids: list[UUID] = []
         for r in merged:
             with suppress(ValueError):
-                all_merged_ids.append(UUID(r.doc_id))
+                all_merged_ids.append(UUID(r.documantions_id))
         if all_merged_ids:
             with http_request.app.state.engine.begin() as connection:
                 _doc_repo = DocumentRepository(connection)
@@ -136,7 +144,7 @@ def search(
                     for doc in _doc_repo.list_by_ids(all_merged_ids)
                     if not doc.is_latest
                 }
-            merged = [r for r in merged if r.doc_id not in non_latest]
+            merged = [r for r in merged if r.documantions_id not in non_latest]
 
     start = (request.page - 1) * request.page_size
     end = start + request.page_size
@@ -146,7 +154,7 @@ def search(
     doc_ids: list[UUID] = []
     for r in page:
         with suppress(ValueError):
-            doc_ids.append(UUID(r.doc_id))
+            doc_ids.append(UUID(r.documantions_id))
 
     docs: dict[str, DocumentRow] = {}
     family_current: dict[UUID, UUID] = {}
@@ -161,16 +169,18 @@ def search(
                 if d.version_family_id and not d.is_latest
             ]
             if non_latest_family_ids:
-                family_current = doc_repo.get_family_current_doc_ids(non_latest_family_ids)
+                family_current = doc_repo.get_family_current_doc_ids(
+                    non_latest_family_ids
+                )
 
     now = datetime.now(UTC).isoformat()
     results: list[SearchResultItem] = []
     for r in page:
-        doc_row = docs.get(r.doc_id)
+        doc_row = docs.get(r.documantions_id)
         if doc_row is None:
             results.append(
                 SearchResultItem(
-                    doc_id=r.doc_id,
+                    documantions_id=r.documantions_id,
                     source_id="",
                     external_id=None,
                     title=r.title,
@@ -202,7 +212,7 @@ def search(
 
         results.append(
             SearchResultItem(
-                doc_id=r.doc_id,
+                documantions_id=r.documantions_id,
                 source_id=str(doc_row.source_id),
                 external_id=doc_row.external_id or None,
                 title=r.title or doc_row.title,
@@ -223,8 +233,12 @@ def search(
         )
 
     if vector_results:
-        http_request.app.state.metrics.search_requests_total.labels("hybrid", "success").inc()
-    http_request.app.state.metrics.search_results_count.labels("hybrid").observe(len(merged))
+        http_request.app.state.metrics.search_requests_total.labels(
+            "hybrid", "success"
+        ).inc()
+    http_request.app.state.metrics.search_results_count.labels("hybrid").observe(
+        len(merged)
+    )
     http_request.app.state.metrics.search_duration_seconds.labels("hybrid").observe(
         time.perf_counter() - metrics_start
     )

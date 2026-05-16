@@ -21,7 +21,7 @@ Use this map for FastAPI route, auth, permissions, readiness, and API persistenc
 
 - Auth dependency: `Depends(current_user)`.
 - Admin-only operation: `require_admin(user)`.
-- Document access: `assert_doc_access(doc_id, user, auth_repo)` before protected document reads/mutations.
+- Document access: `assert_doc_access(documantions_id, user, auth_repo)` before protected document reads/mutations.
 - DB transaction pattern: `with app.state.engine.begin() as connection:`.
 - SQL UUID binding: `shared.db.db_uuid(value)`.
 - SQL should use SQLAlchemy bound parameters; do not interpolate SQL strings.

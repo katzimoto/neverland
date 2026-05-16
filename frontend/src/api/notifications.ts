@@ -5,7 +5,7 @@ export interface Notification {
   subscription_id: string;
   subscription_name: string;
   subscription_query: string;
-  doc_id: string;
+  documantions_id: string;
   doc_title: string;
   similarity: number;
   read: boolean;

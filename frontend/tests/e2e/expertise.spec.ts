@@ -4,7 +4,7 @@ import { seedSession } from "./phase08e-fixtures";
 
 test("expertise route uses evidence language and command menu navigates", async ({ page }) => {
   await seedSession(page);
-  await page.route("**/api/expertise?topic=risk", (route) => route.fulfill({ json: [{ user_id: "u1", display_name: "Ari", score: 1.4, signals: { views: 2, comments: 1, annotations: 0, subscriptions: 1 }, reason: "Has activity on matching documents", top_docs: [{ doc_id: "d1", title: "Risk memo", score: 0.9 }] }] }));
+  await page.route("**/api/expertise?topic=risk", (route) => route.fulfill({ json: [{ user_id: "u1", display_name: "Ari", score: 1.4, signals: { views: 2, comments: 1, annotations: 0, subscriptions: 1 }, reason: "Has activity on matching documents", top_docs: [{ documantions_id: "d1", title: "Risk memo", score: 0.9 }] }] }));
   await page.goto("/expertise");
   await page.getByLabel("Topic").fill("risk");
   await page.getByRole("button", { name: "Find evidence" }).click();

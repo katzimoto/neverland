@@ -51,7 +51,7 @@ Plan: `docs/implementation/phase-08d-document-detail.md`
 Branch: `developer/phase-08d-document-detail`
 Prerequisite: Phase 08c review gate passed.
 
-Document route `/doc/:doc_id`, all preview mode renderers, translation version
+Document route `/doc/:documantions_id`, all preview mode renderers, translation version
 selector, download, intelligence display, related documents, and the `/qa` route
 with citations.
 

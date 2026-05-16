@@ -66,7 +66,9 @@ def _sanitize_source_error(message: str, source_row: Any | None = None) -> str:
         for key, value in config.items():
             if key.lower() in _SENSITIVE_CONFIG_KEYS and value not in (None, ""):
                 sanitized = sanitized.replace(str(value), "[redacted]")
-    sanitized = re.sub(r"//([^:/\s]+):([^@/\s]+)@", r"//[redacted]:[redacted]@", sanitized)
+    sanitized = re.sub(
+        r"//([^:/\s]+):([^@/\s]+)@", r"//[redacted]:[redacted]@", sanitized
+    )
     return sanitized
 
 
@@ -78,7 +80,11 @@ def _classify_connection_error(
 ]:
     message = str(exc).lower()
     if connector_type in ("smb", "folder"):
-        if "does not exist" in message or "not found" in message or "unreachable" in message:
+        if (
+            "does not exist" in message
+            or "not found" in message
+            or "unreachable" in message
+        ):
             return ("unreachable", _sanitize_source_error(str(exc), source_row))
         if "permission" in message or "access denied" in message:
             return ("permission_denied", _sanitize_source_error(str(exc), source_row))
@@ -178,7 +184,7 @@ def _notification_response(row: dict[str, Any]) -> dict[str, Any]:
         "subscription_id": str(to_uuid(row["subscription_id"])),
         "subscription_name": row["subscription_name"],
         "subscription_query": row["subscription_query"],
-        "doc_id": str(to_uuid(row["doc_id"])),
+        "documantions_id": str(to_uuid(row["documantions_id"])),
         "doc_title": row["doc_title"],
         "similarity": row["similarity"],
         "read": bool(row["read"]),

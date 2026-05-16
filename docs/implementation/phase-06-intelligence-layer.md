@@ -13,10 +13,10 @@ Add best-effort local LLM intelligence without blocking ingestion.
 ### In Scope
 
 1. **Database schema** — 4 new tables:
-   - `document_summaries` (doc_id PK, summary, model, timestamps)
+   - `document_summaries` (documantions_id PK, summary, model, timestamps)
    - `entities` (id PK, name, type with CHECK constraint)
-   - `document_entities` (doc_id + entity_id PK, frequency)
-   - `document_tags` (doc_id + tag PK)
+   - `document_entities` (documantions_id + entity_id PK, frequency)
+   - `document_tags` (documantions_id + tag PK)
 
 2. **Ollama client** — `src/services/intelligence/ollama_client.py`
    - `generate(prompt: str, model: str | None = None) -> str`
@@ -24,7 +24,7 @@ Add best-effort local LLM intelligence without blocking ingestion.
    - Returns raw response text
 
 3. **Intelligence worker** — `src/services/intelligence/worker.py`
-   - `IntelligenceWorker` class with `process_document(doc_id, content)`
+   - `IntelligenceWorker` class with `process_document(documantions_id, content)`
    - Reads enabled tasks from `system_config` (feature.summarization, etc.)
    - Runs tasks in order: summarize → extract_entities → auto_tag
    - Each task: call Ollama, parse JSON where needed, upsert to Postgres, update ES
@@ -35,10 +35,10 @@ Add best-effort local LLM intelligence without blocking ingestion.
    - Entity deduplication by `(name, type)`
 
 5. **API endpoints** — add to `src/services/api/main.py`
-   - `GET /documents/{doc_id}/summary` — returns summary or 404
-   - `GET /documents/{doc_id}/entities` — returns entity list
-   - `GET /documents/{doc_id}/tags` — returns tag list
-   - `POST /admin/intelligence/{doc_id}/trigger` — admin re-run intelligence
+   - `GET /documents/{documantions_id}/summary` — returns summary or 404
+   - `GET /documents/{documantions_id}/entities` — returns entity list
+   - `GET /documents/{documantions_id}/tags` — returns tag list
+   - `POST /admin/intelligence/{documantions_id}/trigger` — admin re-run intelligence
 
 6. **Integration with PipelineWorker**
    - After `update_indexed()`, call `IntelligenceWorker.process_document()` with `content_english`
@@ -60,7 +60,7 @@ Add best-effort local LLM intelligence without blocking ingestion.
 ```sql
 -- Auto-generated summary per document
 CREATE TABLE document_summaries (
-    doc_id UUID PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE,
+    documantions_id UUID PRIMARY KEY REFERENCES documents(id) ON DELETE CASCADE,
     summary TEXT NOT NULL,
     model TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -77,18 +77,18 @@ CREATE TABLE entities (
 
 -- Document entity many-to-many
 CREATE TABLE document_entities (
-    doc_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    documantions_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
     entity_id UUID NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
     frequency INTEGER NOT NULL DEFAULT 1,
-    PRIMARY KEY (doc_id, entity_id)
+    PRIMARY KEY (documantions_id, entity_id)
 );
 CREATE INDEX ix_document_entities_entity_id ON document_entities (entity_id);
 
 -- Auto-assigned topic tags
 CREATE TABLE document_tags (
-    doc_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    documantions_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
     tag TEXT NOT NULL,
-    PRIMARY KEY (doc_id, tag)
+    PRIMARY KEY (documantions_id, tag)
 );
 CREATE INDEX ix_document_tags_tag ON document_tags (tag);
 ```
@@ -116,8 +116,8 @@ CREATE INDEX ix_document_tags_tag ON document_tags (tag);
 
 | File | Change |
 |------|--------|
-| `src/services/api/main.py` | Add `GET /documents/{doc_id}/summary`, `/entities`, `/tags`; add `POST /admin/intelligence/{doc_id}/trigger` |
-| `src/services/pipeline/worker.py` | After `update_indexed()`, call `IntelligenceWorker.process_document(doc_id, translated_text)` |
+| `src/services/api/main.py` | Add `GET /documents/{documantions_id}/summary`, `/entities`, `/tags`; add `POST /admin/intelligence/{documantions_id}/trigger` |
+| `src/services/pipeline/worker.py` | After `update_indexed()`, call `IntelligenceWorker.process_document(documantions_id, translated_text)` |
 | `src/services/search/elastic.py` | Update index mapping: add `entities` keyword field |
 | `CHANGELOG.md` | Add Phase 06 entry |
 
@@ -126,7 +126,7 @@ CREATE INDEX ix_document_tags_tag ON document_tags (tag);
 ## IntelligenceWorker Task Flow
 
 ```
-process_document(doc_id, content):
+process_document(documantions_id, content):
   1. Check enabled tasks from system_config
   2. If no tasks enabled → return
   3. For each task:
@@ -149,10 +149,10 @@ process_document(doc_id, content):
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/documents/{doc_id}/summary` | Document access | Return summary or 404 |
-| GET | `/documents/{doc_id}/entities` | Document access | Return entity list |
-| GET | `/documents/{doc_id}/tags` | Document access | Return tag list |
-| POST | `/admin/intelligence/{doc_id}/trigger` | Admin | Re-run intelligence on document |
+| GET | `/documents/{documantions_id}/summary` | Document access | Return summary or 404 |
+| GET | `/documents/{documantions_id}/entities` | Document access | Return entity list |
+| GET | `/documents/{documantions_id}/tags` | Document access | Return tag list |
+| POST | `/admin/intelligence/{documantions_id}/trigger` | Admin | Re-run intelligence on document |
 
 ---
 
@@ -165,7 +165,7 @@ if doc.translation_quality in ("fast", "high"):
     try:
         intelligence_worker.process_document(doc.id, translated)
     except Exception:
-        logger.exception("Intelligence failed for doc_id=%s", doc.id)
+        logger.exception("Intelligence failed for documantions_id=%s", doc.id)
         # Do NOT re-raise, do NOT set status=failed
 ```
 

@@ -5,16 +5,24 @@ import { QAPanel } from "./QAPanel";
 import * as qaApi from "@/api/qa";
 
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children, to }: { children: React.ReactNode; to: string }) => <a href={to}>{children}</a>,
+  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
+    <a href={to}>{children}</a>
+  ),
 }));
 
 vi.mock("@/api/qa");
 
 const mockAnswer: qaApi.QAResponse = {
   question: "What is vendor risk?",
-  answer: "Vendor risk refers to the potential exposure from third-party vendors.",
+  answer:
+    "Vendor risk refers to the potential exposure from third-party vendors.",
   citations: [
-    { doc_id: "doc-1", doc_title: "Vendor Risk Assessment 2024", chunk_text: "Vendor risk refers to…", score: 0.9 },
+    {
+      documantions_id: "doc-1",
+      doc_title: "Vendor Risk Assessment 2024",
+      chunk_text: "Vendor risk refers to…",
+      score: 0.9,
+    },
   ],
   model: "ollama/mistral",
 };
@@ -26,7 +34,9 @@ beforeEach(() => {
 describe("QAPanel", () => {
   it("renders question input and Ask button", () => {
     render(<QAPanel />);
-    expect(screen.getByRole("textbox", { name: "Question" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("textbox", { name: "Question" })
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Ask" })).toBeInTheDocument();
   });
 
@@ -47,13 +57,21 @@ describe("QAPanel", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Ask" }));
     await waitFor(() => {
-      expect(screen.getByText("Vendor risk refers to the potential exposure from third-party vendors.")).toBeInTheDocument();
-      expect(screen.getByText("Vendor Risk Assessment 2024")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Vendor risk refers to the potential exposure from third-party vendors."
+        )
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Vendor Risk Assessment 2024")
+      ).toBeInTheDocument();
     });
   });
 
   it("shows error state when query fails", async () => {
-    vi.mocked(qaApi.askQuestion).mockRejectedValueOnce(new Error("network error"));
+    vi.mocked(qaApi.askQuestion).mockRejectedValueOnce(
+      new Error("network error")
+    );
     render(<QAPanel />);
     fireEvent.change(screen.getByRole("textbox", { name: "Question" }), {
       target: { value: "What is vendor risk?" },

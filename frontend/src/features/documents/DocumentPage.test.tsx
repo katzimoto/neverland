@@ -7,13 +7,15 @@ import * as documentsApi from "@/api/documents";
 vi.mock("@tanstack/react-router", () => ({
   useParams: () => ({ docId: "doc-123" }),
   useNavigate: () => vi.fn(),
-  Link: ({ children, to }: { children: React.ReactNode; to: string }) => <a href={to}>{children}</a>,
+  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
+    <a href={to}>{children}</a>
+  ),
 }));
 
 vi.mock("@/api/documents");
 
 const mockPreview: documentsApi.DocumentPreview = {
-  doc_id: "doc-123",
+  documantions_id: "doc-123",
   title: "Vendor Risk Assessment 2024",
   mime_type: "text/plain",
   translation_quality: "fast",
@@ -24,21 +26,30 @@ const mockPreview: documentsApi.DocumentPreview = {
 
 beforeEach(() => {
   vi.mocked(documentsApi.getPreview).mockResolvedValue(mockPreview);
-  vi.mocked(documentsApi.getDownloadUrl).mockReturnValue("/api/download/doc-123");
+  vi.mocked(documentsApi.getDownloadUrl).mockReturnValue(
+    "/api/download/doc-123"
+  );
   vi.mocked(documentsApi.getTranslationVersions).mockResolvedValue([]);
   vi.mocked(documentsApi.getSummary).mockRejectedValue(new Error("not found"));
   vi.mocked(documentsApi.getEntities).mockRejectedValue(new Error("not found"));
   vi.mocked(documentsApi.getTags).mockRejectedValue(new Error("not found"));
   vi.mocked(documentsApi.getRelated).mockRejectedValue(new Error("not found"));
-  vi.mocked(documentsApi.listComments).mockResolvedValue({ comments: [], total: 0 });
-  vi.mocked(documentsApi.listAnnotations).mockResolvedValue({ annotations: [] });
+  vi.mocked(documentsApi.listComments).mockResolvedValue({
+    comments: [],
+    total: 0,
+  });
+  vi.mocked(documentsApi.listAnnotations).mockResolvedValue({
+    annotations: [],
+  });
 });
 
 describe("DocumentPage", () => {
   it("renders document title after loading", async () => {
     render(<DocumentPage />);
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Vendor Risk Assessment 2024" })).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "Vendor Risk Assessment 2024" })
+      ).toBeInTheDocument();
     });
   });
 
@@ -52,14 +63,18 @@ describe("DocumentPage", () => {
   it("shows back to search button", async () => {
     render(<DocumentPage />);
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /back to search/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /back to search/i })
+      ).toBeInTheDocument();
     });
   });
 
   it("shows request translation button when quality is not high", async () => {
     render(<DocumentPage />);
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /request translation/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /request translation/i })
+      ).toBeInTheDocument();
     });
   });
 
@@ -75,7 +90,9 @@ describe("DocumentPage", () => {
     render(<DocumentPage />);
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Vendor Risk Assessment 2024" })).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "Vendor Risk Assessment 2024" })
+      ).toBeInTheDocument();
     });
 
     expect(documentsApi.getRelated).not.toHaveBeenCalled();
@@ -90,7 +107,9 @@ describe("DocumentPage", () => {
   });
 
   it("shows error state when preview fails", async () => {
-    vi.mocked(documentsApi.getPreview).mockRejectedValueOnce(new Error("not found"));
+    vi.mocked(documentsApi.getPreview).mockRejectedValueOnce(
+      new Error("not found")
+    );
     render(<DocumentPage />);
     await waitFor(() => {
       expect(screen.getByText("Document not found")).toBeInTheDocument();
@@ -100,7 +119,9 @@ describe("DocumentPage", () => {
   it("renders preview snippet via TextPreview", async () => {
     render(<DocumentPage />);
     await waitFor(() => {
-      expect(screen.getByText("This document covers vendor risk.")).toBeInTheDocument();
+      expect(
+        screen.getByText("This document covers vendor risk.")
+      ).toBeInTheDocument();
     });
   });
 });

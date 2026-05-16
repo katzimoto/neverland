@@ -32,18 +32,24 @@ export function DocumentToolbar({
   return (
     <>
       <header className={styles.toolbar}>
-        <button className={styles.backBtn} onClick={handleBack} aria-label={t.document.backToSearch}>
+        <button
+          className={styles.backBtn}
+          onClick={handleBack}
+          aria-label={t.document.backToSearch}
+        >
           <ArrowLeft size={18} />
         </button>
 
         <div className={styles.titleGroup}>
-          <h1 className={styles.title}>{preview.title ?? t.document.untitled}</h1>
+          <h1 className={styles.title}>
+            {preview.title ?? t.document.untitled}
+          </h1>
           <TrustDisplay preview={preview} />
         </div>
 
         <div className={styles.controls}>
           <TranslationVersionSelector
-            docId={preview.doc_id}
+            docId={preview.documantions_id}
             selectedVersionId={selectedVersionId}
             onSelect={onVersionChange}
           />
@@ -57,7 +63,11 @@ export function DocumentToolbar({
               {t.document.requestTranslation}
             </Button>
           )}
-          <a href={getDownloadUrl(preview.doc_id)} download className={styles.downloadLink}>
+          <a
+            href={getDownloadUrl(preview.documantions_id)}
+            download
+            className={styles.downloadLink}
+          >
             <Button variant="secondary" size="sm">
               <Download size={14} />
               {t.document.download}
@@ -67,7 +77,7 @@ export function DocumentToolbar({
       </header>
 
       <RequestTranslationDialog
-        docId={preview.doc_id}
+        docId={preview.documantions_id}
         open={translationDialogOpen}
         onClose={() => setTranslationDialogOpen(false)}
       />

@@ -65,7 +65,7 @@ System behavior:
 
 ### Document Preview
 
-Add a `Comments` tab to the right insight pane on `/doc/:doc_id`.
+Add a `Comments` tab to the right insight pane on `/doc/:documantions_id`.
 
 Recommended tab order:
 
@@ -262,7 +262,7 @@ Comment:
 ```ts
 type DocumentComment = {
   comment_id: string;
-  doc_id: string;
+  documantions_id: string;
   author_id: string;
   author_display_name: string;
   author_is_admin: boolean;
@@ -283,7 +283,7 @@ List response:
 
 ```ts
 type DocumentCommentsResponse = {
-  doc_id: string;
+  documantions_id: string;
   comments: DocumentComment[];
   total_count: number;
   can_comment: boolean;
@@ -310,10 +310,10 @@ Suggested endpoints:
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| GET | `/documents/{doc_id}/comments` | Document access | List visible comments |
-| POST | `/documents/{doc_id}/comments` | Document access | Create a comment |
-| PATCH | `/documents/{doc_id}/comments/{comment_id}` | Creator or admin | Edit comment body |
-| DELETE | `/documents/{doc_id}/comments/{comment_id}` | Creator or admin | Delete comment |
+| GET | `/documents/{documantions_id}/comments` | Document access | List visible comments |
+| POST | `/documents/{documantions_id}/comments` | Document access | Create a comment |
+| PATCH | `/documents/{documantions_id}/comments/{comment_id}` | Creator or admin | Edit comment body |
+| DELETE | `/documents/{documantions_id}/comments/{comment_id}` | Creator or admin | Delete comment |
 
 ## Acceptance Checklist
 

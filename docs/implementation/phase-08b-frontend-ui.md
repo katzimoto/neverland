@@ -233,7 +233,7 @@ Branch: `developer/phase-08d-document-detail`
 
 ### Scope
 
-- Document route `/doc/:doc_id`.
+- Document route `/doc/:documantions_id`.
 - Back-to-search behavior preserving query and filters.
 - Preview shell with toolbar, main preview pane, and right insight pane.
 - Translation version selector and request translation dialog when endpoints

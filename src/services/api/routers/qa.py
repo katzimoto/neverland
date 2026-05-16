@@ -56,7 +56,9 @@ def qa(
             group_ids: list[str] = []
         else:
             _auth_repo = AuthRepository(connection)
-            _effective = set(user.groups) | set(_auth_repo.get_effective_group_ids(user.groups))
+            _effective = set(user.groups) | set(
+                _auth_repo.get_effective_group_ids(user.groups)
+            )
             group_ids = [str(g) for g in _effective]
 
         encoder = build_encoder(request.app.state.settings)
@@ -112,7 +114,7 @@ def qa(
             "answer": result.answer,
             "citations": [
                 {
-                    "doc_id": c.doc_id,
+                    "documantions_id": c.documantions_id,
                     "doc_title": c.doc_title,
                     "chunk_text": c.chunk_text,
                     "score": c.score,

@@ -39,7 +39,9 @@ def _setup_admin(engine: Engine) -> None:
 
 
 def _admin_token(client: TestClient) -> str:
-    login = client.post("/auth/login", json={"email": "admin@example.com", "password": "secret"})
+    login = client.post(
+        "/auth/login", json={"email": "admin@example.com", "password": "secret"}
+    )
     assert login.status_code == 200
     return str(login.json()["access_token"])
 
@@ -66,18 +68,23 @@ def test_connector_types_includes_smb() -> None:
     assert "smb" in types
     assert types["smb"]["label"] == "SMB"
     assert any(
-        field["key"] == "password" and field["sensitive"] for field in types["smb"]["fields"]
+        field["key"] == "password" and field["sensitive"]
+        for field in types["smb"]["fields"]
     )
 
 
 def test_admin_connector_types_endpoint_includes_smb(migrated_engine: Engine) -> None:
     _setup_admin(migrated_engine)
     client = TestClient(
-        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+        create_app(
+            migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET)
+        )
     )
     token = _admin_token(client)
 
-    response = client.get("/admin/connector-types", headers={"Authorization": f"Bearer {token}"})
+    response = client.get(
+        "/admin/connector-types", headers={"Authorization": f"Bearer {token}"}
+    )
 
     assert response.status_code == 200
     assert "smb" in {item["type"] for item in response.json()}
@@ -86,7 +93,9 @@ def test_admin_connector_types_endpoint_includes_smb(migrated_engine: Engine) ->
 def test_admin_source_creation_accepts_smb(migrated_engine: Engine) -> None:
     _setup_admin(migrated_engine)
     client = TestClient(
-        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+        create_app(
+            migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET)
+        )
     )
     token = _admin_token(client)
 
@@ -128,7 +137,9 @@ def test_admin_source_languages_endpoint_returns_configured_languages(
     client = TestClient(create_app(migrated_engine, settings))
     token = _admin_token(client)
 
-    response = client.get("/admin/source-languages", headers={"Authorization": f"Bearer {token}"})
+    response = client.get(
+        "/admin/source-languages", headers={"Authorization": f"Bearer {token}"}
+    )
 
     assert response.status_code == 200
     assert response.json() == ["en", "he", "fr"]
@@ -139,11 +150,15 @@ def test_admin_source_languages_endpoint_default_includes_major_languages(
 ) -> None:
     _setup_admin(migrated_engine)
     client = TestClient(
-        create_app(migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET))
+        create_app(
+            migrated_engine, Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET)
+        )
     )
     token = _admin_token(client)
 
-    response = client.get("/admin/source-languages", headers={"Authorization": f"Bearer {token}"})
+    response = client.get(
+        "/admin/source-languages", headers={"Authorization": f"Bearer {token}"}
+    )
 
     assert response.status_code == 200
     data = response.json()
@@ -155,7 +170,7 @@ def test_admin_source_languages_endpoint_default_includes_major_languages(
 def test_db_constraints_allow_smb_source_and_document(migrated_engine: Engine) -> None:
     with migrated_engine.begin() as connection:
         source_id = "00112233445566778899aabbccddeeff"
-        doc_id = "11112233445566778899aabbccddeeff"
+        documantions_id = "11112233445566778899aabbccddeeff"
         connection.execute(
             sa.text("""
                 INSERT INTO ingestion_sources (id, name, type, source_language)
@@ -168,11 +183,12 @@ def test_db_constraints_allow_smb_source_and_document(migrated_engine: Engine) -
                 INSERT INTO documents (id, source_id, external_id, source, mime_type)
                 VALUES (:id, :source_id, 'smb://fileserver/share/a.txt', 'smb', 'text/plain')
                 """),
-            {"id": doc_id, "source_id": source_id},
+            {"id": documantions_id, "source_id": source_id},
         )
 
         row = connection.execute(
-            sa.text("SELECT source FROM documents WHERE id = :id"), {"id": doc_id}
+            sa.text("SELECT source FROM documents WHERE id = :id"),
+            {"id": documantions_id},
         ).scalar_one()
 
     assert row == "smb"

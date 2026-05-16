@@ -20,7 +20,9 @@ class _FakeJobRepo:
         self.dead_lettered: list[UUID] = []
         self.enqueued: list[dict] = []
 
-    def claim_next(self, worker_id: str, job_types: list[str] | None = None) -> dict | None:
+    def claim_next(
+        self, worker_id: str, job_types: list[str] | None = None
+    ) -> dict | None:
         return self._job
 
     def mark_running_stage(self, job_id: UUID, stage: str) -> None:
@@ -29,17 +31,27 @@ class _FakeJobRepo:
     def mark_succeeded(self, job_id: UUID) -> None:
         self.succeeded.append(job_id)
 
-    def mark_retry(self, job_id: UUID, error: object, *, stage: str = "process") -> None:
+    def mark_retry(
+        self, job_id: UUID, error: object, *, stage: str = "process"
+    ) -> None:
         self.retried.append(job_id)
 
     def mark_dead_letter(self, job_id: UUID, error: object) -> None:
         self.dead_lettered.append(job_id)
 
-    def get_payload(self, doc_id: UUID) -> dict | None:
+    def get_payload(self, documantions_id: UUID) -> dict | None:
         return self._payload
 
-    def enqueue_document(self, *, doc_id: UUID, source_id: UUID, job_type: str) -> UUID:
-        self.enqueued.append({"doc_id": doc_id, "source_id": source_id, "job_type": job_type})
+    def enqueue_document(
+        self, *, documantions_id: UUID, source_id: UUID, job_type: str
+    ) -> UUID:
+        self.enqueued.append(
+            {
+                "documantions_id": documantions_id,
+                "source_id": source_id,
+                "job_type": job_type,
+            }
+        )
         return uuid4()
 
     def count_by_status(self) -> dict:
@@ -53,12 +65,12 @@ class _FakeDoc:
     def __init__(
         self,
         *,
-        doc_id: UUID | None = None,
+        documantions_id: UUID | None = None,
         source_id: UUID | None = None,
         path: str | None = None,
         title: str | None = "Test document",
     ) -> None:
-        self.id = doc_id or uuid4()
+        self.id = documantions_id or uuid4()
         self.source_id = source_id or uuid4()
         self.path = path
         self.title = title
@@ -66,23 +78,27 @@ class _FakeDoc:
 
 
 class _FakeDocRepo:
-    def __init__(self, doc: _FakeDoc | None = None, group_ids: list[UUID] | None = None) -> None:
+    def __init__(
+        self, doc: _FakeDoc | None = None, group_ids: list[UUID] | None = None
+    ) -> None:
         self._doc = doc
         self._group_ids = group_ids or []
         self.indexed_updates: list[tuple[UUID, str, str | None]] = []
         self.status_updates: list[tuple[UUID, str]] = []
 
-    def get_by_id(self, doc_id: UUID) -> _FakeDoc | None:
+    def get_by_id(self, documantions_id: UUID) -> _FakeDoc | None:
         return self._doc
 
     def source_group_ids(self, source_id: UUID) -> list[UUID]:
         return self._group_ids
 
-    def update_indexed(self, doc_id: UUID, status: str, translation_quality: str | None) -> None:
-        self.indexed_updates.append((doc_id, status, translation_quality))
+    def update_indexed(
+        self, documantions_id: UUID, status: str, translation_quality: str | None
+    ) -> None:
+        self.indexed_updates.append((documantions_id, status, translation_quality))
 
-    def update_status(self, doc_id: UUID, status: str) -> None:
-        self.status_updates.append((doc_id, status))
+    def update_status(self, documantions_id: UUID, status: str) -> None:
+        self.status_updates.append((documantions_id, status))
 
 
 class _FakeElasticsearch:
@@ -90,17 +106,19 @@ class _FakeElasticsearch:
         self.fail = fail
         self.calls: list[tuple[str, dict]] = []
 
-    def index_document(self, doc_id: str, body: dict) -> None:
-        self.calls.append((doc_id, body))
+    def index_document(self, documantions_id: str, body: dict) -> None:
+        self.calls.append((documantions_id, body))
         if self.fail:
             raise RuntimeError("elasticsearch_unavailable")
 
 
-def _make_job(*, doc_id: UUID | None = None, source_id: UUID | None = None) -> dict:
+def _make_job(
+    *, documantions_id: UUID | None = None, source_id: UUID | None = None
+) -> dict:
     now = datetime.now(UTC)
     return {
         "id": uuid4(),
-        "doc_id": doc_id or uuid4(),
+        "documantions_id": documantions_id or uuid4(),
         "source_id": source_id or uuid4(),
         "job_type": "index_document",
         "attempts": 1,
@@ -128,10 +146,10 @@ def test_returns_false_when_no_job() -> None:
 
 def test_indexes_document_into_elasticsearch() -> None:
     group_id = uuid4()
-    doc_id = uuid4()
+    documantions_id = uuid4()
     source_id = uuid4()
-    job = _make_job(doc_id=doc_id, source_id=source_id)
-    doc = _FakeDoc(doc_id=doc_id, source_id=source_id, title="My Doc")
+    job = _make_job(documantions_id=documantions_id, source_id=source_id)
+    doc = _FakeDoc(documantions_id=documantions_id, source_id=source_id, title="My Doc")
     payload = {"content_text": "original text", "translated_text": "english text"}
     job_repo = _FakeJobRepo(job=job, payload=payload)
     doc_repo = _FakeDocRepo(doc=doc, group_ids=[group_id])
@@ -142,7 +160,7 @@ def test_indexes_document_into_elasticsearch() -> None:
     assert result is True
     assert len(es.calls) == 1
     indexed_id, indexed_body = es.calls[0]
-    assert indexed_id == str(doc_id)
+    assert indexed_id == str(documantions_id)
     assert indexed_body["content_original"] == "original text"
     assert indexed_body["content_english"] == "english text"
     assert indexed_body["allowed_group_ids"] == [str(group_id)]
@@ -150,10 +168,10 @@ def test_indexes_document_into_elasticsearch() -> None:
 
 
 def test_marks_indexed_after_success() -> None:
-    doc_id = uuid4()
+    documantions_id = uuid4()
     source_id = uuid4()
-    job = _make_job(doc_id=doc_id, source_id=source_id)
-    doc = _FakeDoc(doc_id=doc_id, source_id=source_id)
+    job = _make_job(documantions_id=documantions_id, source_id=source_id)
+    doc = _FakeDoc(documantions_id=documantions_id, source_id=source_id)
     payload = {"content_text": "hello", "translated_text": "hello translated"}
     job_repo = _FakeJobRepo(job=job, payload=payload)
     doc_repo = _FakeDocRepo(doc=doc)
@@ -161,14 +179,14 @@ def test_marks_indexed_after_success() -> None:
 
     run_index_once(job_repo, doc_repo, es)
 
-    assert doc_repo.indexed_updates == [(doc_id, "indexed", "fast")]
+    assert doc_repo.indexed_updates == [(documantions_id, "indexed", "fast")]
     assert job_repo.succeeded == [job["id"]]
 
 
 def test_translation_quality_none_when_text_unchanged() -> None:
-    doc_id = uuid4()
-    job = _make_job(doc_id=doc_id)
-    doc = _FakeDoc(doc_id=doc_id)
+    documantions_id = uuid4()
+    job = _make_job(documantions_id=documantions_id)
+    doc = _FakeDoc(documantions_id=documantions_id)
     payload = {"content_text": "same text", "translated_text": "same text"}
     job_repo = _FakeJobRepo(job=job, payload=payload)
     doc_repo = _FakeDocRepo(doc=doc)
@@ -180,9 +198,9 @@ def test_translation_quality_none_when_text_unchanged() -> None:
 
 
 def test_content_english_falls_back_to_original_when_no_translated_text() -> None:
-    doc_id = uuid4()
-    job = _make_job(doc_id=doc_id)
-    doc = _FakeDoc(doc_id=doc_id)
+    documantions_id = uuid4()
+    job = _make_job(documantions_id=documantions_id)
+    doc = _FakeDoc(documantions_id=documantions_id)
     payload = {"content_text": "raw content", "translated_text": None}
     job_repo = _FakeJobRepo(job=job, payload=payload)
     doc_repo = _FakeDocRepo(doc=doc)
@@ -197,9 +215,9 @@ def test_content_english_falls_back_to_original_when_no_translated_text() -> Non
 
 def test_enqueues_vector_job_after_success() -> None:
     source_id = uuid4()
-    doc_id = uuid4()
-    job = _make_job(doc_id=doc_id, source_id=source_id)
-    doc = _FakeDoc(doc_id=doc_id, source_id=source_id)
+    documantions_id = uuid4()
+    job = _make_job(documantions_id=documantions_id, source_id=source_id)
+    doc = _FakeDoc(documantions_id=documantions_id, source_id=source_id)
     payload = {"content_text": "text", "translated_text": None}
     job_repo = _FakeJobRepo(job=job, payload=payload)
     doc_repo = _FakeDocRepo(doc=doc)
@@ -209,14 +227,14 @@ def test_enqueues_vector_job_after_success() -> None:
 
     assert len(job_repo.enqueued) == 1
     assert job_repo.enqueued[0]["job_type"] == "vector_index_document"
-    assert job_repo.enqueued[0]["doc_id"] == doc_id
+    assert job_repo.enqueued[0]["documantions_id"] == documantions_id
     assert job_repo.enqueued[0]["source_id"] == source_id
 
 
 def test_marks_failed_and_retries_when_elasticsearch_raises() -> None:
-    doc_id = uuid4()
-    job = _make_job(doc_id=doc_id)
-    doc = _FakeDoc(doc_id=doc_id)
+    documantions_id = uuid4()
+    job = _make_job(documantions_id=documantions_id)
+    doc = _FakeDoc(documantions_id=documantions_id)
     payload = {"content_text": "text", "translated_text": None}
     job_repo = _FakeJobRepo(job=job, payload=payload)
     doc_repo = _FakeDocRepo(doc=doc)
@@ -225,18 +243,18 @@ def test_marks_failed_and_retries_when_elasticsearch_raises() -> None:
     result = run_index_once(job_repo, doc_repo, es)
 
     assert result is True
-    assert doc_repo.status_updates == [(doc_id, "failed")]
+    assert doc_repo.status_updates == [(documantions_id, "failed")]
     assert job_repo.retried == [job["id"]]
     assert job_repo.enqueued == []
     assert doc_repo.indexed_updates == []
 
 
 def test_dead_letters_when_max_attempts_reached() -> None:
-    doc_id = uuid4()
-    job = _make_job(doc_id=doc_id)
+    documantions_id = uuid4()
+    job = _make_job(documantions_id=documantions_id)
     job["attempts"] = 5
     job["max_attempts"] = 5
-    doc = _FakeDoc(doc_id=doc_id)
+    doc = _FakeDoc(documantions_id=documantions_id)
     payload = {"content_text": "text", "translated_text": None}
     job_repo = _FakeJobRepo(job=job, payload=payload)
     doc_repo = _FakeDocRepo(doc=doc)
@@ -249,9 +267,9 @@ def test_dead_letters_when_max_attempts_reached() -> None:
 
 
 def test_filename_fallback_when_path_is_none() -> None:
-    doc_id = uuid4()
-    job = _make_job(doc_id=doc_id)
-    doc = _FakeDoc(doc_id=doc_id, path=None, title="My Title")
+    documantions_id = uuid4()
+    job = _make_job(documantions_id=documantions_id)
+    doc = _FakeDoc(documantions_id=documantions_id, path=None, title="My Title")
     payload = {"content_text": "text", "translated_text": None}
     job_repo = _FakeJobRepo(job=job, payload=payload)
     doc_repo = _FakeDocRepo(doc=doc)
@@ -265,9 +283,9 @@ def test_filename_fallback_when_path_is_none() -> None:
 
 
 def test_filename_extracted_from_path() -> None:
-    doc_id = uuid4()
-    job = _make_job(doc_id=doc_id)
-    doc = _FakeDoc(doc_id=doc_id, path="/data/ingest/report.pdf")
+    documantions_id = uuid4()
+    job = _make_job(documantions_id=documantions_id)
+    doc = _FakeDoc(documantions_id=documantions_id, path="/data/ingest/report.pdf")
     payload = {"content_text": "text", "translated_text": None}
     job_repo = _FakeJobRepo(job=job, payload=payload)
     doc_repo = _FakeDocRepo(doc=doc)
@@ -294,9 +312,9 @@ def test_retries_when_document_not_found() -> None:
 
 
 def test_marks_running_stage_before_work() -> None:
-    doc_id = uuid4()
-    job = _make_job(doc_id=doc_id)
-    doc = _FakeDoc(doc_id=doc_id)
+    documantions_id = uuid4()
+    job = _make_job(documantions_id=documantions_id)
+    doc = _FakeDoc(documantions_id=documantions_id)
     payload = {"content_text": "text", "translated_text": None}
     job_repo = _FakeJobRepo(job=job, payload=payload)
     doc_repo = _FakeDocRepo(doc=doc)

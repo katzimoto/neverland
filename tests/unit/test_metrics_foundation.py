@@ -80,7 +80,10 @@ def test_metrics_are_isolated_per_app_instance() -> None:
 
 
 def test_normalize_route_template_rejects_raw_paths_and_keeps_templates() -> None:
-    assert normalize_route_template("/documents/{doc_id}") == "/documents/{doc_id}"
+    assert (
+        normalize_route_template("/documents/{documantions_id}")
+        == "/documents/{documantions_id}"
+    )
     assert normalize_route_template("documents/abc") == "__unknown__"
 
 

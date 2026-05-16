@@ -22,7 +22,7 @@ def upgrade() -> None:
     op.create_table(
         "document_summaries",
         sa.Column(
-            "doc_id",
+            "documantions_id",
             sa.Uuid(),
             sa.ForeignKey("documents.id", ondelete="CASCADE"),
             primary_key=True,
@@ -62,7 +62,7 @@ def upgrade() -> None:
     op.create_table(
         "document_entities",
         sa.Column(
-            "doc_id",
+            "documantions_id",
             sa.Uuid(),
             sa.ForeignKey("documents.id", ondelete="CASCADE"),
             nullable=False,
@@ -74,7 +74,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("frequency", sa.Integer(), nullable=False, server_default="1"),
-        sa.PrimaryKeyConstraint("doc_id", "entity_id"),
+        sa.PrimaryKeyConstraint("documantions_id", "entity_id"),
     )
     op.create_index(
         "ix_document_entities_entity_id",
@@ -85,13 +85,13 @@ def upgrade() -> None:
     op.create_table(
         "document_tags",
         sa.Column(
-            "doc_id",
+            "documantions_id",
             sa.Uuid(),
             sa.ForeignKey("documents.id", ondelete="CASCADE"),
             nullable=False,
         ),
         sa.Column("tag", sa.Text(), nullable=False),
-        sa.PrimaryKeyConstraint("doc_id", "tag"),
+        sa.PrimaryKeyConstraint("documantions_id", "tag"),
     )
     op.create_index(
         "ix_document_tags_tag",

@@ -31,7 +31,7 @@ Detailed document comment plan:
 
 - **Annotation retention:** delete cascade says annotations are marked
   `doc_deleted: true`, but the annotation schema does not include that column.
-  - **Resolved for Phase 07:** annotations table includes `doc_id` (FK to
+  - **Resolved for Phase 07:** annotations table includes `documantions_id` (FK to
     documents with `ON DELETE CASCADE`). When a document is soft-deleted
     (`status = 'deleted'`), annotations remain in place for audit purposes.
     Hard delete cascades through FK. No `doc_deleted` column needed.
@@ -66,17 +66,17 @@ Subscriptions and notifications are implemented as a backend-only slice:
   de-duplicates subscription/document notifications.
 - Alert matching runs best-effort during folder ingestion when
   `alerts.check_on_ingest` is enabled.
-- `POST /admin/alerts/{doc_id}/trigger` lets admins match one indexed document
+- `POST /admin/alerts/{documantions_id}/trigger` lets admins match one indexed document
   on demand.
 
 ## Phase 07e Backend Slice
 
 Related documents and the expertise map are implemented as a backend-only slice:
 
-- `GET /documents/{doc_id}/related` returns permission-filtered related
+- `GET /documents/{documantions_id}/related` returns permission-filtered related
   documents for a source document.
 - Related documents use existing Qdrant chunk vectors and the authenticated
-  user's group IDs, exclude the source document, deduplicate by `doc_id`, and
+  user's group IDs, exclude the source document, deduplicate by `documantions_id`, and
   respect `system_config.search.related_docs_limit`.
 - `GET /expertise?topic=<query>` returns neutral user evidence for a topic.
 - Expertise scoring uses weighted, transparent signals from views, comments,

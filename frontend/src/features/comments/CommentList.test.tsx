@@ -7,8 +7,21 @@ const mocks = vi.hoisted(() => ({
   listComments: vi.fn(),
 }));
 
-vi.mock("@/api/auth", () => ({ getCurrentUser: vi.fn(() => Promise.resolve({ user_id: "u1", email: "a@example.com", display_name: "Ari", is_admin: false, groups: [] })) }));
-vi.mock("@/api/comments", () => ({ listComments: mocks.listComments, createComment: vi.fn() }));
+vi.mock("@/api/auth", () => ({
+  getCurrentUser: vi.fn(() =>
+    Promise.resolve({
+      user_id: "u1",
+      email: "a@example.com",
+      display_name: "Ari",
+      is_admin: false,
+      groups: [],
+    })
+  ),
+}));
+vi.mock("@/api/comments", () => ({
+  listComments: mocks.listComments,
+  createComment: vi.fn(),
+}));
 
 beforeEach(() => {
   mocks.listComments.mockReset();
@@ -24,7 +37,15 @@ test("renders permission state without a document title", async () => {
 
 test("renders comments mapped from the backend envelope", async () => {
   mocks.listComments.mockResolvedValueOnce([
-    { id: "c1", doc_id: "d1", author_id: "u1", author_name: "Ari", body: "Backend envelope comment", created_at: "2026-05-01T10:00:00Z", updated_at: "2026-05-01T11:00:00Z" },
+    {
+      id: "c1",
+      documantions_id: "d1",
+      author_id: "u1",
+      author_name: "Ari",
+      body: "Backend envelope comment",
+      created_at: "2026-05-01T10:00:00Z",
+      updated_at: "2026-05-01T11:00:00Z",
+    },
   ]);
 
   render(<CommentList docId="d1" />);

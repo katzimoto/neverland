@@ -86,7 +86,7 @@ Create `src/features/search/` with:
 - `ResultList.module.css`
 - `ResultRow.tsx` — displays: title, snippet/chunk text, source label, MIME
   type badge, tags, translation state badge, relevance score, and a row action
-  menu (open document, copy link). Clicking a row navigates to `/doc/:doc_id`.
+  menu (open document, copy link). Clicking a row navigates to `/doc/:documantions_id`.
 - `ResultRow.module.css`
 - `ResultRow.test.tsx`
 - `SavedSearches.ts` — browser-storage utility. Stores and retrieves saved
@@ -101,7 +101,7 @@ Extend `src/api/search.ts` with:
 - Filter parameter types matching the backend `POST /search` contract.
 - Response type covering `results`, `total`, and `took_ms`.
 
-Pre-define the `/doc/:doc_id` stub route in `src/app/routes.tsx` (render a
+Pre-define the `/doc/:documantions_id` stub route in `src/app/routes.tsx` (render a
 `PlaceholderPage` with title "Document") so that `ResultRow` links are valid
 and 08d can replace the component without modifying the route registration.
 
@@ -156,7 +156,7 @@ frontend/tests/e2e/search.spec.ts
 ## Modified Files
 
 ```
-frontend/src/app/routes.tsx         — replace searchRoute component; add /doc/:doc_id stub route
+frontend/src/app/routes.tsx         — replace searchRoute component; add /doc/:documantions_id stub route
 frontend/src/app/AppLayout.tsx      — wire user display name and is_admin; add logout action
 frontend/src/api/search.ts          — extend types for pagination and filters
 ```
@@ -185,7 +185,7 @@ Playwright workflows required:
 - Permission-filtered zero results show the empty state without source names or
   counts.
 - Saved search survives a page reload.
-- Clicking a result row navigates to `/doc/:doc_id` (stub page is acceptable
+- Clicking a result row navigates to `/doc/:documantions_id` (stub page is acceptable
   for this phase).
 - All four Playwright viewports: 320×720, 768×1024, 1024×768, 1440×900.
 

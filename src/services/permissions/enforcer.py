@@ -42,10 +42,10 @@ def assert_source_access(
 
 
 def assert_doc_access(
-    doc_id: UUID, user: TokenPayload | UserIdentity, repository: AuthRepository
+    documantions_id: UUID, user: TokenPayload | UserIdentity, repository: AuthRepository
 ) -> None:
     """Raise 403 unless the user can access the document's source."""
-    source_id = repository.document_source_id(doc_id)
+    source_id = repository.document_source_id(documantions_id)
     if source_id is None:
         raise HTTPException(status_code=404, detail="Document not found")
     assert_source_access(source_id, user, repository)

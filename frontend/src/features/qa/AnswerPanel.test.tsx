@@ -4,14 +4,21 @@ import { render } from "@/test/render";
 import { AnswerPanel } from "./AnswerPanel";
 
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children, to }: { children: React.ReactNode; to: string }) => <a href={to}>{children}</a>,
+  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
+    <a href={to}>{children}</a>
+  ),
 }));
 
 const mockResult = {
   question: "What is vendor risk?",
   answer: "Vendor risk is the potential exposure from third-party vendors.",
   citations: [
-    { doc_id: "doc-1", doc_title: "Vendor Policy", chunk_text: "Vendor risk refers to…", score: 0.9 },
+    {
+      documantions_id: "doc-1",
+      doc_title: "Vendor Policy",
+      chunk_text: "Vendor risk refers to…",
+      score: 0.9,
+    },
   ],
   model: "ollama/mistral",
 };
@@ -19,12 +26,18 @@ const mockResult = {
 describe("AnswerPanel", () => {
   it("renders answer text", () => {
     render(<AnswerPanel result={mockResult} />);
-    expect(screen.getByText("Vendor risk is the potential exposure from third-party vendors.")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Vendor risk is the potential exposure from third-party vendors."
+      )
+    ).toBeInTheDocument();
   });
 
   it("renders citation title", () => {
     render(<AnswerPanel result={mockResult} />);
-    expect(screen.getByRole("link", { name: "Vendor Policy" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Vendor Policy" })
+    ).toBeInTheDocument();
   });
 
   it("renders model note", () => {

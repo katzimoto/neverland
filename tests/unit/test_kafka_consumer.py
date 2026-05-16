@@ -21,7 +21,9 @@ class _Message:
 
 
 class _Consumer:
-    def __init__(self, messages: list[_Message] | None = None, failures: int = 0) -> None:
+    def __init__(
+        self, messages: list[_Message] | None = None, failures: int = 0
+    ) -> None:
         self.messages = messages or []
         self.failures = failures
         self.committed: list[_Message] = []
@@ -47,16 +49,16 @@ class _Dlq:
         return self.succeeds
 
 
-def _insert_source(engine: Engine, *, enabled: bool = True, source_key: str = "nifi-flow") -> UUID:
+def _insert_source(
+    engine: Engine, *, enabled: bool = True, source_key: str = "nifi-flow"
+) -> UUID:
     source_id = uuid4()
     with engine.begin() as connection:
         connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 INSERT INTO ingestion_sources (id, name, type, enabled, config, source_language)
                 VALUES (:id, 'NiFi Flow', 'nifi', :enabled, :config, 'en')
-                """
-            ),
+                """),
             {
                 "id": source_id.hex,
                 "enabled": enabled,
@@ -72,7 +74,9 @@ def _event(
     text: str = "hello",
 ) -> str:
     source_fields = (
-        {"source_id": str(source_id)} if source_id is not None else {"source_key": source_key}
+        {"source_id": str(source_id)}
+        if source_id is not None
+        else {"source_key": source_key}
     )
     return str(
         {
@@ -95,7 +99,7 @@ def _drain(
     return NiFiKafkaDrain(
         consumer=consumer,
         engine=engine,
-        process_document=process_document or (lambda doc_id, text: None),
+        process_document=process_document or (lambda documantions_id, text: None),
         dlq=dlq,
         sleep=lambda seconds: None,
     )
@@ -112,20 +116,24 @@ def test_kafka_drain_processes_inline_event_and_commits_after_pipeline(
     result = _drain(
         migrated_engine,
         consumer,
-        lambda doc_id, text: processed.append((doc_id, text)),
+        lambda documantions_id, text: processed.append((documantions_id, text)),
     ).drain(max_messages=1)
 
     assert result["processed"] == 1
     assert processed[0][1] == "hello"
     assert consumer.committed == [message]
     with migrated_engine.connect() as connection:
-        row = connection.execute(sa.text("SELECT source, source_id FROM documents")).first()
+        row = connection.execute(
+            sa.text("SELECT source, source_id FROM documents")
+        ).first()
     assert row is not None
     assert row[0] == "nifi"
     assert UUID(str(row[1])) == source_id
 
 
-def test_kafka_drain_routes_malformed_event_to_dlq_and_commits(migrated_engine: Engine) -> None:
+def test_kafka_drain_routes_malformed_event_to_dlq_and_commits(
+    migrated_engine: Engine,
+) -> None:
     message = _Message(b"not-json")
     consumer = _Consumer([message])
     dlq = _Dlq()
@@ -158,7 +166,7 @@ def test_kafka_drain_resolves_source_key(migrated_engine: Engine) -> None:
     result = _drain(
         migrated_engine,
         consumer,
-        lambda doc_id, text: processed.append((doc_id, text)),
+        lambda documantions_id, text: processed.append((documantions_id, text)),
     ).drain(max_messages=1)
 
     assert result["processed"] == 1
@@ -166,24 +174,30 @@ def test_kafka_drain_resolves_source_key(migrated_engine: Engine) -> None:
     assert consumer.committed == [message]
 
 
-def test_kafka_drain_does_not_commit_when_dlq_routing_fails(migrated_engine: Engine) -> None:
+def test_kafka_drain_does_not_commit_when_dlq_routing_fails(
+    migrated_engine: Engine,
+) -> None:
     message = _Message(b"not-json")
     consumer = _Consumer([message])
 
     with pytest.raises(RuntimeError, match="DLQ routing failed"):
-        _drain(migrated_engine, consumer, dlq=_Dlq(succeeds=False)).drain(max_messages=1)
+        _drain(migrated_engine, consumer, dlq=_Dlq(succeeds=False)).drain(
+            max_messages=1
+        )
 
     assert consumer.committed == []
 
 
-def test_kafka_drain_routes_pipeline_failure_to_dlq_and_commits(migrated_engine: Engine) -> None:
+def test_kafka_drain_routes_pipeline_failure_to_dlq_and_commits(
+    migrated_engine: Engine,
+) -> None:
     source_id = _insert_source(migrated_engine)
     message = _Message(_event(source_id))
     consumer = _Consumer([message])
     dlq = _Dlq()
 
-    def fail_pipeline(doc_id: UUID, text: str | None) -> None:
-        del doc_id, text
+    def fail_pipeline(documantions_id: UUID, text: str | None) -> None:
+        del documantions_id, text
         raise RuntimeError("raw backend details must not leak")
 
     result = _drain(migrated_engine, consumer, fail_pipeline, dlq).drain(max_messages=1)
@@ -205,7 +219,9 @@ def test_kafka_drain_retries_transient_consumer_errors(migrated_engine: Engine) 
     assert consumer.committed == [message]
 
 
-def test_kafka_drain_is_idempotent_for_source_external_id(migrated_engine: Engine) -> None:
+def test_kafka_drain_is_idempotent_for_source_external_id(
+    migrated_engine: Engine,
+) -> None:
     source_id = _insert_source(migrated_engine)
     first = _Message(_event(source_id))
     second = _Message(_event(source_id))
@@ -215,7 +231,7 @@ def test_kafka_drain_is_idempotent_for_source_external_id(migrated_engine: Engin
     result = _drain(
         migrated_engine,
         consumer,
-        lambda doc_id, text: processed.append((doc_id, text)),
+        lambda documantions_id, text: processed.append((documantions_id, text)),
     ).drain(max_messages=2)
 
     assert result["processed"] == 2

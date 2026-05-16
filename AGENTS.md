@@ -210,7 +210,7 @@ bash scripts/check-pr-cleanliness.sh [target-branch]
 ### FastAPI & persistence
 - Auth dependency: `Depends(current_user)`.
 - Admin-only: `require_admin(user)`.
-- Document access: `assert_doc_access(doc_id, user, auth_repo)`.
+- Document access: `assert_doc_access(documantions_id, user, auth_repo)`.
 - DB transaction: `with app.state.engine.begin() as connection:`.
 
 ### Data-layer guardrail

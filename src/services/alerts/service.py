@@ -39,7 +39,7 @@ class AlertMatcher:
             if similarity >= threshold and self._repository.create_notification(
                 subscription_id=_row_uuid(subscription, "id"),
                 user_id=_row_uuid(subscription, "user_id"),
-                doc_id=doc.id,
+                documantions_id=doc.id,
                 similarity=similarity,
             ):
                 created += 1

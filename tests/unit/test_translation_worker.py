@@ -29,7 +29,9 @@ class _FakeJobRepo:
         self.translated_text_updates: list[tuple[UUID, str]] = []
         self.enqueued: list[dict] = []
 
-    def claim_next(self, worker_id: str, job_types: list[str] | None = None) -> dict | None:
+    def claim_next(
+        self, worker_id: str, job_types: list[str] | None = None
+    ) -> dict | None:
         self.claimed.append(worker_id)
         return self._job
 
@@ -39,20 +41,32 @@ class _FakeJobRepo:
     def mark_succeeded(self, job_id: UUID) -> None:
         self.succeeded.append(job_id)
 
-    def mark_retry(self, job_id: UUID, error: object, *, stage: str = "process") -> None:
+    def mark_retry(
+        self, job_id: UUID, error: object, *, stage: str = "process"
+    ) -> None:
         self.retried.append(job_id)
 
     def mark_dead_letter(self, job_id: UUID, error: object) -> None:
         self.dead_lettered.append(job_id)
 
-    def get_payload(self, doc_id: UUID) -> dict | None:
+    def get_payload(self, documantions_id: UUID) -> dict | None:
         return self._payload
 
-    def update_translated_text(self, doc_id: UUID, translated_text: str) -> None:
-        self.translated_text_updates.append((doc_id, translated_text))
+    def update_translated_text(
+        self, documantions_id: UUID, translated_text: str
+    ) -> None:
+        self.translated_text_updates.append((documantions_id, translated_text))
 
-    def enqueue_document(self, *, doc_id: UUID, source_id: UUID, job_type: str) -> UUID:
-        self.enqueued.append({"doc_id": doc_id, "source_id": source_id, "job_type": job_type})
+    def enqueue_document(
+        self, *, documantions_id: UUID, source_id: UUID, job_type: str
+    ) -> UUID:
+        self.enqueued.append(
+            {
+                "documantions_id": documantions_id,
+                "source_id": source_id,
+                "job_type": job_type,
+            }
+        )
         return uuid4()
 
     def count_by_status(self) -> dict:
@@ -66,13 +80,15 @@ class _FakeDocRepo:
     def __init__(self, doc: object | None = None) -> None:
         self._doc = doc
 
-    def get_by_id(self, doc_id: UUID) -> object | None:
+    def get_by_id(self, documantions_id: UUID) -> object | None:
         return self._doc
 
 
 class _FakeDoc:
-    def __init__(self, *, doc_id: UUID | None = None, source_language: str | None = "en") -> None:
-        self.id = doc_id or uuid4()
+    def __init__(
+        self, *, documantions_id: UUID | None = None, source_language: str | None = "en"
+    ) -> None:
+        self.id = documantions_id or uuid4()
         self.source_language = source_language
 
 
@@ -86,11 +102,13 @@ class _FakeTranslator:
         return self._translated
 
 
-def _make_job(*, doc_id: UUID | None = None, source_id: UUID | None = None) -> dict:
+def _make_job(
+    *, documantions_id: UUID | None = None, source_id: UUID | None = None
+) -> dict:
     now = datetime.now(UTC)
     return {
         "id": uuid4(),
-        "doc_id": doc_id or uuid4(),
+        "documantions_id": documantions_id or uuid4(),
         "source_id": source_id or uuid4(),
         "job_type": "translate_document",
         "attempts": 1,
@@ -118,8 +136,8 @@ def test_returns_false_when_no_job() -> None:
 
 
 def test_translates_and_persists_text() -> None:
-    doc_id = uuid4()
-    job = _make_job(doc_id=doc_id)
+    documantions_id = uuid4()
+    job = _make_job(documantions_id=documantions_id)
     doc = _FakeDoc(source_language="fr")
     payload = {"content_text": "bonjour monde", "translated_text": None}
     job_repo = _FakeJobRepo(job=job, payload=payload)
@@ -129,15 +147,15 @@ def test_translates_and_persists_text() -> None:
     result = run_translation_once(job_repo, doc_repo, translator)
 
     assert result is True
-    assert job_repo.translated_text_updates == [(doc_id, "hello world")]
+    assert job_repo.translated_text_updates == [(documantions_id, "hello world")]
     assert translator.calls == [("bonjour monde", "fr")]
     assert job_repo.succeeded == [job["id"]]
 
 
 def test_enqueues_index_document_after_success() -> None:
     source_id = uuid4()
-    doc_id = uuid4()
-    job = _make_job(doc_id=doc_id, source_id=source_id)
+    documantions_id = uuid4()
+    job = _make_job(documantions_id=documantions_id, source_id=source_id)
     payload = {"content_text": "some text", "translated_text": None}
     job_repo = _FakeJobRepo(job=job, payload=payload)
     doc_repo = _FakeDocRepo(doc=_FakeDoc())
@@ -147,7 +165,7 @@ def test_enqueues_index_document_after_success() -> None:
 
     assert len(job_repo.enqueued) == 1
     assert job_repo.enqueued[0]["job_type"] == "index_document"
-    assert job_repo.enqueued[0]["doc_id"] == doc_id
+    assert job_repo.enqueued[0]["documantions_id"] == documantions_id
     assert job_repo.enqueued[0]["source_id"] == source_id
 
 
@@ -196,8 +214,8 @@ def test_dead_letters_when_max_attempts_reached() -> None:
 
 
 def test_marks_running_stage_before_work(caplog: pytest.LogCaptureFixture) -> None:
-    doc_id = uuid4()
-    job = _make_job(doc_id=doc_id)
+    documantions_id = uuid4()
+    job = _make_job(documantions_id=documantions_id)
     payload = {"content_text": "hello", "translated_text": None}
     job_repo = _FakeJobRepo(job=job, payload=payload)
     doc_repo = _FakeDocRepo(doc=_FakeDoc())

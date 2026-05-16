@@ -53,7 +53,7 @@ class ElasticsearchSearchClient:
             },
             mappings={
                 "properties": {
-                    "doc_id": {"type": "keyword"},
+                    "documantions_id": {"type": "keyword"},
                     "path": {
                         "type": "text",
                         "fields": {
@@ -122,24 +122,24 @@ class ElasticsearchSearchClient:
             },
         )
 
-    def index_document(self, doc_id: str, document: dict[str, Any]) -> None:
-        """Index or update a document by *doc_id*."""
-        self._client.index(index=INDEX_NAME, id=doc_id, document=document)
+    def index_document(self, documantions_id: str, document: dict[str, Any]) -> None:
+        """Index or update a document by *documantions_id*."""
+        self._client.index(index=INDEX_NAME, id=documantions_id, document=document)
 
-    def delete_document(self, doc_id: str) -> None:
+    def delete_document(self, documantions_id: str) -> None:
         """Remove a document from the index."""
-        self._client.delete(index=INDEX_NAME, id=doc_id)
+        self._client.delete(index=INDEX_NAME, id=documantions_id)
 
     def update_document_field(
         self,
-        doc_id: str,
+        documantions_id: str,
         field: str,
         value: Any,
     ) -> None:
         """Update a single field of an existing document (partial update)."""
         self._client.update(
             index=INDEX_NAME,
-            id=doc_id,
+            id=documantions_id,
             doc={field: value},
         )
 
@@ -209,7 +209,7 @@ class ElasticsearchSearchClient:
             source = hit.get("_source", {})
             results.append(
                 SearchResult(
-                    doc_id=hit["_id"],
+                    documantions_id=hit["_id"],
                     score=float(hit["_score"]),
                     title=source.get("title"),
                     metadata=source.get("metadata"),

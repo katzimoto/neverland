@@ -2,7 +2,7 @@ import { api } from "./client";
 
 export interface Annotation {
   id: string;
-  doc_id: string;
+  documantions_id: string;
   author_id: string;
   author_name?: string;
   body: string;
@@ -14,7 +14,7 @@ export interface Annotation {
 
 export interface AnnotationRaw {
   id: string;
-  doc_id?: string;
+  documantions_id?: string;
   user_id: string;
   user_display_name?: string | null;
   text: string;
@@ -26,7 +26,7 @@ export interface AnnotationRaw {
 }
 
 export interface AnnotationListEnvelope {
-  doc_id: string;
+  documantions_id: string;
   annotations: AnnotationRaw[];
 }
 
@@ -45,7 +45,7 @@ interface AnnotationWriteRaw {
 function mapAnnotation(raw: AnnotationRaw, docId?: string): Annotation {
   return {
     id: raw.id,
-    doc_id: raw.doc_id ?? docId ?? "",
+    documantions_id: raw.documantions_id ?? docId ?? "",
     author_id: raw.user_id,
     author_name: raw.user_display_name ?? undefined,
     body: raw.text,
@@ -66,7 +66,7 @@ function mapAnnotationWrite(payload: AnnotationWrite): AnnotationWriteRaw {
 
 export async function listAnnotations(docId: string): Promise<Annotation[]> {
   const envelope = await api.get<AnnotationListEnvelope>(`/documents/${docId}/annotations`);
-  return envelope.annotations.map((annotation) => mapAnnotation(annotation, envelope.doc_id));
+  return envelope.annotations.map((annotation) => mapAnnotation(annotation, envelope.documantions_id));
 }
 
 export async function createAnnotation(docId: string, payload: AnnotationWrite): Promise<Annotation> {

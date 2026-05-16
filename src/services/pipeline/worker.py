@@ -61,7 +61,7 @@ class PipelineWorker:
         self._metrics = metrics
 
     def process_document(
-        self, doc_id: UUID, pre_extracted_text: str | None = None
+        self, documantions_id: UUID, pre_extracted_text: str | None = None
     ) -> ProcessResult | None:
         """Run the full pipeline for a single document.
 
@@ -75,25 +75,31 @@ class PipelineWorker:
         exception is re-raised.
         """
         try:
-            result = self._run(doc_id, pre_extracted_text=pre_extracted_text)
+            result = self._run(documantions_id, pre_extracted_text=pre_extracted_text)
             if self._metrics is not None:
-                self._metrics.pipeline_documents_total.labels("document", "success").inc()
+                self._metrics.pipeline_documents_total.labels(
+                    "document", "success"
+                ).inc()
             return result
         except Exception:
             if self._metrics is not None:
-                self._metrics.pipeline_documents_total.labels("document", "failure").inc()
+                self._metrics.pipeline_documents_total.labels(
+                    "document", "failure"
+                ).inc()
             logger.exception(
-                "Pipeline failed for doc_id=%s correlation=%s",
-                doc_id,
+                "Pipeline failed for documantions_id=%s correlation=%s",
+                documantions_id,
                 get_correlation_id(),
             )
-            self._doc_repo.update_status(doc_id, "failed")
+            self._doc_repo.update_status(documantions_id, "failed")
             raise
 
-    def _run(self, doc_id: UUID, pre_extracted_text: str | None = None) -> ProcessResult:
-        doc = self._doc_repo.get_by_id(doc_id)
+    def _run(
+        self, documantions_id: UUID, pre_extracted_text: str | None = None
+    ) -> ProcessResult:
+        doc = self._doc_repo.get_by_id(documantions_id)
         if doc is None:
-            raise ValueError(f"Document {doc_id} not found")
+            raise ValueError(f"Document {documantions_id} not found")
 
         allowed_group_ids = [
             str(group_id) for group_id in self._doc_repo.source_group_ids(doc.source_id)
@@ -107,7 +113,9 @@ class PipelineWorker:
         elif doc.path is not None:
             text = self._extractor.extract(Path(doc.path), doc.mime_type)
         else:
-            raise ValueError(f"Document {doc_id} has neither a file path nor pre_extracted_text")
+            raise ValueError(
+                f"Document {documantions_id} has neither a file path nor pre_extracted_text"
+            )
         if self._metrics is not None:
             self._metrics.pipeline_stage_duration_seconds.labels("extraction").observe(
                 time.perf_counter() - start
@@ -144,9 +152,9 @@ class PipelineWorker:
         #    text search from receiving the document.
         start = time.perf_counter()
         self._es.index_document(
-            str(doc_id),
+            str(documantions_id),
             {
-                "doc_id": str(doc_id),
+                "documantions_id": str(documantions_id),
                 "path": doc.path or "",
                 "filename": Path(doc.path).name if doc.path else doc.title or "",
                 "content_original": text,
@@ -160,9 +168,9 @@ class PipelineWorker:
         )
 
         if self._metrics is not None:
-            self._metrics.search_backend_duration_seconds.labels("elasticsearch", "index").observe(
-                time.perf_counter() - start
-            )
+            self._metrics.search_backend_duration_seconds.labels(
+                "elasticsearch", "index"
+            ).observe(time.perf_counter() - start)
             self._metrics.search_index_documents.labels("elasticsearch").inc()
 
         # 5. Index chunks in Meilisearch when configured. This mirrors the
@@ -171,7 +179,7 @@ class PipelineWorker:
             try:
                 meili_records = [
                     SearchChunkRecord.from_parts(
-                        document_id=str(doc_id),
+                        document_id=str(documantions_id),
                         chunk_index=idx,
                         title=doc.title or "",
                         content=chunk_text_content,
@@ -196,8 +204,8 @@ class PipelineWorker:
                         self._metrics.search_index_documents.labels("meilisearch").inc()
             except Exception as exc:
                 logger.error(
-                    "Meilisearch indexing failed for doc_id=%s error_type=%s correlation=%s",
-                    doc_id,
+                    "Meilisearch indexing failed for documantions_id=%s error_type=%s correlation=%s",
+                    documantions_id,
                     exc.__class__.__name__,
                     get_correlation_id(),
                 )
@@ -211,8 +219,8 @@ class PipelineWorker:
                 vector = self._encoder.encode(chunk_text_content)
                 qdrant_chunks.append(
                     {
-                        "chunk_id": f"{doc_id}-{idx}",
-                        "doc_id": str(doc_id),
+                        "chunk_id": f"{documantions_id}-{idx}",
+                        "documantions_id": str(documantions_id),
                         "group_id": allowed_group_ids,
                         "chunk_index": idx,
                         "text": chunk_text_content,
@@ -230,8 +238,8 @@ class PipelineWorker:
                     self._metrics.search_index_documents.labels("qdrant").inc()
         except Exception as exc:
             logger.error(
-                "Vector indexing failed for doc_id=%s error_type=%s correlation=%s",
-                doc_id,
+                "Vector indexing failed for documantions_id=%s error_type=%s correlation=%s",
+                documantions_id,
                 exc.__class__.__name__,
                 get_correlation_id(),
             )
@@ -239,7 +247,7 @@ class PipelineWorker:
         # 7. Update status after text indexing has succeeded. Vector/Meilisearch
         #    indexing may be degraded; a future async job model should persist
         #    stage-specific retry state for those failures.
-        self._doc_repo.update_indexed(doc_id, "indexed", translation_quality)
+        self._doc_repo.update_indexed(documantions_id, "indexed", translation_quality)
 
         # 8. Intelligence (best-effort, never blocking)
         if self._intelligence is not None and translation_quality in ("fast", "high"):
@@ -247,8 +255,8 @@ class PipelineWorker:
                 self._intelligence.process_document(doc.id, translated)
             except Exception:
                 logger.exception(
-                    "Intelligence failed for doc_id=%s correlation=%s",
-                    doc_id,
+                    "Intelligence failed for documantions_id=%s correlation=%s",
+                    documantions_id,
                     get_correlation_id(),
                 )
 
@@ -258,8 +266,8 @@ class PipelineWorker:
                 self._alert_matcher.match_document(doc, translated)
             except Exception:
                 logger.exception(
-                    "Alert matching failed for doc_id=%s correlation=%s",
-                    doc_id,
+                    "Alert matching failed for documantions_id=%s correlation=%s",
+                    documantions_id,
                     get_correlation_id(),
                 )
 

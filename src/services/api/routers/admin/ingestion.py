@@ -66,17 +66,21 @@ def sync_now(
         source_language = source_row.get("source_language")
 
         def _record_sync_dlq(
-            doc_id: UUID | None,
+            documantions_id: UUID | None,
             message: str,
         ) -> None:
             connection.execute(
                 sa.text("""
-                    INSERT INTO dlq (id, doc_id, error_message, status)
-                    VALUES (:id, :doc_id, :error_message, 'pending')
+                    INSERT INTO dlq (id, documantions_id, error_message, status)
+                    VALUES (:id, :documantions_id, :error_message, 'pending')
                     """),
                 {
                     "id": db_uuid(uuid4()),
-                    "doc_id": db_uuid(doc_id) if doc_id is not None else None,
+                    "documantions_id": (
+                        db_uuid(documantions_id)
+                        if documantions_id is not None
+                        else None
+                    ),
                     "error_message": message,
                 },
             )
@@ -129,7 +133,7 @@ def sync_now(
                 results["created"] += 1
                 try:
                     job_repo.enqueue_document(
-                        doc_id=doc.id,
+                        documantions_id=doc.id,
                         source_id=source_id,
                         content_text=item.text_content,
                     )
@@ -142,7 +146,9 @@ def sync_now(
                     request.app.state.metrics.ingestion_documents_total.labels(
                         safe_label_value(connector_type), "failure"
                     ).inc()
-                    _record_sync_dlq(doc.id, "Failed to enqueue document for processing")
+                    _record_sync_dlq(
+                        doc.id, "Failed to enqueue document for processing"
+                    )
             except Exception:
                 results["failed_discovery"] += 1
                 request.app.state.metrics.ingestion_documents_total.labels(

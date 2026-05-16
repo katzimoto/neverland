@@ -16,7 +16,7 @@ class SearchRequest(BaseModel):
 
 
 class SearchResultItem(BaseModel):
-    doc_id: str
+    documantions_id: str
     source_id: str
     external_id: str | None = None
     title: str | None = None
@@ -42,7 +42,7 @@ class SearchResponse(BaseModel):
 
 
 class PreviewResponse(BaseModel):
-    doc_id: str
+    documantions_id: str
     title: str | None = None
     mime_type: str
     translation_quality: str | None = None
@@ -57,7 +57,9 @@ class PreviewResponse(BaseModel):
 
 class ConnectionTestResult(BaseModel):
     source_id: str
-    status: Literal["ok", "unreachable", "auth_failed", "permission_denied", "config_invalid"]
+    status: Literal[
+        "ok", "unreachable", "auth_failed", "permission_denied", "config_invalid"
+    ]
     checked_at: str
     details: dict[str, Any] | None = None
     error: str | None = None
@@ -113,7 +115,7 @@ class UpdateConfigRequest(BaseModel):
 
 class DlqItem(BaseModel):
     id: str
-    doc_id: str | None
+    documantions_id: str | None
     error_message: str
     retry_count: int
     status: str

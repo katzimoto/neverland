@@ -208,7 +208,7 @@ All routes are in `src/services/api/main.py`. Group by feature area:
 @app.post("/search")
 
 # Preview routes
-@app.get("/preview/{doc_id}")
+@app.get("/preview/{documantions_id}")
 @app.get("/me/activity")
 
 # Admin routes
@@ -238,11 +238,11 @@ def admin_only(user: Annotated[TokenPayload, Depends(current_user)]):
 # Document access check
 from services.permissions.enforcer import assert_doc_access
 
-@app.get("/documents/{doc_id}")
-def get_doc(doc_id: UUID, user: Annotated[TokenPayload, Depends(current_user)]):
+@app.get("/documents/{documantions_id}")
+def get_doc(documantions_id: UUID, user: Annotated[TokenPayload, Depends(current_user)]):
     with app.state.engine.begin() as connection:
         auth_repo = AuthRepository(connection)
-        assert_doc_access(doc_id, user, auth_repo)
+        assert_doc_access(documantions_id, user, auth_repo)
         ...
 
 # DB transaction
