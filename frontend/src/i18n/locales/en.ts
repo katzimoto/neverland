@@ -68,6 +68,7 @@ export interface Translations {
     typeImage: string;
     transFast: string;
     transHigh: string;
+    includeOlderVersions: string;
   };
   document: {
     notFoundTitle: string;
@@ -341,6 +342,7 @@ export const en: Translations = {
     typeImage: "Image",
     transFast: "Fast translation",
     transHigh: "High quality",
+    includeOlderVersions: "Include older versions",
   },
   document: {
     notFoundTitle: "Document not found",

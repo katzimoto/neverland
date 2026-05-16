@@ -70,6 +70,7 @@ export const he: Translations = {
     typeImage: "תמונה",
     transFast: "תרגום מהיר",
     transHigh: "איכות גבוהה",
+    includeOlderVersions: "כלול גרסאות ישנות",
   },
   document: {
     notFoundTitle: "המסמך לא נמצא",
