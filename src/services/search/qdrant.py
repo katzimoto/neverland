@@ -101,22 +101,24 @@ class QdrantSearchClient:
         When *group_ids* is empty (admins-group user), no permission
         filter is applied, giving the caller global document access.
         """
+        self._ensure_vector_dimension(vector)
+
         query_filter = None
         if group_ids:
             query_filter = Filter(
                 must=[FieldCondition(key="group_id", match=MatchAny(any=group_ids))]
             )
 
-        results = self._client.search(
+        response = self._client.query_points(
             collection_name=self._collection_name,
-            query_vector=vector,
+            query=vector,
             query_filter=query_filter,
             limit=limit,
             with_payload=True,
         )
 
         search_results: list[SearchResult] = []
-        for point in results:
+        for point in response.points:
             payload = point.payload or {}
             search_results.append(
                 SearchResult(

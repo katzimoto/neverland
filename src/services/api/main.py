@@ -1801,20 +1801,29 @@ def create_app(
             extractor = ExtractorRegistry()
             text = extractor.extract(Path(doc.path), doc.mime_type)
 
-            intelligence_repo = IntelligenceRepository(connection)
-            ollama_client = OllamaClient(
-                base_url=app.state.settings.ollama_url,
-                model=app.state.settings.ollama_model,
-            )
-            es_client = app.state.es_client or ElasticsearchSearchClient(
-                hosts=[app.state.settings.elastic_url]
-            )
-            worker = IntelligenceWorker(
-                repository=intelligence_repo,
-                ollama_client=ollama_client,
-                es_client=es_client,
-            )
-            worker.process_document(doc_id, text)
+            try:
+                intelligence_repo = IntelligenceRepository(connection)
+                ollama_client = app.state.ollama_client or OllamaClient(
+                    base_url=app.state.settings.ollama_url,
+                    model=app.state.settings.ollama_model,
+                )
+                es_client = app.state.es_client or ElasticsearchSearchClient(
+                    hosts=[app.state.settings.elastic_url]
+                )
+                worker = IntelligenceWorker(
+                    repository=intelligence_repo,
+                    ollama_client=ollama_client,
+                    es_client=es_client,
+                )
+                worker.process_document(doc_id, text)
+            except Exception as exc:
+                logger.warning(
+                    "Intelligence trigger degraded route=/admin/intelligence/%s/trigger "
+                    "error_type=%s correlation_id=%s",
+                    doc_id,
+                    exc.__class__.__name__,
+                    get_correlation_id(),
+                )
 
             return {"doc_id": str(doc_id), "triggered": True}
 

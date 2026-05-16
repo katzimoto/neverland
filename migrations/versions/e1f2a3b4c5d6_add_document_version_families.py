@@ -1,7 +1,7 @@
 """add document version families
 
 Revision ID: e1f2a3b4c5d6
-Revises: c9d7e5f3a1b8
+Revises: f1a2b3c4d5e6
 Create Date: 2026-05-16 00:00:00.000000
 """
 
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "e1f2a3b4c5d6"
-down_revision: str | None = "b1c2d3e4f5a6"
+down_revision: str | None = "f1a2b3c4d5e6"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
