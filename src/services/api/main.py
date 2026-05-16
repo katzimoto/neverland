@@ -1847,6 +1847,7 @@ def create_app(
                     question=request.question,
                     group_ids=group_ids,
                     top_k=request.top_k,
+                    document_id=request.document_id,
                 )
             except Exception as exc:
                 logger.warning(

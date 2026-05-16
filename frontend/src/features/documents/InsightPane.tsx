@@ -64,7 +64,7 @@ export function InsightPane({ docId }: InsightPaneProps) {
       />
       <div className={styles.content}>
         {activeTab === "summary" && <SummaryTab docId={docId} />}
-        {activeTab === "qa" && <QAPanel />}
+        {activeTab === "qa" && <QAPanel docId={docId} />}
         {activeTab === "related" && <RelatedTab docId={docId} />}
         {activeTab === "annotations" && <AnnotationsTab docId={docId} />}
         {activeTab === "comments" && <CommentsTab docId={docId} />}

@@ -14,6 +14,6 @@ export interface QAResponse {
   model: string;
 }
 
-export function askQuestion(question: string, top_k = 5): Promise<QAResponse> {
-  return api.post<QAResponse>("/qa", { question, top_k });
+export function askQuestion(question: string, top_k = 5, docId?: string): Promise<QAResponse> {
+  return api.post<QAResponse>("/qa", { question, top_k, ...(docId ? { document_id: docId } : {}) });
 }

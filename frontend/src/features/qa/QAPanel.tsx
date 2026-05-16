@@ -12,9 +12,10 @@ import styles from "./QAPanel.module.css";
 
 interface QAPanelProps {
   returnPath?: string;
+  docId?: string;
 }
 
-export function QAPanel({ returnPath }: QAPanelProps) {
+export function QAPanel({ returnPath, docId }: QAPanelProps) {
   const t = useT();
   const [question, setQuestion] = useState("");
   const [result, setResult] = useState<QAResponse | null>(null);
@@ -23,7 +24,7 @@ export function QAPanel({ returnPath }: QAPanelProps) {
 
   const mutation = useMutation({
     mutationFn: () =>
-      measurePerformance("qa.answer", () => askQuestion(question.trim())),
+      measurePerformance("qa.answer", () => askQuestion(question.trim(), 5, docId)),
     onSuccess: (data) => {
       setHasError(false);
       setResult(data);

@@ -166,6 +166,38 @@ def test_collection_name_includes_dimension() -> None:
     assert client_768.collection_name == "tomorrowland_chunks_768"
 
 
+def test_search_with_document_id_filter() -> None:
+    client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
+    mock_qdrant = MagicMock()
+    mock_qdrant.query_points.return_value.points = []
+    client._client = mock_qdrant
+
+    client.search(vector=[0.1] * 384, group_ids=["group-1"], document_id="doc-42")
+
+    call_kwargs = mock_qdrant.query_points.call_args.kwargs
+    query_filter = call_kwargs["query_filter"]
+    assert query_filter is not None
+    condition_keys = [c.key for c in query_filter.must]
+    assert "group_id" in condition_keys
+    assert "document_id" in condition_keys
+
+
+def test_search_without_group_ids_but_with_document_id() -> None:
+    client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
+    mock_qdrant = MagicMock()
+    mock_qdrant.query_points.return_value.points = []
+    client._client = mock_qdrant
+
+    client.search(vector=[0.1] * 384, group_ids=[], document_id="doc-42")
+
+    call_kwargs = mock_qdrant.query_points.call_args.kwargs
+    query_filter = call_kwargs["query_filter"]
+    assert query_filter is not None
+    condition_keys = [c.key for c in query_filter.must]
+    assert "group_id" not in condition_keys
+    assert "document_id" in condition_keys
+
+
 def test_client_close() -> None:
     client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
     mock_qdrant = MagicMock()

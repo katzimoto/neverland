@@ -229,6 +229,110 @@ describe("TranslationVersionSelector", () => {
     await new Promise((r) => setTimeout(r, 50));
   });
 
+  it("auto-selects latest available version on initial load when translations are already available", async () => {
+    const onSelect = vi.fn();
+    const qc = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+          staleTime: Infinity,
+          refetchOnWindowFocus: false,
+        },
+      },
+    });
+
+    qc.setQueryData(["doc-translation-versions", "doc-initial"], [
+      {
+        version_id: "v1",
+        version_number: 1,
+        label: "EN v1",
+        quality: "high",
+        status: "available",
+        target_language: "en",
+        requested_at: "2024-01-01T00:00:00Z",
+      },
+      {
+        version_id: "v3",
+        version_number: 3,
+        label: "EN v3",
+        quality: "high",
+        status: "available",
+        target_language: "en",
+        requested_at: "2024-03-01T00:00:00Z",
+      },
+    ] satisfies TranslationVersion[]);
+
+    renderWithClient(
+      <TranslationVersionSelector
+        docId="doc-initial"
+        selectedVersionId={undefined}
+        onSelect={onSelect}
+      />,
+      qc
+    );
+
+    await waitFor(() => {
+      expect(onSelect).toHaveBeenCalledWith("v3");
+    });
+  });
+
+  it("does not auto-select again after user returns to Latest", async () => {
+    const onSelect = vi.fn();
+    const qc = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+          staleTime: Infinity,
+          refetchOnWindowFocus: false,
+        },
+      },
+    });
+
+    qc.setQueryData(["doc-translation-versions", "doc-revisit"], [
+      {
+        version_id: "v1",
+        version_number: 1,
+        label: "EN v1",
+        quality: "high",
+        status: "available",
+        target_language: "en",
+        requested_at: "2024-01-01T00:00:00Z",
+      },
+    ] satisfies TranslationVersion[]);
+
+    const { rerender } = renderWithClient(
+      <TranslationVersionSelector
+        docId="doc-revisit"
+        selectedVersionId={undefined}
+        onSelect={onSelect}
+      />,
+      qc
+    );
+
+    await waitFor(() => {
+      expect(onSelect).toHaveBeenCalledTimes(1);
+    });
+
+    // Simulate user selecting "Latest" (clears selectedVersionId to undefined)
+    rerender(
+      <LanguageProvider>
+        <QueryClientProvider client={qc}>
+          <ToastProvider>
+            <TranslationVersionSelector
+              docId="doc-revisit"
+              selectedVersionId={undefined}
+              onSelect={onSelect}
+            />
+          </ToastProvider>
+        </QueryClientProvider>
+      </LanguageProvider>
+    );
+
+    await new Promise((r) => setTimeout(r, 50));
+    // Should not auto-select again after initial select was done
+    expect(onSelect).toHaveBeenCalledTimes(1);
+  });
+
   it("does not auto-select when user has already manually selected a version", async () => {
     const onSelect = vi.fn();
     const qc = new QueryClient({
