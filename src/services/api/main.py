@@ -185,6 +185,7 @@ class SearchRequest(BaseModel):
     top_k: int = Field(default=20, ge=1, le=100)
     page: int = 1
     page_size: int = Field(default=20, ge=1, le=100)
+    include_older_versions: bool = False
 
 
 class SearchResultItem(BaseModel):
@@ -714,6 +715,22 @@ def create_app(
                 vector_weight=0.0,
                 bm25_weight=1.0,
             )
+
+        # Filter out older versions unless explicitly requested
+        if not request.include_older_versions:
+            all_merged_ids: list[UUID] = []
+            for r in merged:
+                with suppress(ValueError):
+                    all_merged_ids.append(UUID(r.doc_id))
+            if all_merged_ids:
+                with app.state.engine.begin() as connection:
+                    _doc_repo = DocumentRepository(connection)
+                    non_latest: set[str] = {
+                        str(doc.id)
+                        for doc in _doc_repo.list_by_ids(all_merged_ids)
+                        if not doc.is_latest
+                    }
+                merged = [r for r in merged if r.doc_id not in non_latest]
 
         start = (request.page - 1) * request.page_size
         end = start + request.page_size

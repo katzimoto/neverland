@@ -260,6 +260,30 @@ describe("SearchPage", () => {
     await waitFor(() => expect(results).toHaveFocus());
   });
 
+  it("renders 'Include older versions' checkbox unchecked by default", () => {
+    render(<SearchPage />);
+    const cb = screen.getByRole("checkbox", { name: /include older versions/i });
+    expect(cb).not.toBeChecked();
+  });
+
+  it("sends include_older_versions flag when checkbox is checked and search runs", async () => {
+    render(<SearchPage />);
+    const cb = screen.getByRole("checkbox", { name: /include older versions/i });
+    fireEvent.click(cb);
+
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "vendor risk" } });
+    fireEvent.click(screen.getByRole("button", { name: "Search" }));
+
+    await waitFor(() => {
+      expect(searchApi.search).toHaveBeenCalledWith(
+        "vendor risk",
+        "hybrid",
+        expect.objectContaining({ include_older_versions: true }),
+        20,
+      );
+    });
+  });
+
   it("shows empty state when no results", async () => {
     vi.mocked(searchApi.search).mockResolvedValueOnce({
       results: [],
