@@ -23,7 +23,7 @@ def upgrade() -> None:
         "annotations",
         sa.Column("id", sa.Uuid(), primary_key=True),
         sa.Column(
-            "doc_id",
+            "document_id",
             sa.Uuid(),
             sa.ForeignKey("documents.id", ondelete="CASCADE"),
             nullable=False,
@@ -51,7 +51,7 @@ def upgrade() -> None:
             server_default=sa.func.now(),
         ),
     )
-    op.create_index("ix_annotations_doc_id", "annotations", ["doc_id"])
+    op.create_index("ix_annotations_doc_id", "annotations", ["document_id"])
     op.create_index("ix_annotations_user_id", "annotations", ["user_id"])
 
 

@@ -2,7 +2,7 @@
 
 ## Prerequisite
 
-Phase 08c review gate passed. The `/doc/:doc_id` stub route must exist in
+Phase 08c review gate passed. The `/doc/:document_id` stub route must exist in
 `src/app/routes.tsx` (committed by the 08c agent) before this phase begins.
 
 ## Branch
@@ -22,14 +22,14 @@ adapters are needed. See `docs/implementation/phase-08b-frontend-ui.md` API
 Availability Map for the full table.
 
 Endpoints used in this phase:
-- `GET /preview/{doc_id}` (with optional `?translation_version_id=`)
-- `GET /download/{doc_id}`
-- `GET /documents/{doc_id}/translation-versions`
-- `POST /documents/{doc_id}/translate`
-- `GET /documents/{doc_id}/summary`
-- `GET /documents/{doc_id}/entities`
-- `GET /documents/{doc_id}/tags`
-- `GET /documents/{doc_id}/related`
+- `GET /preview/{document_id}` (with optional `?translation_version_id=`)
+- `GET /download/{document_id}`
+- `GET /documents/{document_id}/translation-versions`
+- `POST /documents/{document_id}/translate`
+- `GET /documents/{document_id}/summary`
+- `GET /documents/{document_id}/entities`
+- `GET /documents/{document_id}/tags`
+- `GET /documents/{document_id}/related`
 - `POST /qa`
 
 ## Auth UX Contract
@@ -60,13 +60,13 @@ branch is merged. Do not leave them as broken imports.
 
 ## Scope — UI Phase 02: Document Preview
 
-Replace the `/doc/:doc_id` stub route in `src/app/routes.tsx` with the real
+Replace the `/doc/:document_id` stub route in `src/app/routes.tsx` with the real
 `DocumentPage` component.
 
 Create `src/features/documents/` with:
 
 - `insightPaneTabs.ts` — shared tab type contract (first commit; see above).
-- `DocumentPage.tsx` — top-level route component. Reads `doc_id` from route
+- `DocumentPage.tsx` — top-level route component. Reads `document_id` from route
   params. Fetches preview and document metadata.
 - `DocumentPage.module.css`
 - `DocumentPage.test.tsx` — includes permission-error test for inaccessible
@@ -77,7 +77,7 @@ Create `src/features/documents/` with:
 - `DocumentToolbar.module.css`
 - `DocumentToolbar.test.tsx`
 - `PreviewPane.tsx` — dispatches to preview mode renderers based on the
-  `preview_mode` field returned by `GET /preview/{doc_id}`.
+  `preview_mode` field returned by `GET /preview/{document_id}`.
 - `PreviewPane.module.css`
 - `InsightPane.tsx` — right panel with `Tabs`. Renders tabs for `summary`,
   `qa`, `related`, `comments` (stub), `annotations` (stub),
@@ -87,12 +87,12 @@ Create `src/features/documents/` with:
   in toolbar and in a Details tab within the insight pane.
 - `TrustDisplay.test.tsx`
 - `TranslationVersionSelector.tsx` — dropdown in toolbar listing versions from
-  `GET /documents/{doc_id}/translation-versions`. Selecting an available
-  version calls `GET /preview/{doc_id}?translation_version_id=...`. Pending
+  `GET /documents/{document_id}/translation-versions`. Selecting an available
+  version calls `GET /preview/{document_id}?translation_version_id=...`. Pending
   and failed versions are labelled and not selectable as preview content.
 - `TranslationVersionSelector.test.tsx`
 - `RequestTranslationDialog.tsx` — dialog triggered from toolbar. Submits
-  `POST /documents/{doc_id}/translate`. Shows pending state after submission.
+  `POST /documents/{document_id}/translate`. Shows pending state after submission.
 - `RequestTranslationDialog.test.tsx`
 
 Preview mode renderers in `src/features/documents/renderers/`:
@@ -119,24 +119,24 @@ Preview mode renderers in `src/features/documents/renderers/`:
 
 Intelligence display in the insight pane summary tab:
 
-- Query `GET /documents/{doc_id}/summary`, `/entities`, `/tags` via TanStack
+- Query `GET /documents/{document_id}/summary`, `/entities`, `/tags` via TanStack
   Query. These are best-effort; render gracefully when data is absent.
 - Display summary text, entity list (grouped by type), and tag chips.
 
 Related documents in the insight pane related tab:
 
-- Query `GET /documents/{doc_id}/related`. Render as a compact result list
+- Query `GET /documents/{document_id}/related`. Render as a compact result list
   (title + source label). Empty state if no related documents.
 
 Create `src/api/documents.ts`:
-- `getPreview(docId, translationVersionId?)` — `GET /preview/{doc_id}`
-- `getTranslationVersions(docId)` — `GET /documents/{doc_id}/translation-versions`
-- `requestTranslation(docId)` — `POST /documents/{doc_id}/translate`
-- `downloadDocument(docId)` — `GET /download/{doc_id}` triggering browser file save
-- `getDocumentSummary(docId)` — `GET /documents/{doc_id}/summary`
-- `getDocumentEntities(docId)` — `GET /documents/{doc_id}/entities`
-- `getDocumentTags(docId)` — `GET /documents/{doc_id}/tags`
-- `getRelatedDocuments(docId)` — `GET /documents/{doc_id}/related`
+- `getPreview(docId, translationVersionId?)` — `GET /preview/{document_id}`
+- `getTranslationVersions(docId)` — `GET /documents/{document_id}/translation-versions`
+- `requestTranslation(docId)` — `POST /documents/{document_id}/translate`
+- `downloadDocument(docId)` — `GET /download/{document_id}` triggering browser file save
+- `getDocumentSummary(docId)` — `GET /documents/{document_id}/summary`
+- `getDocumentEntities(docId)` — `GET /documents/{document_id}/entities`
+- `getDocumentTags(docId)` — `GET /documents/{document_id}/tags`
+- `getRelatedDocuments(docId)` — `GET /documents/{document_id}/related`
 
 ## Scope — UI Phase 03: Q&A With Citations
 
@@ -160,7 +160,7 @@ Create `src/features/qa/` with:
 - `AnswerPanel.test.tsx`
 - `CitationList.tsx` — list of `CitationCard` items.
 - `CitationCard.tsx` — document title, chunk excerpt, relevance score, link to
-  `/doc/:doc_id`. Citation navigation passes a `return=/qa` param so back
+  `/doc/:document_id`. Citation navigation passes a `return=/qa` param so back
   behavior is preserved.
 - `CitationCard.test.tsx`
 
@@ -176,7 +176,7 @@ the question input or answer header.
 
 Create `src/api/qa.ts`:
 - `askQuestion({ question, topK?, sourceFilter? })` — `POST /qa`
-- Response type covering `answer`, `citations` (array of `{ doc_id, chunk,
+- Response type covering `answer`, `citations` (array of `{ document_id, chunk,
   score, title }`).
 
 ## Do Not Start Criteria
@@ -229,7 +229,7 @@ frontend/tests/e2e/qa.spec.ts
 ## Modified Files
 
 ```
-frontend/src/app/routes.tsx   — implement /doc/:doc_id with DocumentPage; implement /qa with QAPage
+frontend/src/app/routes.tsx   — implement /doc/:document_id with DocumentPage; implement /qa with QAPage
 ```
 
 ## Validation
@@ -244,7 +244,7 @@ npm --prefix frontend run test:e2e
 
 Playwright workflows required:
 
-- Clicking a search result opens `/doc/:doc_id`.
+- Clicking a search result opens `/doc/:document_id`.
 - Browser back from document returns to search with query and filter state
   intact.
 - Preview renders for at least one text fixture document.
@@ -257,7 +257,7 @@ Playwright workflows required:
 - Request translation dialog appears, submits, and shows pending state.
 - Download control triggers browser file download.
 - Q&A: submit question, receive answer with citation cards.
-- Q&A: clicking a citation card navigates to `/doc/:doc_id`.
+- Q&A: clicking a citation card navigates to `/doc/:document_id`.
 - Q&A: inaccessible citation data is never rendered.
 - All four Playwright viewports: 320×720, 768×1024, 1024×768, 1440×900.
 

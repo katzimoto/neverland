@@ -81,13 +81,11 @@ def upgrade() -> None:
         family_id = str(uuid.uuid4())
 
         docs = conn.execute(
-            sa.text(
-                """
+            sa.text("""
                 SELECT id FROM documents
                 WHERE source_id = :source_id AND external_id = :external_id
                 ORDER BY created_at ASC, id ASC
-                """
-            ),
+                """),
             {"source_id": source_id_val, "external_id": external_id_val},
         ).fetchall()
 
@@ -97,14 +95,12 @@ def upgrade() -> None:
         latest_doc_id = str(docs[-1][0])
 
         conn.execute(
-            sa.text(
-                """
+            sa.text("""
                 INSERT INTO document_version_families
                     (id, source_id, external_id, current_document_id)
                 VALUES
                     (:id, :source_id, :external_id, :current_document_id)
-                """
-            ),
+                """),
             {
                 "id": family_id,
                 "source_id": source_id_val,
@@ -115,20 +111,18 @@ def upgrade() -> None:
 
         for i, (doc_id_val,) in enumerate(docs, start=1):
             conn.execute(
-                sa.text(
-                    """
+                sa.text("""
                     UPDATE documents
                     SET version_family_id = :family_id,
                         version_number = :version_number,
                         is_latest = :is_latest
-                    WHERE id = :doc_id
-                    """
-                ),
+                    WHERE id = :document_id
+                    """),
                 {
                     "family_id": family_id,
                     "version_number": i,
-                    "is_latest": 1 if str(doc_id_val) == latest_doc_id else 0,
-                    "doc_id": str(doc_id_val),
+                    "is_latest": True if str(doc_id_val) == latest_doc_id else False,
+                    "document_id": str(doc_id_val),
                 },
             )
 

@@ -83,9 +83,9 @@ def _create_doc(
         return doc.id
 
 
-def _doc(engine: Engine, doc_id: UUID) -> DocumentRow:
+def _doc(engine: Engine, document_id: UUID) -> DocumentRow:
     with engine.begin() as connection:
-        doc = DocumentRepository(connection).get_by_id(doc_id)
+        doc = DocumentRepository(connection).get_by_id(document_id)
     assert doc is not None
     return doc
 
@@ -105,7 +105,9 @@ def test_related_documents_filters_dedupes_excludes_source_and_respects_limit(
     inaccessible_path.write_text("secret procurement")
 
     source_id = _create_doc(migrated_engine, "admins", str(source_path), "Source Doc")
-    related_id = _create_doc(migrated_engine, "admins", str(related_path), "Related Doc")
+    related_id = _create_doc(
+        migrated_engine, "admins", str(related_path), "Related Doc"
+    )
     second_id = _create_doc(migrated_engine, "admins", str(second_path), "Second Doc")
     inaccessible_id = _create_doc(
         migrated_engine, "outsiders", str(inaccessible_path), "Secret Doc"
@@ -124,17 +126,19 @@ def test_related_documents_filters_dedupes_excludes_source_and_respects_limit(
         )
         limit = int(
             connection.execute(
-                sa.text("SELECT value FROM system_config WHERE key = 'search.related_docs_limit'")
+                sa.text(
+                    "SELECT value FROM system_config WHERE key = 'search.related_docs_limit'"
+                )
             ).scalar_one()
         )
 
         mock_qdrant = MagicMock(spec=QdrantSearchClient)
         mock_qdrant.search.return_value = [
-            SearchResult(doc_id=str(source_id), score=0.99),
-            SearchResult(doc_id=str(related_id), score=0.92),
-            SearchResult(doc_id=str(related_id), score=0.88),
-            SearchResult(doc_id=str(inaccessible_id), score=0.95),
-            SearchResult(doc_id=str(second_id), score=0.5),
+            SearchResult(document_id=str(source_id), score=0.99),
+            SearchResult(document_id=str(related_id), score=0.92),
+            SearchResult(document_id=str(related_id), score=0.88),
+            SearchResult(document_id=str(inaccessible_id), score=0.95),
+            SearchResult(document_id=str(second_id), score=0.5),
         ]
         service = RelatedService(
             repository=RelatedRepository(connection),
@@ -147,7 +151,9 @@ def test_related_documents_filters_dedupes_excludes_source_and_respects_limit(
             limit=limit,
         )
 
-    assert related == [{"doc_id": str(related_id), "title": "Related Doc", "score": 0.92}]
+    assert related == [
+        {"document_id": str(related_id), "title": "Related Doc", "score": 0.92}
+    ]
 
 
 def test_expertise_ranks_weighted_signals_and_hides_private_evidence(
@@ -157,10 +163,14 @@ def test_expertise_ranks_weighted_signals_and_hides_private_evidence(
     _setup_users(migrated_engine)
     doc_path = tmp_path / "procurement.txt"
     doc_path.write_text("procurement risk")
-    doc_id = _create_doc(migrated_engine, "admins", str(doc_path), "Procurement Doc")
+    document_id = _create_doc(
+        migrated_engine, "admins", str(doc_path), "Procurement Doc"
+    )
     other_path = tmp_path / "other.txt"
     other_path.write_text("procurement controls")
-    other_doc_id = _create_doc(migrated_engine, "admins", str(other_path), "Controls Doc")
+    other_doc_id = _create_doc(
+        migrated_engine, "admins", str(other_path), "Controls Doc"
+    )
     admin_group_ids = [
         str(group_id) for group_id in _user(migrated_engine, "admin@example.com").groups
     ]
@@ -173,56 +183,62 @@ def test_expertise_ranks_weighted_signals_and_hides_private_evidence(
             sa.text("SELECT id FROM users WHERE email = 'outsider@example.com'")
         ).scalar_one()
         connection.execute(
-            sa.text(
-                """
-                INSERT INTO document_views (id, doc_id, user_id)
-                VALUES (:id, :doc_id, :user_id)
-                """
-            ),
-            {"id": uuid4().hex, "doc_id": db_uuid(doc_id), "user_id": analyst_id},
+            sa.text("""
+                INSERT INTO document_views (id, document_id, user_id)
+                VALUES (:id, :document_id, :user_id)
+                """),
+            {
+                "id": uuid4().hex,
+                "document_id": db_uuid(document_id),
+                "user_id": analyst_id,
+            },
         )
         connection.execute(
-            sa.text(
-                """
-                INSERT INTO document_comments (id, doc_id, author_id, body)
-                VALUES (:id, :doc_id, :author_id, 'private body must not leak')
-                """
-            ),
-            {"id": uuid4().hex, "doc_id": db_uuid(doc_id), "author_id": analyst_id},
+            sa.text("""
+                INSERT INTO document_comments (id, document_id, author_id, body)
+                VALUES (:id, :document_id, :author_id, 'private body must not leak')
+                """),
+            {
+                "id": uuid4().hex,
+                "document_id": db_uuid(document_id),
+                "author_id": analyst_id,
+            },
         )
         connection.execute(
-            sa.text(
-                """
-                INSERT INTO annotations (id, doc_id, user_id, text, is_private)
-                VALUES (:id, :doc_id, :user_id, 'shared evidence text', false)
-                """
-            ),
-            {"id": uuid4().hex, "doc_id": db_uuid(doc_id), "user_id": analyst_id},
+            sa.text("""
+                INSERT INTO annotations (id, document_id, user_id, text, is_private)
+                VALUES (:id, :document_id, :user_id, 'shared evidence text', false)
+                """),
+            {
+                "id": uuid4().hex,
+                "document_id": db_uuid(document_id),
+                "user_id": analyst_id,
+            },
         )
         connection.execute(
-            sa.text(
-                """
-                INSERT INTO annotations (id, doc_id, user_id, text, is_private)
-                VALUES (:id, :doc_id, :user_id, 'private evidence text', true)
-                """
-            ),
-            {"id": uuid4().hex, "doc_id": db_uuid(doc_id), "user_id": outsider_id},
+            sa.text("""
+                INSERT INTO annotations (id, document_id, user_id, text, is_private)
+                VALUES (:id, :document_id, :user_id, 'private evidence text', true)
+                """),
+            {
+                "id": uuid4().hex,
+                "document_id": db_uuid(document_id),
+                "user_id": outsider_id,
+            },
         )
         connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 INSERT INTO alert_subscriptions (id, user_id, name, query, enabled)
                 VALUES (:id, :user_id, 'Procurement', 'procurement risk', true)
-                """
-            ),
+                """),
             {"id": uuid4().hex, "user_id": analyst_id},
         )
 
         mock_qdrant = MagicMock(spec=QdrantSearchClient)
         mock_qdrant.search.return_value = [
-            SearchResult(doc_id=str(doc_id), score=0.97),
-            SearchResult(doc_id=str(doc_id), score=0.8),
-            SearchResult(doc_id=str(other_doc_id), score=0.7),
+            SearchResult(document_id=str(document_id), score=0.97),
+            SearchResult(document_id=str(document_id), score=0.8),
+            SearchResult(document_id=str(other_doc_id), score=0.7),
         ]
         service = RelatedService(
             repository=RelatedRepository(connection),
@@ -241,22 +257,28 @@ def test_expertise_ranks_weighted_signals_and_hides_private_evidence(
         "annotations": 1,
         "subscriptions": 1,
     }
-    assert results[0]["top_docs"][0]["doc_id"] == str(doc_id)
+    assert results[0]["top_docs"][0]["document_id"] == str(document_id)
     assert "private body" not in json_like(results)
     assert "private evidence" not in json_like(results)
 
 
 def test_related_routes_are_registered(migrated_engine: Engine) -> None:
-    app = create_app(migrated_engine, Settings(auth_provider="local", jwt_secret="x" * 32))
+    app = create_app(
+        migrated_engine, Settings(auth_provider="local", jwt_secret="x" * 32)
+    )
     paths = {route.path for route in app.routes}
 
-    assert "/documents/{doc_id}/related" in paths
+    assert "/documents/{document_id}/related" in paths
     assert "/expertise" in paths
 
 
-def test_expertise_rejects_blank_topic_without_testclient(migrated_engine: Engine) -> None:
+def test_expertise_rejects_blank_topic_without_testclient(
+    migrated_engine: Engine,
+) -> None:
     _setup_users(migrated_engine)
-    app = create_app(migrated_engine, Settings(auth_provider="local", jwt_secret="x" * 32))
+    app = create_app(
+        migrated_engine, Settings(auth_provider="local", jwt_secret="x" * 32)
+    )
     route = next(route for route in app.routes if route.path == "/expertise")
 
     try:

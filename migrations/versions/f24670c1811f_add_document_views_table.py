@@ -23,7 +23,7 @@ def upgrade() -> None:
         "document_views",
         sa.Column("id", sa.Uuid(), primary_key=True),
         sa.Column(
-            "doc_id",
+            "document_id",
             sa.Uuid(),
             sa.ForeignKey("documents.id", ondelete="CASCADE"),
             nullable=False,
@@ -40,9 +40,11 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.func.now(),
         ),
-        sa.UniqueConstraint("doc_id", "user_id", name="uq_document_views_doc_user"),
+        sa.UniqueConstraint(
+            "document_id", "user_id", name="uq_document_views_doc_user"
+        ),
     )
-    op.create_index("ix_document_views_doc_id", "document_views", ["doc_id"])
+    op.create_index("ix_document_views_doc_id", "document_views", ["document_id"])
     op.create_index("ix_document_views_user_id", "document_views", ["user_id"])
 
 

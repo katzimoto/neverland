@@ -19,10 +19,10 @@ embedding encoder.
   dependency until Phase 06.
 - **Elasticsearch** indexes the full document (`content_english`, `title`,
   `summary`, `tags`, `metadata`, `allowed_group_ids`).
-- **Qdrant** stores one point per chunk. Payload fields: `doc_id`, `group_id`,
+- **Qdrant** stores one point per chunk. Payload fields: `document_id`, `group_id`,
   `chunk_index`, `text`.
 - **Hybrid merge** retrieves the top 50 results from each backend, deduplicates
-  by `doc_id`, and scores with `vector_weight * vector_score +
+  by `document_id`, and scores with `vector_weight * vector_score +
   bm25_weight * bm25_score`. Weights are read from `system_config`.
 
 ## Validation

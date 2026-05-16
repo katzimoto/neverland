@@ -16,14 +16,15 @@ beforeEach(() => {
 
 test("shows history privacy note", async () => {
   render(<HistoryPage />);
-  expect(screen.getByText("Activity visible only to you and admins.")).toBeInTheDocument();
+  expect(
+    screen.getByText("Activity visible only to you and admins.")
+  ).toBeInTheDocument();
   expect(await screen.findByText("No history")).toBeInTheDocument();
 });
 
-
 test("loads history in pages when more activity exists", async () => {
   const firstPage = Array.from({ length: 50 }, (_, i) => ({
-    doc_id: `doc-${i}`,
+    document_id: `doc-${i}`,
     title: `Document ${i}`,
     mime_type: "text/plain",
     viewed_at: "2026-05-10T00:00:00Z",
@@ -31,7 +32,12 @@ test("loads history in pages when more activity exists", async () => {
   mocks.getActivity
     .mockResolvedValueOnce(firstPage)
     .mockResolvedValueOnce([
-      { doc_id: "doc-50", title: "Document 50", mime_type: "application/pdf", viewed_at: null },
+      {
+        document_id: "doc-50",
+        title: "Document 50",
+        mime_type: "application/pdf",
+        viewed_at: null,
+      },
     ]);
 
   render(<HistoryPage />);

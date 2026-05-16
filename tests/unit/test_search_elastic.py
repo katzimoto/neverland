@@ -7,7 +7,9 @@ from services.search.elastic import ElasticsearchSearchClient
 INDEX_NAME = "tomorrowland_documents"
 
 
-def make_client(mock_es: MagicMock | None = None) -> tuple[ElasticsearchSearchClient, MagicMock]:
+def make_client(
+    mock_es: MagicMock | None = None,
+) -> tuple[ElasticsearchSearchClient, MagicMock]:
     mock_es = mock_es or MagicMock()
     with patch("services.search.elastic.Elasticsearch", return_value=mock_es):
         client = ElasticsearchSearchClient(hosts=["http://localhost:9200"])
@@ -19,7 +21,7 @@ def test_index_document_success() -> None:
     client, mock_es = make_client()
 
     doc = {
-        "doc_id": "doc-1",
+        "document_id": "doc-1",
         "content_english": "hello world",
         "title": "Test Doc",
         "summary": "A summary",
@@ -50,9 +52,9 @@ def test_search_bm25() -> None:
     results = client.search("hello world", group_ids=["group-1"], size=10)
 
     assert len(results) == 2
-    assert results[0].doc_id == "doc-1"
+    assert results[0].document_id == "doc-1"
     assert results[0].score == 1.5
-    assert results[1].doc_id == "doc-2"
+    assert results[1].document_id == "doc-2"
 
 
 def test_search_without_group_ids_returns_empty() -> None:
@@ -200,7 +202,9 @@ def test_create_index_has_autocomplete_subfields() -> None:
         "filename",
         "content_original",
     ):
-        assert "autocomplete" in props[field]["fields"], f"{field} missing .autocomplete subfield"
+        assert (
+            "autocomplete" in props[field]["fields"]
+        ), f"{field} missing .autocomplete subfield"
         subfield = props[field]["fields"]["autocomplete"]
         assert subfield["analyzer"] == "autocomplete_index"
         assert subfield["search_analyzer"] == "autocomplete_search"

@@ -15,7 +15,9 @@ from sqlalchemy import Engine
 from services.documents.repository import DocumentRepository
 
 
-def test_list_by_ids_returns_is_latest_false_for_older_version(migrated_engine: Engine) -> None:
+def test_list_by_ids_returns_is_latest_false_for_older_version(
+    migrated_engine: Engine,
+) -> None:
     with migrated_engine.begin() as connection:
         repo = DocumentRepository(connection)
         source_id = _create_source(connection)
@@ -42,7 +44,9 @@ def test_list_by_ids_returns_is_latest_false_for_older_version(migrated_engine: 
     assert rows[0].is_latest is False
 
 
-def test_list_by_ids_returns_is_latest_true_for_current_version(migrated_engine: Engine) -> None:
+def test_list_by_ids_returns_is_latest_true_for_current_version(
+    migrated_engine: Engine,
+) -> None:
     with migrated_engine.begin() as connection:
         repo = DocumentRepository(connection)
         source_id = _create_source(connection)
@@ -99,12 +103,18 @@ def test_filter_non_latest_set_excludes_older_versions(migrated_engine: Engine) 
         non_latest = {str(doc.id) for doc in rows if not doc.is_latest}
 
     # v1 should be excluded, v2 should be kept
-    filtered = [doc_id for doc_id in fake_merged_ids if str(doc_id) not in non_latest]
+    filtered = [
+        document_id
+        for document_id in fake_merged_ids
+        if str(document_id) not in non_latest
+    ]
     assert len(filtered) == 1
     assert filtered[0] == v2.id
 
 
-def test_filter_non_latest_set_includes_all_when_single_version(migrated_engine: Engine) -> None:
+def test_filter_non_latest_set_includes_all_when_single_version(
+    migrated_engine: Engine,
+) -> None:
     """When there is only one version, it is latest and should not be filtered."""
     with migrated_engine.begin() as connection:
         repo = DocumentRepository(connection)
@@ -187,12 +197,10 @@ def test_include_older_versions_false_excludes_old_with_multiple_docs(
 def _create_source(connection: sa.Connection) -> object:
     source_id = uuid4()
     connection.execute(
-        sa.text(
-            """
+        sa.text("""
             INSERT INTO ingestion_sources (id, name, type, source_language)
             VALUES (:id, :name, 'folder', 'en')
-            """
-        ),
+            """),
         {"id": source_id.hex, "name": f"test-source-{source_id.hex[:8]}"},
     )
     return source_id

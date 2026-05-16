@@ -21,13 +21,17 @@ TEST_JWT_SECRET = "x" * 32
 
 
 def _admin_token(client: TestClient) -> str:
-    login = client.post("/auth/login", json={"email": "admin@example.com", "password": "secret"})
+    login = client.post(
+        "/auth/login", json={"email": "admin@example.com", "password": "secret"}
+    )
     assert login.status_code == 200
     return login.json()["access_token"]
 
 
 def _user_token(client: TestClient) -> str:
-    login = client.post("/auth/login", json={"email": "user@example.com", "password": "secret"})
+    login = client.post(
+        "/auth/login", json={"email": "user@example.com", "password": "secret"}
+    )
     assert login.status_code == 200
     return login.json()["access_token"]
 
@@ -77,7 +81,9 @@ def _create_source_with_doc(
         assert doc is not None
         if translation_quality is not None:
             connection.execute(
-                sa.text("UPDATE documents SET translation_quality = :quality WHERE id = :id"),
+                sa.text(
+                    "UPDATE documents SET translation_quality = :quality WHERE id = :id"
+                ),
                 {"quality": translation_quality, "id": db_uuid(doc.id)},
             )
         return str(source_id), str(doc.id)
@@ -94,7 +100,7 @@ def test_manual_translate_creates_version(
     test_file = files_root / "test.txt"
     test_file.write_text("Content")
 
-    _source_id, doc_id = _create_source_with_doc(
+    _source_id, document_id = _create_source_with_doc(
         migrated_engine, "users", path=str(test_file), translation_quality="fast"
     )
 
@@ -107,27 +113,25 @@ def test_manual_translate_creates_version(
     token = _user_token(client)
 
     response = client.post(
-        f"/documents/{doc_id}/translate",
+        f"/documents/{document_id}/translate",
         headers={"Authorization": f"Bearer {token}"},
     )
 
     assert response.status_code == 200
     data = response.json()
-    assert data["doc_id"] == doc_id
+    assert data["document_id"] == document_id
     assert "translation_version_id" in data
     assert data["status"] == "pending"
 
     # Verify version was created in DB
     with migrated_engine.begin() as connection:
         row = connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 SELECT quality, request_type, status
                 FROM document_translation_versions
-                WHERE doc_id = :doc_id
-                """
-            ),
-            {"doc_id": db_uuid(UUID(doc_id))},
+                WHERE document_id = :document_id
+                """),
+            {"document_id": db_uuid(UUID(document_id))},
         ).fetchone()
         assert row is not None
         assert row[0] == "high"
@@ -147,7 +151,7 @@ def test_manual_translate_allows_new_version_even_when_high(
     test_file = files_root / "test.txt"
     test_file.write_text("Content")
 
-    _source_id, doc_id = _create_source_with_doc(
+    _source_id, document_id = _create_source_with_doc(
         migrated_engine, "users", path=str(test_file), translation_quality="high"
     )
 
@@ -160,7 +164,7 @@ def test_manual_translate_allows_new_version_even_when_high(
     token = _user_token(client)
 
     response = client.post(
-        f"/documents/{doc_id}/translate",
+        f"/documents/{document_id}/translate",
         headers={"Authorization": f"Bearer {token}"},
     )
 
@@ -173,13 +177,11 @@ def test_manual_translate_allows_new_version_even_when_high(
     # test helper if it set quality=high, but here we check the new one)
     with migrated_engine.begin() as connection:
         count = connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 SELECT COUNT(*) FROM document_translation_versions
-                WHERE doc_id = :doc_id
-                """
-            ),
-            {"doc_id": db_uuid(UUID(doc_id))},
+                WHERE document_id = :document_id
+                """),
+            {"document_id": db_uuid(UUID(document_id))},
         ).scalar_one()
         assert count == 1
 
@@ -212,7 +214,7 @@ def test_manual_translate_forbids_unauthorized(
             path=str(test_file),
         )
         assert doc is not None
-        doc_id = str(doc.id)
+        document_id = str(doc.id)
 
     client = TestClient(
         create_app(
@@ -223,7 +225,7 @@ def test_manual_translate_forbids_unauthorized(
     token = _user_token(client)
 
     response = client.post(
-        f"/documents/{doc_id}/translate",
+        f"/documents/{document_id}/translate",
         headers={"Authorization": f"Bearer {token}"},
     )
 
@@ -241,7 +243,7 @@ def test_auto_enrich_fires_when_threshold_crossed(
     test_file = files_root / "test.txt"
     test_file.write_text("Content")
 
-    _source_id, doc_id = _create_source_with_doc(
+    _source_id, document_id = _create_source_with_doc(
         migrated_engine, "users", path=str(test_file), translation_quality="fast"
     )
 
@@ -273,7 +275,9 @@ def test_auto_enrich_fires_when_threshold_crossed(
             json={"email": f"viewer{i}@example.com", "password": "secret"},
         )
         token = login.json()["access_token"]
-        response = client.get(f"/preview/{doc_id}", headers={"Authorization": f"Bearer {token}"})
+        response = client.get(
+            f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"}
+        )
         assert response.status_code == 200
         assert response.json()["view_count"] == i + 1
 
@@ -281,7 +285,7 @@ def test_auto_enrich_fires_when_threshold_crossed(
     with migrated_engine.begin() as connection:
         row = connection.execute(
             sa.text("SELECT translation_quality FROM documents WHERE id = :id"),
-            {"id": db_uuid(UUID(doc_id))},
+            {"id": db_uuid(UUID(document_id))},
         ).fetchone()
         assert row[0] == "fast"
 
@@ -291,7 +295,9 @@ def test_auto_enrich_fires_when_threshold_crossed(
         json={"email": "viewer4@example.com", "password": "secret"},
     )
     token = login.json()["access_token"]
-    response = client.get(f"/preview/{doc_id}", headers={"Authorization": f"Bearer {token}"})
+    response = client.get(
+        f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"}
+    )
     assert response.status_code == 200
     assert response.json()["view_count"] == 5
 
@@ -299,7 +305,7 @@ def test_auto_enrich_fires_when_threshold_crossed(
     with migrated_engine.begin() as connection:
         row = connection.execute(
             sa.text("SELECT translation_quality FROM documents WHERE id = :id"),
-            {"id": db_uuid(UUID(doc_id))},
+            {"id": db_uuid(UUID(document_id))},
         ).fetchone()
         assert row[0] == "pending_high"
 
@@ -315,7 +321,7 @@ def test_auto_enrich_fires_exactly_once(
     test_file = files_root / "test.txt"
     test_file.write_text("Content")
 
-    _source_id, doc_id = _create_source_with_doc(
+    _source_id, document_id = _create_source_with_doc(
         migrated_engine, "users", path=str(test_file), translation_quality="fast"
     )
 
@@ -345,13 +351,15 @@ def test_auto_enrich_fires_exactly_once(
             json={"email": f"viewer{i}@example.com", "password": "secret"},
         )
         token = login.json()["access_token"]
-        client.get(f"/preview/{doc_id}", headers={"Authorization": f"Bearer {token}"})
+        client.get(
+            f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"}
+        )
 
     # Quality should be "pending_high", not toggling back and forth
     with migrated_engine.begin() as connection:
         row = connection.execute(
             sa.text("SELECT translation_quality FROM documents WHERE id = :id"),
-            {"id": db_uuid(UUID(doc_id))},
+            {"id": db_uuid(UUID(document_id))},
         ).fetchone()
         assert row[0] == "pending_high"
 
@@ -399,7 +407,7 @@ def test_admin_enrichment_queue_lists_pending(
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 1
-    assert data[0]["doc_id"] == doc_id1
+    assert data[0]["document_id"] == doc_id1
     assert data[0]["title"] == "Pending Doc"
 
 
@@ -435,8 +443,11 @@ def test_slow_worker_processes_pending_high(
     test_file = files_root / "test.txt"
     test_file.write_text("Hello world document content.")
 
-    _source_id, doc_id = _create_source_with_doc(
-        migrated_engine, "users", path=str(test_file), translation_quality="pending_high"
+    _source_id, document_id = _create_source_with_doc(
+        migrated_engine,
+        "users",
+        path=str(test_file),
+        translation_quality="pending_high",
     )
 
     mock_es = MagicMock(spec=ElasticsearchSearchClient)
@@ -457,13 +468,13 @@ def test_slow_worker_processes_pending_high(
             es_client=mock_es,
             qdrant_client=mock_qdrant,
         )
-        worker.process_document(UUID(doc_id))
+        worker.process_document(UUID(document_id))
 
     # Verify quality updated to 'high' and status to 'indexed'
     with migrated_engine.begin() as connection:
         row = connection.execute(
             sa.text("SELECT translation_quality, status FROM documents WHERE id = :id"),
-            {"id": db_uuid(UUID(doc_id))},
+            {"id": db_uuid(UUID(document_id))},
         ).fetchone()
         assert row[0] == "high"
         assert row[1] == "indexed"
@@ -490,8 +501,11 @@ def test_slow_worker_failure_sets_failed(
     test_file = files_root / "test.txt"
     test_file.write_text("Content")
 
-    _source_id, doc_id = _create_source_with_doc(
-        migrated_engine, "users", path=str(test_file), translation_quality="pending_high"
+    _source_id, document_id = _create_source_with_doc(
+        migrated_engine,
+        "users",
+        path=str(test_file),
+        translation_quality="pending_high",
     )
 
     mock_es = MagicMock(spec=ElasticsearchSearchClient)
@@ -512,13 +526,13 @@ def test_slow_worker_failure_sets_failed(
             es_client=mock_es,
             qdrant_client=mock_qdrant,
         )
-        worker.process_document(UUID(doc_id))
+        worker.process_document(UUID(document_id))
 
     # Verify status is 'failed', quality remains 'pending_high'
     with migrated_engine.begin() as connection:
         row = connection.execute(
             sa.text("SELECT translation_quality, status FROM documents WHERE id = :id"),
-            {"id": db_uuid(UUID(doc_id))},
+            {"id": db_uuid(UUID(document_id))},
         ).fetchone()
         assert row[0] == "pending_high"
         assert row[1] == "failed"

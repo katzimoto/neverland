@@ -52,7 +52,9 @@ def _event(source_id: UUID) -> str:
     """
 
 
-def test_nifi_documents_preserve_source_grant_permissions(migrated_engine: Engine) -> None:
+def test_nifi_documents_preserve_source_grant_permissions(
+    migrated_engine: Engine,
+) -> None:
     source_id = uuid4()
     with migrated_engine.begin() as connection:
         repository = AuthRepository(connection)
@@ -67,12 +69,10 @@ def test_nifi_documents_preserve_source_grant_permissions(migrated_engine: Engin
             group_names=["denied"],
         )
         connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 INSERT INTO ingestion_sources (id, name, type, source_language)
                 VALUES (:id, 'NiFi Permission Source', 'nifi', 'en')
-                """
-            ),
+                """),
             {"id": source_id.hex},
         )
         repository.grant_source_to_group(source_id, allowed.groups[0])
@@ -83,18 +83,18 @@ def test_nifi_documents_preserve_source_grant_permissions(migrated_engine: Engin
     result = NiFiKafkaDrain(
         consumer=consumer,
         engine=migrated_engine,
-        process_document=lambda doc_id, text: processed.append(doc_id),
+        process_document=lambda document_id, text: processed.append(document_id),
         sleep=lambda seconds: None,
     ).drain(max_messages=1)
 
     assert result["processed"] == 1
     assert consumer.committed is True
-    doc_id = processed[0]
+    document_id = processed[0]
 
     with migrated_engine.begin() as connection:
         repository = AuthRepository(connection)
-        assert_doc_access(doc_id, allowed, repository)
+        assert_doc_access(document_id, allowed, repository)
         with pytest.raises(HTTPException) as exc_info:
-            assert_doc_access(doc_id, denied, repository)
+            assert_doc_access(document_id, denied, repository)
 
     assert exc_info.value.status_code == 403

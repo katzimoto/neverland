@@ -20,11 +20,11 @@ class AnnotationRepository:
 
     def list_annotations(
         self,
-        doc_id: UUID,
+        document_id: UUID,
         user_id: UUID,
         is_admin: bool = False,
     ) -> list[dict[str, Any]]:
-        """List annotations visible to *user_id* on *doc_id*.
+        """List annotations visible to *user_id* on *document_id*.
 
         Returns:
         - All shared (is_private = false) annotations
@@ -32,11 +32,10 @@ class AnnotationRepository:
         """
         if is_admin:
             rows = self._connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     SELECT
                         a.id,
-                        a.doc_id,
+                        a.document_id,
                         a.user_id,
                         u.display_name AS user_display_name,
                         a.text,
@@ -47,19 +46,17 @@ class AnnotationRepository:
                         a.updated_at
                     FROM annotations a
                     JOIN users u ON u.id = a.user_id
-                    WHERE a.doc_id = :doc_id
+                    WHERE a.document_id = :document_id
                     ORDER BY a.created_at DESC
-                    """
-                ),
-                {"doc_id": db_uuid(doc_id)},
+                    """),
+                {"document_id": db_uuid(document_id)},
             ).mappings()
         else:
             rows = self._connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     SELECT
                         a.id,
-                        a.doc_id,
+                        a.document_id,
                         a.user_id,
                         u.display_name AS user_display_name,
                         a.text,
@@ -70,21 +67,20 @@ class AnnotationRepository:
                         a.updated_at
                     FROM annotations a
                     JOIN users u ON u.id = a.user_id
-                    WHERE a.doc_id = :doc_id
+                    WHERE a.document_id = :document_id
                       AND (
                           a.is_private = false
                           OR a.user_id = :user_id
                       )
                     ORDER BY a.created_at DESC
-                    """
-                ),
-                {"doc_id": db_uuid(doc_id), "user_id": db_uuid(user_id)},
+                    """),
+                {"document_id": db_uuid(document_id), "user_id": db_uuid(user_id)},
             ).mappings()
         return [dict(row) for row in rows]
 
     def create(
         self,
-        doc_id: UUID,
+        document_id: UUID,
         user_id: UUID,
         text: str,
         note: str | None = None,
@@ -95,23 +91,21 @@ class AnnotationRepository:
         annotation_id = uuid4()
         row = (
             self._connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     INSERT INTO annotations (
-                        id, doc_id, user_id, text, note, position,
+                        id, document_id, user_id, text, note, position,
                         is_private, created_at, updated_at
                     )
                     VALUES (
-                        :id, :doc_id, :user_id, :text, :note, :position,
+                        :id, :document_id, :user_id, :text, :note, :position,
                         :is_private, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                     )
-                    RETURNING id, doc_id, user_id, text, note, position,
+                    RETURNING id, document_id, user_id, text, note, position,
                               is_private, created_at, updated_at
-                    """
-                ),
+                    """),
                 {
                     "id": db_uuid(annotation_id),
-                    "doc_id": db_uuid(doc_id),
+                    "document_id": db_uuid(document_id),
                     "user_id": db_uuid(user_id),
                     "text": text,
                     "note": note,
@@ -130,11 +124,10 @@ class AnnotationRepository:
         """Return an annotation by id."""
         row = (
             self._connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     SELECT
                         a.id,
-                        a.doc_id,
+                        a.document_id,
                         a.user_id,
                         u.display_name AS user_display_name,
                         a.text,
@@ -146,8 +139,7 @@ class AnnotationRepository:
                     FROM annotations a
                     JOIN users u ON u.id = a.user_id
                     WHERE a.id = :id
-                    """
-                ),
+                    """),
                 {"id": db_uuid(annotation_id)},
             )
             .mappings()
@@ -186,13 +178,11 @@ class AnnotationRepository:
         fields.append("updated_at = CURRENT_TIMESTAMP")
 
         self._connection.execute(
-            sa.text(
-                f"""
+            sa.text(f"""
                 UPDATE annotations
                 SET {", ".join(fields)}
                 WHERE id = :id
-                """
-            ),
+                """),
             params,
         )
 
@@ -214,12 +204,10 @@ class AnnotationRepository:
             return True
         row = (
             self._connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     SELECT user_id FROM annotations
                     WHERE id = :id
-                    """
-                ),
+                    """),
                 {"id": db_uuid(annotation_id)},
             )
             .mappings()

@@ -1,6 +1,15 @@
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { search, type SearchFilters, type SearchMode } from "@/api/search";
 import { getPreview } from "@/api/documents";
@@ -64,7 +73,10 @@ export function SearchPage() {
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
-  function submitSearch(q: string = inputValue, currentMode: SearchMode = mode) {
+  function submitSearch(
+    q: string = inputValue,
+    currentMode: SearchMode = mode
+  ) {
     finishFirstResultTimer.current = q.trim() ? startPerformanceTimer() : null;
     resetSearchWorkflow();
     setSubmittedQuery(q);
@@ -75,7 +87,7 @@ export function SearchPage() {
     queryKey: ["search", submittedQuery, mode, filters],
     queryFn: () =>
       measurePerformance("search.request", () =>
-        search(submittedQuery, mode, filters, 20),
+        search(submittedQuery, mode, filters, 20)
       ),
     enabled: submittedQuery.trim().length > 0,
     placeholderData: keepPreviousData,
@@ -93,7 +105,11 @@ export function SearchPage() {
   useEffect(() => {
     if (isError) {
       if (finishFirstResultTimer.current) {
-        recordPerformanceEvent("search.firstResult", finishFirstResultTimer.current(), "error");
+        recordPerformanceEvent(
+          "search.firstResult",
+          finishFirstResultTimer.current(),
+          "error"
+        );
         finishFirstResultTimer.current = null;
       }
       showToast("error", t.search.failedToast);
@@ -103,20 +119,28 @@ export function SearchPage() {
   useEffect(() => {
     if (!data || !finishFirstResultTimer.current) return;
     if (data.results.length > 0) {
-      recordPerformanceEvent("search.firstResult", finishFirstResultTimer.current());
+      recordPerformanceEvent(
+        "search.firstResult",
+        finishFirstResultTimer.current()
+      );
       finishFirstResultTimer.current = null;
     }
   }, [data]);
 
   const results = data?.results ?? [];
-  const activeSelectedIndex = Math.min(selectedIndex, Math.max(results.length - 1, 0));
+  const activeSelectedIndex = Math.min(
+    selectedIndex,
+    Math.max(results.length - 1, 0)
+  );
   const selectedResult = results[activeSelectedIndex];
 
   useEffect(() => {
     if (!selectedResult) return;
-    document.getElementById(`search-result-${selectedResult.doc_id}`)?.scrollIntoView?.({
-      block: "nearest",
-    });
+    document
+      .getElementById(`search-result-${selectedResult.document_id}`)
+      ?.scrollIntoView?.({
+        block: "nearest",
+      });
   }, [selectedResult]);
 
   function resultOptionId(docId?: string) {
@@ -130,7 +154,7 @@ export function SearchPage() {
 
   function openResult(result: SearchResult | undefined = selectedResult) {
     if (!result) return;
-    void navigate({ to: "/doc/$docId", params: { docId: result.doc_id } });
+    void navigate({ to: "/doc/$docId", params: { docId: result.document_id } });
   }
 
   function closePreview() {
@@ -192,7 +216,8 @@ export function SearchPage() {
         resetSearchWorkflow();
         setFilters((f) => ({
           ...f,
-          translation_quality: f.translation_quality?.filter((v) => v !== tq) || undefined,
+          translation_quality:
+            f.translation_quality?.filter((v) => v !== tq) || undefined,
         }));
       },
     });
@@ -218,11 +243,17 @@ export function SearchPage() {
       </header>
 
       <div className={styles.toolbar}>
-        <div className={styles.modeGroup} role="group" aria-label={t.search.modeGroup}>
+        <div
+          className={styles.modeGroup}
+          role="group"
+          aria-label={t.search.modeGroup}
+        >
           {MODES.map(({ value, label }) => (
             <button
               key={value}
-              className={`${styles.modeBtn} ${mode === value ? styles.modeBtnActive : ""}`}
+              className={`${styles.modeBtn} ${
+                mode === value ? styles.modeBtnActive : ""
+              }`}
               onClick={() => {
                 setMode(value);
                 if (submittedQuery) submitSearch(inputValue, value);
@@ -233,11 +264,18 @@ export function SearchPage() {
             </button>
           ))}
         </div>
-        {data && <span className={styles.resultCount}>{t.search.resultCount(data.total)}</span>}
+        {data && (
+          <span className={styles.resultCount}>
+            {t.search.resultCount(data.total)}
+          </span>
+        )}
       </div>
 
       {activeChips.length > 0 && (
-        <div className={styles.activeFilters} aria-label={t.search.activeFilters}>
+        <div
+          className={styles.activeFilters}
+          aria-label={t.search.activeFilters}
+        >
           {activeChips.map((chip, i) => (
             <span key={i} className={styles.filterChip}>
               {chip.label}
@@ -254,10 +292,13 @@ export function SearchPage() {
       )}
 
       <div className={styles.body}>
-        <FilterPanel filters={filters} onChange={(nextFilters) => {
-          resetSearchWorkflow();
-          setFilters(nextFilters);
-        }} />
+        <FilterPanel
+          filters={filters}
+          onChange={(nextFilters) => {
+            resetSearchWorkflow();
+            setFilters(nextFilters);
+          }}
+        />
 
         <div className={styles.results}>
           <div
@@ -267,7 +308,7 @@ export function SearchPage() {
             aria-label={t.search.resultsLabel}
             aria-live="polite"
             aria-busy={isFetching}
-            aria-activedescendant={resultOptionId(selectedResult?.doc_id)}
+            aria-activedescendant={resultOptionId(selectedResult?.document_id)}
             aria-describedby="search-keyboard-help"
             tabIndex={0}
             onKeyDown={handleResultsKeyDown}
@@ -276,7 +317,11 @@ export function SearchPage() {
               {t.search.keyboardHelp}
             </p>
             {isLoading && <SkeletonRow count={6} />}
-            {isFetching && !isLoading && <div className={styles.refreshing} role="status">Updating results…</div>}
+            {isFetching && !isLoading && (
+              <div className={styles.refreshing} role="status">
+                Updating results…
+              </div>
+            )}
 
             {isError && !isLoading && (
               <EmptyState
@@ -290,26 +335,37 @@ export function SearchPage() {
               />
             )}
 
-            {!isLoading && !isError && showResults && data?.results.length === 0 && (
-              <EmptyState title={t.search.noResultsTitle} body={t.search.noResultsBody} />
-            )}
+            {!isLoading &&
+              !isError &&
+              showResults &&
+              data?.results.length === 0 && (
+                <EmptyState
+                  title={t.search.noResultsTitle}
+                  body={t.search.noResultsBody}
+                />
+              )}
 
             {!isLoading && !isError && !showResults && (
-              <EmptyState title={t.search.emptyTitle} body={t.search.emptyBody} />
+              <EmptyState
+                title={t.search.emptyTitle}
+                body={t.search.emptyBody}
+              />
             )}
 
-            {!isLoading && !isError && results.map((result, index) => (
-              <ResultRow
-                key={result.doc_id}
-                id={resultOptionId(result.doc_id)}
-                result={result}
-                selected={index === activeSelectedIndex}
-                onSelect={() => setSelectedIndex(index)}
-                onPreview={() => setPreviewResult(result)}
-                onClick={() => openResult(result)}
-                onPrefetch={() => prefetchPreview(result.doc_id)}
-              />
-            ))}
+            {!isLoading &&
+              !isError &&
+              results.map((result, index) => (
+                <ResultRow
+                  key={result.document_id}
+                  id={resultOptionId(result.document_id)}
+                  result={result}
+                  selected={index === activeSelectedIndex}
+                  onSelect={() => setSelectedIndex(index)}
+                  onPreview={() => setPreviewResult(result)}
+                  onClick={() => openResult(result)}
+                  onPrefetch={() => prefetchPreview(result.document_id)}
+                />
+              ))}
           </div>
         </div>
       </div>
@@ -327,11 +383,17 @@ export function SearchPage() {
             </p>
             <p className={styles.previewSnippet}>{previewResult.snippet}</p>
             {previewResult.tags.length > 0 && (
-              <p className={styles.previewMeta}>{previewResult.tags.join(", ")}</p>
+              <p className={styles.previewMeta}>
+                {previewResult.tags.join(", ")}
+              </p>
             )}
             <div className={styles.previewActions}>
-              <Button onClick={() => openResult(previewResult)}>{t.search.openSelected}</Button>
-              <Button variant="secondary" onClick={closePreview}>{t.search.closePreview}</Button>
+              <Button onClick={() => openResult(previewResult)}>
+                {t.search.openSelected}
+              </Button>
+              <Button variant="secondary" onClick={closePreview}>
+                {t.search.closePreview}
+              </Button>
             </div>
           </div>
         )}

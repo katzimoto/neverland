@@ -67,7 +67,7 @@ Primary navigation destinations:
 Primary routes:
 
 - `/search`
-- `/doc/:doc_id`
+- `/doc/:document_id`
 - `/qa`
 - `/subscriptions`
 - `/notifications`
@@ -632,7 +632,7 @@ Do not turn every saved search into a subscription by default.
 
 ### Route
 
-`/doc/:doc_id`
+`/doc/:document_id`
 
 ### Layout
 
@@ -784,7 +784,7 @@ Summary:
 ### Routes
 
 - `/qa`
-- Embedded Q&A panel on `/doc/:doc_id`
+- Embedded Q&A panel on `/doc/:document_id`
 
 ### Global Q&A
 
@@ -1065,7 +1065,7 @@ Search result item:
 
 ```json
 {
-  "doc_id": "uuid",
+  "document_id": "uuid",
   "source_id": "uuid",
   "external_id": "jira:ABC-123",
   "title": "string",
@@ -1095,7 +1095,7 @@ Preview response:
 
 ```ts
 type PreviewResponse = {
-  doc_id: string;
+  document_id: string;
   source_id: string;
   external_id: string | null;
   title: string;
@@ -1221,7 +1221,7 @@ type QaResponse = {
 
 type Citation = {
   citation_id: string;
-  doc_id: string;
+  document_id: string;
   chunk_id: string;
   title: string;
   source: "folder" | "nifi" | "confluence" | "jira";
@@ -1260,7 +1260,7 @@ Annotation response:
 ```ts
 type Annotation = {
   annotation_id: string;
-  doc_id: string;
+  document_id: string;
   author_id: string;
   author_display_name: string;
   body: string;
@@ -1282,7 +1282,7 @@ Related document:
 
 ```ts
 type RelatedDocument = {
-  doc_id: string;
+  document_id: string;
   title: string;
   source_label: string;
   reason:

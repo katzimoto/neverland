@@ -39,11 +39,11 @@ class PreviewService:
 
     def get_preview(
         self,
-        doc_id: UUID,
+        document_id: UUID,
         user_id: UUID,
         translation_version_id: UUID | None = None,
     ) -> dict[str, Any]:
-        """Return preview metadata, snippet, and view count for *doc_id*.
+        """Return preview metadata, snippet, and view count for *document_id*.
 
         Also records a view by *user_id* if not already present.
         If *translation_version_id* is provided and the version is available,
@@ -52,13 +52,11 @@ class PreviewService:
 
         row = (
             self._connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     SELECT id, title, mime_type, path, translation_quality, metadata
                     FROM documents WHERE id = :id
-                    """
-                ),
-                {"id": db_uuid(doc_id)},
+                    """),
+                {"id": db_uuid(document_id)},
             )
             .mappings()
             .first()
@@ -66,37 +64,37 @@ class PreviewService:
         if row is None:
             return {}
 
-        # Record view (deduplicated by doc_id + user_id)
+        # Record view (deduplicated by document_id + user_id)
         self._connection.execute(
-            sa.text(
-                """
-                INSERT INTO document_views (id, doc_id, user_id, viewed_at)
-                VALUES (:id, :doc_id, :user_id, CURRENT_TIMESTAMP)
+            sa.text("""
+                INSERT INTO document_views (id, document_id, user_id, viewed_at)
+                VALUES (:id, :document_id, :user_id, CURRENT_TIMESTAMP)
                 ON CONFLICT DO NOTHING
-                """
-            ),
+                """),
             {
                 "id": db_uuid(uuid4()),
-                "doc_id": db_uuid(doc_id),
+                "document_id": db_uuid(document_id),
                 "user_id": db_uuid(user_id),
             },
         )
 
         # Get global view count
         view_count = self._connection.execute(
-            sa.text("SELECT COUNT(*) FROM document_views WHERE doc_id = :doc_id"),
-            {"doc_id": db_uuid(doc_id)},
+            sa.text(
+                "SELECT COUNT(*) FROM document_views WHERE document_id = :document_id"
+            ),
+            {"document_id": db_uuid(document_id)},
         ).scalar_one()
 
         # Auto-enrich: queue for high-quality translation when view threshold is crossed
-        self._maybe_auto_enrich(doc_id, view_count, row["translation_quality"])
+        self._maybe_auto_enrich(document_id, view_count, row["translation_quality"])
 
         snippet = self._generate_snippet(
-            doc_id, row["path"], row["mime_type"], translation_version_id
+            document_id, row["path"], row["mime_type"], translation_version_id
         )
 
         return {
-            "doc_id": str(doc_id),
+            "document_id": str(document_id),
             "title": row["title"],
             "mime_type": row["mime_type"],
             "translation_quality": row["translation_quality"],
@@ -107,7 +105,7 @@ class PreviewService:
 
     def _generate_snippet(
         self,
-        doc_id: UUID,
+        document_id: UUID,
         file_path: str | None,
         mime_type: str,
         translation_version_id: UUID | None = None,
@@ -126,38 +124,36 @@ class PreviewService:
 
         if version_id is not None:
             # Verify the requested version is available and belongs to
-            # the same doc_id (prevent cross-document version leaks).
+            # the same document_id (prevent cross-document version leaks).
             version_row = (
                 self._connection.execute(
-                    sa.text(
-                        """
-                        SELECT dv.translated_text, dv.doc_id
+                    sa.text("""
+                        SELECT dv.translated_text, dv.document_id
                         FROM document_translation_versions dv
                         WHERE dv.id = :id AND dv.status = 'available'
-                        """
-                    ),
+                        """),
                     {"id": db_uuid(version_id)},
                 )
                 .mappings()
                 .first()
             )
-            if version_row is None or version_row["doc_id"] != db_uuid(doc_id):
+            if version_row is None or version_row["document_id"] != db_uuid(
+                document_id
+            ):
                 version_id = None
 
         if version_id is None:
             # Resolve the latest available translation for this document
             latest_row = (
                 self._connection.execute(
-                    sa.text(
-                        """
+                    sa.text("""
                         SELECT id, translated_text
                         FROM document_translation_versions
-                        WHERE doc_id = :doc_id AND status = 'available'
+                        WHERE document_id = :document_id AND status = 'available'
                         ORDER BY version_number DESC
                         LIMIT 1
-                        """
-                    ),
-                    {"doc_id": db_uuid(doc_id)},
+                        """),
+                    {"document_id": db_uuid(document_id)},
                 )
                 .mappings()
                 .first()
@@ -169,13 +165,11 @@ class PreviewService:
         if version_id is not None:
             version_row = (
                 self._connection.execute(
-                    sa.text(
-                        """
+                    sa.text("""
                         SELECT translated_text
                         FROM document_translation_versions
                         WHERE id = :id
-                        """
-                    ),
+                        """),
                     {"id": db_uuid(version_id)},
                 )
                 .mappings()
@@ -214,7 +208,7 @@ class PreviewService:
 
     def _maybe_auto_enrich(
         self,
-        doc_id: UUID,
+        document_id: UUID,
         view_count: int,
         current_quality: str | None,
     ) -> None:
@@ -227,7 +221,9 @@ class PreviewService:
 
         threshold_row = (
             self._connection.execute(
-                sa.text("SELECT value FROM system_config WHERE key = 'auto_enrich.threshold'"),
+                sa.text(
+                    "SELECT value FROM system_config WHERE key = 'auto_enrich.threshold'"
+                ),
             )
             .mappings()
             .first()
@@ -241,61 +237,53 @@ class PreviewService:
 
         # Check if a pending/running version already exists
         existing = self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                     SELECT id FROM document_translation_versions
-                    WHERE doc_id = :doc_id
+                    WHERE document_id = :document_id
                       AND request_type = 'auto_enrich'
                       AND status IN ('pending', 'running')
                     LIMIT 1
-                    """
-            ),
-            {"doc_id": db_uuid(doc_id)},
+                    """),
+            {"document_id": db_uuid(document_id)},
         ).scalar_one_or_none()
         if existing:
             return
 
         # Create auto_enrich version
         next_number = self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                     SELECT COALESCE(MAX(version_number), 0) + 1
                     FROM document_translation_versions
-                    WHERE doc_id = :doc_id
-                    """
-            ),
-            {"doc_id": db_uuid(doc_id)},
+                    WHERE document_id = :document_id
+                    """),
+            {"document_id": db_uuid(document_id)},
         ).scalar_one()
 
         self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 INSERT INTO document_translation_versions (
-                    id, doc_id, version_number, label, quality, request_type,
+                    id, document_id, version_number, label, quality, request_type,
                     status, target_language
                 )
                 VALUES (
-                    :id, :doc_id, :version_number, 'Auto-enrich', 'high',
+                    :id, :document_id, :version_number, 'Auto-enrich', 'high',
                     'auto_enrich', 'pending', 'en'
                 )
-                """
-            ),
+                """),
             {
                 "id": db_uuid(uuid4()),
-                "doc_id": db_uuid(doc_id),
+                "document_id": db_uuid(document_id),
                 "version_number": next_number,
             },
         )
 
         self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 UPDATE documents
                 SET translation_quality = 'pending_high'
                 WHERE id = :id
-                """
-            ),
-            {"id": db_uuid(doc_id)},
+                """),
+            {"id": db_uuid(document_id)},
         )
 
     @staticmethod
@@ -318,8 +306,12 @@ class PreviewService:
     def _sanitize_html(raw: str) -> str:
         """Strip dangerous tags and attributes from HTML."""
         # Remove script and style tags with content
-        raw = re.sub(r"<script[^>]*>.*?</script>", "", raw, flags=re.DOTALL | re.IGNORECASE)
-        raw = re.sub(r"<style[^>]*>.*?</style>", "", raw, flags=re.DOTALL | re.IGNORECASE)
+        raw = re.sub(
+            r"<script[^>]*>.*?</script>", "", raw, flags=re.DOTALL | re.IGNORECASE
+        )
+        raw = re.sub(
+            r"<style[^>]*>.*?</style>", "", raw, flags=re.DOTALL | re.IGNORECASE
+        )
         # Remove event handlers
         raw = re.sub(r"\s*on\w+\s*=\s*['\"][^'\"]*['\"]", "", raw, flags=re.IGNORECASE)
         raw = re.sub(r"\s*on\w+\s*=\s*[^\s>]+", "", raw, flags=re.IGNORECASE)
@@ -355,17 +347,15 @@ class PreviewService:
     ) -> list[dict[str, Any]]:
         """Return document view history for *user_id*."""
         rows = self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 SELECT d.id, d.title, d.mime_type, v.viewed_at
                 FROM document_views v
-                JOIN documents d ON d.id = v.doc_id
+                JOIN documents d ON d.id = v.document_id
                 WHERE v.user_id = :user_id
                 ORDER BY v.viewed_at DESC
                 LIMIT :limit
                 OFFSET :offset
-                """
-            ),
+                """),
             {
                 "user_id": db_uuid(user_id),
                 "limit": limit,
@@ -375,7 +365,7 @@ class PreviewService:
 
         return [
             {
-                "doc_id": str(UUID(str(row["id"]))),
+                "document_id": str(UUID(str(row["id"]))),
                 "title": row["title"],
                 "mime_type": row["mime_type"],
                 "viewed_at": str(row["viewed_at"]) if row["viewed_at"] else None,

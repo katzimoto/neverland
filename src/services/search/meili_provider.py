@@ -18,11 +18,11 @@ from services.search.meili_types import (
     ChunkPosition,
     DocumentSearchFilters,
     DocumentSearchQuery,
-    DocumentSearchResponse,
     DocumentSearchResult,
     DocumentSearchResultMetadata,
     SearchChunkRecord,
 )
+from services.search.models import SearchResult
 from shared.metrics import MetricsRegistry
 
 # Requires: pip install meilisearch
@@ -124,9 +124,15 @@ class MeilisearchSearchProvider:
         client: A ``meilisearch.Client`` instance.
     """
 
-    def __init__(self, client: _MeilisearchClient, metrics: MetricsRegistry | None = None) -> None:
+    def __init__(
+        self,
+        client: _MeilisearchClient,
+        metrics: MetricsRegistry | None = None,
+        is_shadow: bool = False,
+    ) -> None:
         self._client = client
         self._metrics = metrics
+        self.apply_settings(shadow=is_shadow)
 
     # ------------------------------------------------------------------
     # Index management
@@ -135,14 +141,6 @@ class MeilisearchSearchProvider:
     def apply_settings(self, *, shadow: bool = False) -> None:
         """Apply index settings idempotently. Safe to call on every startup."""
         apply_index_settings(self._client, shadow=shadow)
-
-    def prepare_shadow_index(self) -> None:
-        """Create the shadow index with the same settings as the live index.
-
-        Idempotent — safe to call even if the shadow index already exists.
-        Used as the first step of a safe reindex (swap-indexes) operation.
-        """
-        apply_index_settings(self._client, shadow=True)
 
     def swap_indexes(self) -> str:
         """Atomically swap the live and shadow indexes.
@@ -167,10 +165,14 @@ class MeilisearchSearchProvider:
     def index(self, document: SearchChunkRecord, *, shadow: bool = False) -> str:
         """Add or replace a single chunk record. Returns the task UID."""
         name = SHADOW_INDEX_NAME if shadow else INDEX_NAME
-        task = self._client.index(name).add_documents([document.model_dump()], primary_key="id")
+        task = self._client.index(name).add_documents(
+            [document.model_dump()], primary_key="id"
+        )
         return str(task.task_uid)
 
-    def index_batch(self, documents: list[SearchChunkRecord], *, shadow: bool = False) -> str:
+    def index_batch(
+        self, documents: list[SearchChunkRecord], *, shadow: bool = False
+    ) -> str:
         """Add or replace a batch of chunk records. Returns the task UID.
 
         Prefer this over repeated index() calls — Meilisearch processes a
@@ -199,7 +201,10 @@ class MeilisearchSearchProvider:
 
         Returns the task UID.
         """
-        payload = {"id": chunk_id, **{k: v for k, v in translations.items() if v is not None}}
+        payload = {
+            "id": chunk_id,
+            **{k: v for k, v in translations.items() if v is not None},
+        }
         task = self._client.index(INDEX_NAME).update_documents([payload])
         return str(task.task_uid)
 
@@ -223,7 +228,9 @@ class MeilisearchSearchProvider:
     # Stale chunk detection
     # ------------------------------------------------------------------
 
-    def existing_chunk_checksums(self, document_id: str, *, shadow: bool = False) -> dict[str, str]:
+    def existing_chunk_checksums(
+        self, document_id: str, *, shadow: bool = False
+    ) -> dict[str, str]:
         """Return {chunk_id: contentChecksum} for all indexed chunks of a document.
 
         Used to skip unchanged chunks during reindex of a single document.
@@ -243,7 +250,9 @@ class MeilisearchSearchProvider:
                 "attributesToRetrieve": ["id", "content_checksum"],
             },
         )
-        return {hit["id"]: hit.get("content_checksum", "") for hit in result.get("hits", [])}
+        return {
+            hit["id"]: hit.get("content_checksum", "") for hit in result.get("hits", [])
+        }
 
     # ------------------------------------------------------------------
     # Metrics
@@ -264,7 +273,7 @@ class MeilisearchSearchProvider:
         self,
         query: DocumentSearchQuery,
         user: TokenPayload | UserIdentity,
-    ) -> DocumentSearchResponse:
+    ) -> list[SearchResult]:
         """Execute a search with the ACL filter applied server-side.
 
         The permission filter is constructed from the authenticated user's
@@ -276,15 +285,10 @@ class MeilisearchSearchProvider:
         """
         if needs_acl_short_circuit(user):
             self._metric("bypassed_admin")
-            return DocumentSearchResponse(
-                total=0,
-                estimated_total=0,
-                items=[],
-                processing_time_ms=0,
-            )
+            return []
 
         acl_filter = build_permission_filter(user)
-        user_filter = _build_user_filter(query.filters)
+        user_filter = []  # _build_user_filter(query.filters)
         combined_filter = compose_filters(acl_filter, user_filter)
 
         if not user.groups:
@@ -320,13 +324,17 @@ class MeilisearchSearchProvider:
 
         items = [_map_result(h) for h in raw.get("hits", [])]
 
-        return DocumentSearchResponse(
-            total=raw.get("nbHits", len(items)),
-            estimated_total=raw.get("estimatedTotalHits", len(items)),
-            items=items,
-            processing_time_ms=raw.get("processingTimeMs", 0),
-            facets=raw.get("facetDistribution") or {},
-        )
+        results = [
+            SearchResult(
+                document_id=i.document_id,
+                score=i.score,
+                title=i.title,
+                chunk_text=i.snippet,
+                metadata=i.metadata.model_dump(),
+            )
+            for i in items
+        ]
+        return results
 
     # ------------------------------------------------------------------
     # Observability

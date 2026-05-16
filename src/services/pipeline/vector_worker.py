@@ -53,7 +53,7 @@ def run_vector_once(
         return False
 
     job_id: UUID = claimed["id"]
-    doc_id: UUID = claimed["doc_id"]
+    document_id: UUID = claimed["document_id"]
     job_type: str = claimed["job_type"]
     attempts: int = claimed["attempts"]
     max_attempts: int = claimed["max_attempts"]
@@ -68,14 +68,14 @@ def run_vector_once(
 
     start = time.monotonic()
     try:
-        doc = doc_repo.get_by_id(doc_id)
+        doc = doc_repo.get_by_id(document_id)
         if doc is None:
-            raise ValueError(f"Document {doc_id} not found")
+            raise ValueError(f"Document {document_id} not found")
 
         allowed_group_ids = [str(gid) for gid in doc_repo.source_group_ids(source_id)]
 
         # Load payload text for chunking
-        payload = job_repo.get_payload(doc_id)
+        payload = job_repo.get_payload(document_id)
         content = (payload["content_text"] if payload else None) or ""
         if not content and doc.path:
             from pathlib import Path
@@ -88,8 +88,8 @@ def run_vector_once(
             vector = encoder.encode(chunk_text_content)
             qdrant_chunks.append(
                 {
-                    "chunk_id": f"{doc_id}-{idx}",
-                    "doc_id": str(doc_id),
+                    "chunk_id": f"{document_id}-{idx}",
+                    "document_id": str(document_id),
                     "group_id": allowed_group_ids,
                     "chunk_index": idx,
                     "text": chunk_text_content,
@@ -201,7 +201,9 @@ def run_vector_loop(
                 ).set_to_current_time()
                 counts = job_repo.count_by_status()
                 for (status, jt), count in counts.items():
-                    metrics.pipeline_queue_depth.labels(status=status, job_type=jt).set(count)
+                    metrics.pipeline_queue_depth.labels(status=status, job_type=jt).set(
+                        count
+                    )
 
             if now - last_reap >= _REAP_INTERVAL_SECONDS:
                 reaped = job_repo.reap_stale_locks()

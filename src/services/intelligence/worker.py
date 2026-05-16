@@ -39,8 +39,8 @@ class IntelligenceWorker:
         self._es = es_client
         self._config = config_source
 
-    def process_document(self, doc_id: UUID, content: str) -> None:
-        """Run enabled intelligence tasks for *doc_id*.
+    def process_document(self, document_id: UUID, content: str) -> None:
+        """Run enabled intelligence tasks for *document_id*.
 
         Tasks run in order: summarize → extract_entities → auto_tag.
         On any failure, log and stop processing further tasks for this doc.
@@ -54,11 +54,11 @@ class IntelligenceWorker:
             start = time.perf_counter()
             try:
                 if task == "summarize":
-                    self._summarize(doc_id, content)
+                    self._summarize(document_id, content)
                 elif task == "extract_entities":
-                    self._extract_entities(doc_id, content)
+                    self._extract_entities(document_id, content)
                 elif task == "auto_tag":
-                    self._auto_tag(doc_id, content)
+                    self._auto_tag(document_id, content)
                 if metrics is not None:
                     metrics.intelligence_tasks_total.labels(task, "success").inc()
                     metrics.intelligence_task_duration_seconds.labels(task).observe(
@@ -71,9 +71,9 @@ class IntelligenceWorker:
                         time.perf_counter() - start
                     )
                 logger.exception(
-                    "Intelligence task %s failed for doc_id=%s correlation=%s",
+                    "Intelligence task %s failed for document_id=%s correlation=%s",
                     task,
-                    doc_id,
+                    document_id,
                     get_correlation_id(),
                 )
                 break
@@ -93,19 +93,23 @@ class IntelligenceWorker:
             tasks.append("auto_tag")
         return tasks
 
-    def _summarize(self, doc_id: UUID, content: str) -> None:
+    def _summarize(self, document_id: UUID, content: str) -> None:
         """Generate and store a document summary."""
-        prompt = self._build_prompt("llm.summarization_prompt", content, MAX_SUMMARIZE_CHARS)
+        prompt = self._build_prompt(
+            "llm.summarization_prompt", content, MAX_SUMMARIZE_CHARS
+        )
         summary = self._ollama.generate(prompt)
         model = self._ollama._model
 
-        self._repo.upsert_summary(doc_id, summary, model)
-        self._update_es_field(doc_id, "summary", summary)
-        logger.info("Summarized doc_id=%s", doc_id)
+        self._repo.upsert_summary(document_id, summary, model)
+        self._update_es_field(document_id, "summary", summary)
+        logger.info("Summarized document_id=%s", document_id)
 
-    def _extract_entities(self, doc_id: UUID, content: str) -> None:
+    def _extract_entities(self, document_id: UUID, content: str) -> None:
         """Extract entities and store them with document links."""
-        prompt = self._build_prompt("llm.entity_extraction_prompt", content, MAX_ENTITY_CHARS)
+        prompt = self._build_prompt(
+            "llm.entity_extraction_prompt", content, MAX_ENTITY_CHARS
+        )
         result = self._ollama.generate(prompt)
         entities = self._ollama.parse_json_array(result)
 
@@ -123,25 +127,29 @@ class IntelligenceWorker:
                 continue
 
             entity_id = self._repo.upsert_entity(name, entity_type)
-            self._repo.link_document_entity(doc_id, entity_id)
+            self._repo.link_document_entity(document_id, entity_id)
 
         # Update ES with entity names
         entity_names = [
-            str(e.get("name", "")) for e in entities if isinstance(e, dict) and e.get("name")
+            str(e.get("name", ""))
+            for e in entities
+            if isinstance(e, dict) and e.get("name")
         ]
-        self._update_es_field(doc_id, "entities", entity_names)
-        logger.info("Extracted %d entities for doc_id=%s", len(entities), doc_id)
+        self._update_es_field(document_id, "entities", entity_names)
+        logger.info(
+            "Extracted %d entities for document_id=%s", len(entities), document_id
+        )
 
-    def _auto_tag(self, doc_id: UUID, content: str) -> None:
+    def _auto_tag(self, document_id: UUID, content: str) -> None:
         """Generate tags and replace existing tags for the document."""
         prompt = self._build_prompt("llm.auto_tag_prompt", content, MAX_TAG_CHARS)
         result = self._ollama.generate(prompt)
         parsed = self._ollama.parse_json_array(result)
 
         tags = [str(t).strip() for t in parsed if isinstance(t, str) and str(t).strip()]
-        self._repo.replace_tags(doc_id, tags)
-        self._update_es_field(doc_id, "tags", tags)
-        logger.info("Tagged doc_id=%s with %d tags", doc_id, len(tags))
+        self._repo.replace_tags(document_id, tags)
+        self._update_es_field(document_id, "tags", tags)
+        logger.info("Tagged document_id=%s with %d tags", document_id, len(tags))
 
     def _build_prompt(
         self,
@@ -156,7 +164,9 @@ class IntelligenceWorker:
         if not base_prompt:
             # Fallback prompts when no config source
             fallbacks: dict[str, str] = {
-                "llm.summarization_prompt": ("Summarize the following document in 3-5 sentences."),
+                "llm.summarization_prompt": (
+                    "Summarize the following document in 3-5 sentences."
+                ),
                 "llm.entity_extraction_prompt": (
                     "Extract named entities (people, organizations, locations) as a JSON array."
                 ),
@@ -171,17 +181,17 @@ class IntelligenceWorker:
 
     def _update_es_field(
         self,
-        doc_id: UUID,
+        document_id: UUID,
         field: str,
         value: Any,
     ) -> None:
         """Update a single field in the Elasticsearch document."""
         try:
-            self._es.update_document_field(str(doc_id), field, value)
+            self._es.update_document_field(str(document_id), field, value)
         except Exception:
             logger.warning(
-                "Failed to update ES field %s for doc_id=%s",
+                "Failed to update ES field %s for document_id=%s",
                 field,
-                doc_id,
+                document_id,
                 exc_info=True,
             )

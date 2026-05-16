@@ -68,7 +68,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column(
-            "doc_id",
+            "document_id",
             sa.Uuid(),
             sa.ForeignKey("documents.id", ondelete="CASCADE"),
             nullable=False,
@@ -90,14 +90,18 @@ def upgrade() -> None:
     op.create_index(
         "uq_alert_notifications_subscription_doc",
         "alert_notifications",
-        ["subscription_id", "doc_id"],
+        ["subscription_id", "document_id"],
         unique=True,
     )
 
 
 def downgrade() -> None:
-    op.drop_index("uq_alert_notifications_subscription_doc", table_name="alert_notifications")
-    op.drop_index("ix_alert_notifications_user_read_created", table_name="alert_notifications")
+    op.drop_index(
+        "uq_alert_notifications_subscription_doc", table_name="alert_notifications"
+    )
+    op.drop_index(
+        "ix_alert_notifications_user_read_created", table_name="alert_notifications"
+    )
     op.drop_table("alert_notifications")
     op.drop_index("ix_alert_subscriptions_user_id", table_name="alert_subscriptions")
     op.drop_table("alert_subscriptions")

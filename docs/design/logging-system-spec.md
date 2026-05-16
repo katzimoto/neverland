@@ -124,7 +124,7 @@ All application logs should be rendered as one JSON object per line.
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `route` | string | Route template, not raw path. Example: `/documents/{doc_id}`. |
+| `route` | string | Route template, not raw path. Example: `/documents/{document_id}`. |
 | `method` | string | HTTP method. |
 | `status_code` | number | Final response code. |
 | `duration_ms` | number | Request duration in milliseconds. |

@@ -12,7 +12,7 @@ class DocumentComment(BaseModel):
     """Row model for the document_comments table."""
 
     id: UUID
-    doc_id: UUID
+    document_id: UUID
     author_id: UUID
     body: str
     created_at: datetime

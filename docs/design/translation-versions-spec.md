@@ -275,7 +275,7 @@ Translation version:
 ```ts
 type TranslationVersion = {
   translation_version_id: string;
-  doc_id: string;
+  document_id: string;
   version_number: number;
   label: string;
   source_language: string | null;
@@ -297,7 +297,7 @@ Version list response:
 
 ```ts
 type TranslationVersionsResponse = {
-  doc_id: string;
+  document_id: string;
   original_language: string | null;
   default_translation_version_id: string | null;
   selected_translation_version_id: string | null;
@@ -319,17 +319,17 @@ type CreateTranslationRequest = {
 Preview request:
 
 ```text
-GET /documents/{doc_id}/preview?translation_version_id={translation_version_id}
+GET /documents/{document_id}/preview?translation_version_id={translation_version_id}
 ```
 
 Suggested endpoints:
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| GET | `/documents/{doc_id}/translation-versions` | Document access | List versions |
-| POST | `/documents/{doc_id}/translation-versions` | Document access | Request manual translation |
-| POST | `/documents/{doc_id}/translation-versions/{version_id}/retry` | Admin or requester when allowed | Retry failed version |
-| GET | `/documents/{doc_id}/preview?translation_version_id=...` | Document access | Render selected version |
+| GET | `/documents/{document_id}/translation-versions` | Document access | List versions |
+| POST | `/documents/{document_id}/translation-versions` | Document access | Request manual translation |
+| POST | `/documents/{document_id}/translation-versions/{version_id}/retry` | Admin or requester when allowed | Retry failed version |
+| GET | `/documents/{document_id}/preview?translation_version_id=...` | Document access | Render selected version |
 
 ## Implementation Notes For Existing Phase 05
 

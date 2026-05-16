@@ -9,7 +9,10 @@ from uuid import UUID
 
 from services.alerts.service import AlertMatcher
 from services.chunking.splitter import chunk_text
-from services.documents.repository import DocumentRepository, TranslationVersionRepository
+from services.documents.repository import (
+    DocumentRepository,
+    TranslationVersionRepository,
+)
 from services.extraction.registry import ExtractorRegistry
 from services.search.elastic import ElasticsearchSearchClient
 from services.search.encoder import TextEncoder
@@ -43,7 +46,7 @@ class SlowWorker:
         self._version_repo = version_repository
         self._alert_matcher = alert_matcher
 
-    def process_document(self, doc_id: UUID) -> None:
+    def process_document(self, document_id: UUID) -> None:
         """Run the enrichment pipeline for a single document.
 
         On success the document translation_quality is set to ``"high"`` and
@@ -52,25 +55,25 @@ class SlowWorker:
         best-effort).
         """
         try:
-            self._run(doc_id)
+            self._run(document_id)
         except Exception:
             logger.exception(
-                "Slow worker failed for doc_id=%s correlation=%s",
-                doc_id,
+                "Slow worker failed for document_id=%s correlation=%s",
+                document_id,
                 get_correlation_id(),
             )
             # Best-effort: mark the document status as failed only if no
             # version repository is wired (backward compat). When versioned,
             # only the version is marked failed.
             if self._version_repo is None:
-                self._doc_repo.update_status(doc_id, "failed")
+                self._doc_repo.update_status(document_id, "failed")
 
-    def _run(self, doc_id: UUID) -> None:
-        doc = self._doc_repo.get_by_id(doc_id)
+    def _run(self, document_id: UUID) -> None:
+        doc = self._doc_repo.get_by_id(document_id)
         if doc is None:
-            raise ValueError(f"Document {doc_id} not found")
+            raise ValueError(f"Document {document_id} not found")
         if doc.path is None:
-            raise ValueError(f"Document {doc_id} has no path")
+            raise ValueError(f"Document {document_id} has no path")
 
         # If version repository is available, process pending versions
         if self._version_repo is not None:
@@ -99,7 +102,9 @@ class SlowWorker:
             text = self._extractor.extract(Path(doc.path), doc.mime_type)
 
             # 2. Translate
-            translated = self._translator.translate(text, source_lang=doc.source_language)
+            translated = self._translator.translate(
+                text, source_lang=doc.source_language
+            )
 
             # 3. Store translated text on version
             self._version_repo.update_version_status(
@@ -134,7 +139,7 @@ class SlowWorker:
 
     def _index_document(self, doc: Any, translated: str) -> None:
         """Chunk, embed, and index a translated document."""
-        doc_id = doc.id
+        document_id = doc.id
         chunks = chunk_text(translated)
         allowed_group_ids = [
             str(group_id) for group_id in self._doc_repo.source_group_ids(doc.source_id)
@@ -146,8 +151,8 @@ class SlowWorker:
             vector = self._encoder.encode(chunk_text_content)
             qdrant_chunks.append(
                 {
-                    "chunk_id": f"{doc_id}-{idx}",
-                    "doc_id": str(doc_id),
+                    "chunk_id": f"{document_id}-{idx}",
+                    "document_id": str(document_id),
                     "group_id": allowed_group_ids,
                     "chunk_index": idx,
                     "text": chunk_text_content,
@@ -157,9 +162,9 @@ class SlowWorker:
 
         # Index full document in Elasticsearch
         self._es.index_document(
-            str(doc_id),
+            str(document_id),
             {
-                "doc_id": str(doc_id),
+                "document_id": str(document_id),
                 "content_english": translated,
                 "title": doc.title or "",
                 "summary": "",

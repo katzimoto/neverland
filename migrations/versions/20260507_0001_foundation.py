@@ -34,10 +34,15 @@ def upgrade() -> None:
         sa.Column("password_hash", sa.Text(), nullable=True),
         sa.Column("is_admin", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
         ),
         sa.Column("last_login", sa.DateTime(timezone=True), nullable=True),
-        sa.CheckConstraint("auth_source IN ('local', 'ldap')", name="ck_users_auth_source"),
+        sa.CheckConstraint(
+            "auth_source IN ('local', 'ldap')", name="ck_users_auth_source"
+        ),
         sa.UniqueConstraint("email", name="uq_users_email"),
     )
 
@@ -51,10 +56,16 @@ def upgrade() -> None:
     op.create_table(
         "user_groups",
         sa.Column(
-            "user_id", sa.Uuid(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+            "user_id",
+            sa.Uuid(),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
         ),
         sa.Column(
-            "group_id", sa.Uuid(), sa.ForeignKey("groups.id", ondelete="CASCADE"), nullable=False
+            "group_id",
+            sa.Uuid(),
+            sa.ForeignKey("groups.id", ondelete="CASCADE"),
+            nullable=False,
         ),
         sa.PrimaryKeyConstraint("user_id", "group_id", name="pk_user_groups"),
     )
@@ -69,10 +80,16 @@ def upgrade() -> None:
         sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.true()),
         sa.Column("config", sa.JSON(), nullable=True),
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
         ),
         sa.Column(
-            "updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
         ),
         sa.CheckConstraint(
             "type IN ('folder', 'nifi', 'confluence', 'jira')",
@@ -89,7 +106,10 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column(
-            "group_id", sa.Uuid(), sa.ForeignKey("groups.id", ondelete="CASCADE"), nullable=False
+            "group_id",
+            sa.Uuid(),
+            sa.ForeignKey("groups.id", ondelete="CASCADE"),
+            nullable=False,
         ),
         sa.PrimaryKeyConstraint("source_id", "group_id", name="pk_source_permissions"),
     )
@@ -112,12 +132,20 @@ def upgrade() -> None:
         sa.Column("target_language", sa.Text(), nullable=False, server_default="en"),
         sa.Column("translation_quality", sa.Text(), nullable=True),
         sa.Column("status", sa.Text(), nullable=False, server_default="pending"),
-        sa.Column("metadata", sa.JSON(), nullable=False, server_default=sa.text("'{}'")),
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+            "metadata", sa.JSON(), nullable=False, server_default=sa.text("'{}'")
         ),
         sa.Column(
-            "updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
         ),
         sa.CheckConstraint(
             "source IN ('folder', 'nifi', 'confluence', 'jira')",
@@ -131,7 +159,9 @@ def upgrade() -> None:
             "status IN ('pending', 'indexed', 'deleted', 'failed')",
             name="ck_documents_status",
         ),
-        sa.UniqueConstraint("source_id", "external_id", name="uq_documents_source_external"),
+        sa.UniqueConstraint(
+            "source_id", "external_id", name="uq_documents_source_external"
+        ),
     )
     op.create_index("ix_documents_source_id", "documents", ["source_id"])
     op.create_index("ix_documents_status", "documents", ["status"])
@@ -140,7 +170,10 @@ def upgrade() -> None:
         "ingested_files",
         sa.Column("sha256", sa.Text(), primary_key=True),
         sa.Column(
-            "doc_id", sa.Uuid(), sa.ForeignKey("documents.id", ondelete="CASCADE"), nullable=False
+            "document_id",
+            sa.Uuid(),
+            sa.ForeignKey("documents.id", ondelete="CASCADE"),
+            nullable=False,
         ),
         sa.Column(
             "source_id",
@@ -149,7 +182,10 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column(
-            "ingested_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+            "ingested_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
         ),
     )
 
@@ -158,7 +194,10 @@ def upgrade() -> None:
         sa.Column("key", sa.Text(), primary_key=True),
         sa.Column("value", sa.JSON(), nullable=False),
         sa.Column(
-            "updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.func.now(),
         ),
         sa.Column("updated_by", sa.Uuid(), sa.ForeignKey("users.id"), nullable=True),
     )

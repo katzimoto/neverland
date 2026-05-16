@@ -20,10 +20,14 @@ function downloadUrl(docId: string) {
 export function PreviewPane({ preview }: PreviewPaneProps) {
   const mime = preview.mime_type;
   const text = preview.snippet;
-  const dl = downloadUrl(preview.doc_id);
+  const dl = downloadUrl(preview.document_id);
 
   if (mime === "text/html") {
-    return <div className={styles.pane}><HtmlPreview html={text} /></div>;
+    return (
+      <div className={styles.pane}>
+        <HtmlPreview html={text} />
+      </div>
+    );
   }
 
   if (
@@ -32,13 +36,24 @@ export function PreviewPane({ preview }: PreviewPaneProps) {
     mime === "application/json" ||
     mime === "text/csv"
   ) {
-    return <div className={styles.pane}><TextPreview text={text} /></div>;
+    return (
+      <div className={styles.pane}>
+        <TextPreview text={text} />
+      </div>
+    );
   }
 
-  if (mime === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
-      mime === "application/vnd.ms-excel" ||
-      mime === "text/tab-separated-values") {
-    return <div className={styles.pane}><TablePreview text={text} /></div>;
+  if (
+    mime ===
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+    mime === "application/vnd.ms-excel" ||
+    mime === "text/tab-separated-values"
+  ) {
+    return (
+      <div className={styles.pane}>
+        <TablePreview text={text} />
+      </div>
+    );
   }
 
   if (
@@ -47,32 +62,58 @@ export function PreviewPane({ preview }: PreviewPaneProps) {
     mime === "application/x-7z-compressed" ||
     mime === "application/x-rar-compressed"
   ) {
-    return <div className={styles.pane}><ArchivePreview text={text} /></div>;
+    return (
+      <div className={styles.pane}>
+        <ArchivePreview text={text} />
+      </div>
+    );
   }
 
   if (mime === "message/rfc822" || mime === "application/vnd.ms-outlook") {
-    return <div className={styles.pane}><EmailPreview text={text} metadata={preview.metadata} /></div>;
+    return (
+      <div className={styles.pane}>
+        <EmailPreview text={text} metadata={preview.metadata} />
+      </div>
+    );
   }
 
   if (
-    mime === "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
+    mime ===
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
     mime === "application/vnd.ms-powerpoint"
   ) {
-    return <div className={styles.pane}><SlidesPreview text={text} /></div>;
+    return (
+      <div className={styles.pane}>
+        <SlidesPreview text={text} />
+      </div>
+    );
   }
 
   if (mime.startsWith("image/")) {
-    return <div className={styles.pane}><ImagePreview docId={preview.doc_id} /></div>;
+    return (
+      <div className={styles.pane}>
+        <ImagePreview docId={preview.document_id} />
+      </div>
+    );
   }
 
   if (
     mime === "application/pdf" ||
-    mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    mime ===
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
     mime === "application/msword" ||
     mime === "application/rtf"
   ) {
-    return <div className={styles.pane}><TextPreview text={text} /></div>;
+    return (
+      <div className={styles.pane}>
+        <TextPreview text={text} />
+      </div>
+    );
   }
 
-  return <div className={styles.pane}><UnsupportedPreview mimeType={mime} downloadUrl={dl} /></div>;
+  return (
+    <div className={styles.pane}>
+      <UnsupportedPreview mimeType={mime} downloadUrl={dl} />
+    </div>
+  );
 }

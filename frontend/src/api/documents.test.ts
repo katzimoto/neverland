@@ -25,7 +25,7 @@ describe("documents API", () => {
     ]);
 
     await expect(getEntities("doc-1")).resolves.toEqual({
-      doc_id: "doc-1",
+      document_id: "doc-1",
       entities: [{ label: "Acme Corp", type: "organization", count: 3 }],
     });
     expect(apiGet).toHaveBeenCalledWith("/documents/doc-1/entities");
@@ -33,12 +33,12 @@ describe("documents API", () => {
 
   it("preserves normalized entity envelope responses", async () => {
     apiGet.mockResolvedValue({
-      doc_id: "doc-1",
+      document_id: "doc-1",
       entities: [{ label: "Project Phoenix", type: "project", count: 2 }],
     });
 
     await expect(getEntities("doc-1")).resolves.toEqual({
-      doc_id: "doc-1",
+      document_id: "doc-1",
       entities: [{ label: "Project Phoenix", type: "project", count: 2 }],
     });
   });

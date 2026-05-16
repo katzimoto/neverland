@@ -1,4 +1,8 @@
-import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+} from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import { test, expect, vi } from "vitest";
 import { screen, render, waitFor } from "@/test/render";
@@ -7,14 +11,16 @@ import { NotificationItem } from "./NotificationItem";
 
 const navigate = vi.fn();
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => navigate }));
-vi.mock("@/api/notifications", () => ({ markRead: vi.fn(() => Promise.resolve({ id: "n1", read: true })) }));
+vi.mock("@/api/notifications", () => ({
+  markRead: vi.fn(() => Promise.resolve({ id: "n1", read: true })),
+}));
 
 const notification: Notification = {
   id: "n1",
   subscription_id: "s1",
   subscription_name: "Risk",
   subscription_query: "risk",
-  doc_id: "d1",
+  document_id: "d1",
   doc_title: "Doc",
   similarity: 0.8,
   read: false,
@@ -29,11 +35,21 @@ test("renders unread notification action", () => {
 
 test("rolls back optimistic mark-read state when the API fails", async () => {
   const user = userEvent.setup();
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   queryClient.setQueryData<Notification[]>(["notifications"], [notification]);
-  queryClient.setQueryData<Notification[]>(["notifications-unread"], [notification]);
+  queryClient.setQueryData<Notification[]>(
+    ["notifications-unread"],
+    [notification]
+  );
   let rejectRead: (error: Error) => void = () => undefined;
-  vi.mocked(markRead).mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectRead = reject; }));
+  vi.mocked(markRead).mockImplementationOnce(
+    () =>
+      new Promise((_resolve, reject) => {
+        rejectRead = reject;
+      })
+  );
 
   function Probe() {
     const { data = [] } = useQuery<Notification[]>({
@@ -48,13 +64,17 @@ test("rolls back optimistic mark-read state when the API fails", async () => {
     <QueryClientProvider client={queryClient}>
       <NotificationItem notification={notification} />
       <Probe />
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
 
   await user.click(screen.getByRole("button"));
-  await waitFor(() => expect(screen.getByTestId("unread-count")).toHaveTextContent("0"));
+  await waitFor(() =>
+    expect(screen.getByTestId("unread-count")).toHaveTextContent("0")
+  );
 
   rejectRead(new Error("offline"));
 
-  await waitFor(() => expect(screen.getByTestId("unread-count")).toHaveTextContent("1"));
+  await waitFor(() =>
+    expect(screen.getByTestId("unread-count")).toHaveTextContent("1")
+  );
 });

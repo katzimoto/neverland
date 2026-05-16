@@ -8,11 +8,13 @@ import * as documentsApi from "@/api/documents";
 vi.mock("@/api/documents");
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
-  Link: ({ children, to }: { children: React.ReactNode; to: string }) => <a href={to}>{children}</a>,
+  Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
+    <a href={to}>{children}</a>
+  ),
 }));
 
 const mockPreview: DocumentPreview = {
-  doc_id: "doc-1",
+  document_id: "doc-1",
   title: "Vendor Risk Assessment",
   mime_type: "text/plain",
   translation_quality: "fast",
@@ -28,32 +30,79 @@ beforeEach(() => {
 
 describe("DocumentToolbar", () => {
   it("renders document title", () => {
-    render(<DocumentToolbar preview={mockPreview} selectedVersionId={undefined} onVersionChange={vi.fn()} />);
-    expect(screen.getByRole("heading", { name: "Vendor Risk Assessment" })).toBeInTheDocument();
+    render(
+      <DocumentToolbar
+        preview={mockPreview}
+        selectedVersionId={undefined}
+        onVersionChange={vi.fn()}
+      />
+    );
+    expect(
+      screen.getByRole("heading", { name: "Vendor Risk Assessment" })
+    ).toBeInTheDocument();
   });
 
   it("shows back to search button", () => {
-    render(<DocumentToolbar preview={mockPreview} selectedVersionId={undefined} onVersionChange={vi.fn()} />);
-    expect(screen.getByRole("button", { name: /back to search/i })).toBeInTheDocument();
+    render(
+      <DocumentToolbar
+        preview={mockPreview}
+        selectedVersionId={undefined}
+        onVersionChange={vi.fn()}
+      />
+    );
+    expect(
+      screen.getByRole("button", { name: /back to search/i })
+    ).toBeInTheDocument();
   });
 
   it("shows download link", () => {
-    render(<DocumentToolbar preview={mockPreview} selectedVersionId={undefined} onVersionChange={vi.fn()} />);
-    expect(screen.getByRole("link", { name: /download/i })).toHaveAttribute("href", "/api/download/doc-1");
+    render(
+      <DocumentToolbar
+        preview={mockPreview}
+        selectedVersionId={undefined}
+        onVersionChange={vi.fn()}
+      />
+    );
+    expect(screen.getByRole("link", { name: /download/i })).toHaveAttribute(
+      "href",
+      "/api/download/doc-1"
+    );
   });
 
   it("shows request translation button when quality is not high", () => {
-    render(<DocumentToolbar preview={mockPreview} selectedVersionId={undefined} onVersionChange={vi.fn()} />);
-    expect(screen.getByRole("button", { name: /request translation/i })).toBeInTheDocument();
+    render(
+      <DocumentToolbar
+        preview={mockPreview}
+        selectedVersionId={undefined}
+        onVersionChange={vi.fn()}
+      />
+    );
+    expect(
+      screen.getByRole("button", { name: /request translation/i })
+    ).toBeInTheDocument();
   });
 
   it("hides request translation when quality is already high", () => {
-    render(<DocumentToolbar preview={{ ...mockPreview, translation_quality: "high" }} selectedVersionId={undefined} onVersionChange={vi.fn()} />);
-    expect(screen.queryByRole("button", { name: /request translation/i })).not.toBeInTheDocument();
+    render(
+      <DocumentToolbar
+        preview={{ ...mockPreview, translation_quality: "high" }}
+        selectedVersionId={undefined}
+        onVersionChange={vi.fn()}
+      />
+    );
+    expect(
+      screen.queryByRole("button", { name: /request translation/i })
+    ).not.toBeInTheDocument();
   });
 
   it("shows trust display", () => {
-    render(<DocumentToolbar preview={mockPreview} selectedVersionId={undefined} onVersionChange={vi.fn()} />);
+    render(
+      <DocumentToolbar
+        preview={mockPreview}
+        selectedVersionId={undefined}
+        onVersionChange={vi.fn()}
+      />
+    );
     expect(screen.getByText("Fast translation")).toBeInTheDocument();
   });
 });

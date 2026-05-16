@@ -64,25 +64,25 @@ class BackfillService:
                 try:
                     self._process_document(row, summary)
                 except Exception:
-                    logger.exception("Backfill failed for doc_id=%s", row["id"])
+                    logger.exception("Backfill failed for document_id=%s", row["id"])
                     summary.documents_failed += 1
 
             offset += _DOC_PAGE_SIZE
 
         return summary
 
-    def _fetch_indexed_documents(self, conn: Connection, offset: int) -> list[dict[str, Any]]:
+    def _fetch_indexed_documents(
+        self, conn: Connection, offset: int
+    ) -> list[dict[str, Any]]:
         rows = conn.execute(
-            sa.text(
-                """
+            sa.text("""
                 SELECT id, source_id, source, path, mime_type, title,
                        source_language, target_language
                 FROM documents
                 WHERE status = 'indexed'
                 ORDER BY id
                 LIMIT :limit OFFSET :offset
-                """
-            ),
+                """),
             {"limit": _DOC_PAGE_SIZE, "offset": offset},
         ).mappings()
         return [dict(row) for row in rows]
@@ -92,9 +92,9 @@ class BackfillService:
         doc_row: dict[str, Any],
         summary: BackfillSummary,
     ) -> None:
-        doc_id = to_uuid(doc_row["id"])
+        document_id = to_uuid(doc_row["id"])
 
-        translated = self._fetch_translated_text(doc_id)
+        translated = self._fetch_translated_text(document_id)
         if translated is None:
             summary.documents_skipped_no_translation += 1
             return
@@ -107,7 +107,7 @@ class BackfillService:
 
         records = [
             SearchChunkRecord.from_parts(
-                document_id=str(doc_id),
+                document_id=str(document_id),
                 chunk_index=idx,
                 title=doc_row.get("title") or "",
                 content=chunk_text_content,
@@ -115,7 +115,9 @@ class BackfillService:
                 metadata=ChunkMetadata(
                     source=doc_row.get("source"),
                     mime_type=doc_row.get("mime_type"),
-                    file_name=Path(doc_row["path"]).name if doc_row.get("path") else None,
+                    file_name=(
+                        Path(doc_row["path"]).name if doc_row.get("path") else None
+                    ),
                     language=doc_row.get("source_language"),
                 ),
                 position_kwargs={},
@@ -123,7 +125,9 @@ class BackfillService:
             for idx, chunk_text_content in enumerate(chunks)
         ]
 
-        existing = self._provider.existing_chunk_checksums(str(doc_id), shadow=True)
+        existing = self._provider.existing_chunk_checksums(
+            str(document_id), shadow=True
+        )
 
         to_index: list[SearchChunkRecord] = []
         for record in records:
@@ -142,34 +146,30 @@ class BackfillService:
 
         summary.chunks_indexed += len(to_index)
 
-    def _fetch_translated_text(self, doc_id: UUID) -> str | None:
+    def _fetch_translated_text(self, document_id: UUID) -> str | None:
         with self._engine.connect() as conn:
             row = conn.execute(
-                sa.text(
-                    """
+                sa.text("""
                     SELECT translated_text
                     FROM document_translation_versions
-                    WHERE doc_id = :doc_id
+                    WHERE document_id = :document_id
                       AND status = 'available'
                     ORDER BY version_number DESC
                     LIMIT 1
-                    """
-                ),
-                {"doc_id": db_uuid(doc_id)},
+                    """),
+                {"document_id": db_uuid(document_id)},
             ).one_or_none()
         return row[0] if row else None
 
     def _fetch_source_group_ids(self, source_id: UUID) -> list[str]:
         with self._engine.connect() as conn:
             rows = conn.execute(
-                sa.text(
-                    """
+                sa.text("""
                     SELECT group_id
                     FROM source_permissions
                     WHERE source_id = :source_id
                     ORDER BY group_id
-                    """
-                ),
+                    """),
                 {"source_id": db_uuid(source_id)},
             ).scalars()
             return [str(to_uuid(r)) for r in rows]

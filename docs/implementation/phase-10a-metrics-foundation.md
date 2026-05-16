@@ -56,7 +56,7 @@ Add FastAPI middleware that records per-request:
 
 ### Safe Label Helpers
 
-- Centralize route-template normalization: strip path parameters (`/documents/{doc_id}` not
+- Centralize route-template normalization: strip path parameters (`/documents/{document_id}` not
   `/documents/abc123`).
 - Labels must never include user IDs, document IDs, filenames, query text, source names,
   group names, exception messages, or file contents.

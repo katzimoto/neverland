@@ -28,12 +28,12 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("@/api/search");
 vi.mock("@/api/documents", () => ({
-  getPreview: vi.fn(() => Promise.resolve({ doc_id: "doc-1" })),
+  getPreview: vi.fn(() => Promise.resolve({ document_id: "doc-1" })),
 }));
 
 const mockResults = [
   {
-    doc_id: "doc-1",
+    document_id: "doc-1",
     source_id: "src-1",
     external_id: null,
     title: "Vendor Risk Assessment 2024",
@@ -49,7 +49,7 @@ const mockResults = [
     why: [{ kind: "term", label: 'Matched "vendor risk" in title' }],
   },
   {
-    doc_id: "doc-2",
+    document_id: "doc-2",
     source_id: "src-1",
     external_id: null,
     title: "Supplier Security Notes",

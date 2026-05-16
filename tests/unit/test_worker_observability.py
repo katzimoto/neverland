@@ -26,7 +26,7 @@ def _make_pipeline_job(
 ) -> dict:
     return {
         "id": uuid4(),
-        "doc_id": uuid4(),
+        "document_id": uuid4(),
         "source_id": uuid4(),
         "job_type": job_type,
         "priority": 0,
@@ -51,7 +51,7 @@ class _FakePipelineRepo:
     def claim_next(self, worker_id: str) -> dict | None:
         return self.claimed_job
 
-    def get_payload(self, doc_id: object) -> dict | None:
+    def get_payload(self, document_id: object) -> dict | None:
         return self.payload
 
     def mark_running_stage(self, job_id: object, stage: str) -> None:
@@ -226,7 +226,9 @@ class TestPipelineRunnerMetrics:
         job = _make_pipeline_job(attempts=5, max_attempts=5)
         repo = _FakePipelineRepo(claimed_job=job)
         worker = MagicMock()
-        worker.process_document.side_effect = ValueError("sensitive: user query text here")
+        worker.process_document.side_effect = ValueError(
+            "sensitive: user query text here"
+        )
 
         run_once(repo, worker, worker_id="w1", metrics=metrics)
 
@@ -272,7 +274,13 @@ class TestVectorWorkerMetrics:
         try:
             vw_module.chunk_text = lambda _: ["chunk one"]
             result = run_vector_once(
-                repo, encoder, qdrant, doc_repo, extractor, worker_id="vw1", metrics=metrics
+                repo,
+                encoder,
+                qdrant,
+                doc_repo,
+                extractor,
+                worker_id="vw1",
+                metrics=metrics,
             )
         finally:
             vw_module.chunk_text = original_chunk_text
@@ -290,7 +298,9 @@ class TestVectorWorkerMetrics:
 
     def test_retry_increments_retried(self) -> None:
         metrics = _make_metrics()
-        job = _make_pipeline_job(job_type="vector_index_document", attempts=1, max_attempts=3)
+        job = _make_pipeline_job(
+            job_type="vector_index_document", attempts=1, max_attempts=3
+        )
         repo = _FakeVectorRepo(claimed_job=job)
 
         doc_repo = MagicMock()
@@ -311,7 +321,9 @@ class TestVectorWorkerMetrics:
 
     def test_dead_letter_increments_dead_lettered(self) -> None:
         metrics = _make_metrics()
-        job = _make_pipeline_job(job_type="vector_index_document", attempts=5, max_attempts=5)
+        job = _make_pipeline_job(
+            job_type="vector_index_document", attempts=5, max_attempts=5
+        )
         repo = _FakeVectorRepo(claimed_job=job)
 
         doc_repo = MagicMock()
@@ -351,7 +363,13 @@ class TestVectorWorkerMetrics:
         try:
             vw_module.chunk_text = lambda _: ["chunk"]
             result = run_vector_once(
-                repo, encoder, qdrant, doc_repo, extractor, worker_id="vw1", metrics=None
+                repo,
+                encoder,
+                qdrant,
+                doc_repo,
+                extractor,
+                worker_id="vw1",
+                metrics=None,
             )
         finally:
             vw_module.chunk_text = original_chunk_text
@@ -374,15 +392,12 @@ class TestCountByStatus:
 
         engine = create_engine("sqlite://", echo=False)
         with engine.begin() as conn:
-            conn.execute(
-                sa.text("""
+            conn.execute(sa.text("""
                 CREATE TABLE ingestion_sources (
                     id TEXT PRIMARY KEY, name TEXT NOT NULL, type TEXT NOT NULL
                 )
-            """)
-            )
-            conn.execute(
-                sa.text("""
+            """))
+            conn.execute(sa.text("""
                 CREATE TABLE documents (
                     id TEXT PRIMARY KEY,
                     source_id TEXT NOT NULL REFERENCES ingestion_sources(id),
@@ -399,13 +414,11 @@ class TestCountByStatus:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
-            """)
-            )
-            conn.execute(
-                sa.text("""
+            """))
+            conn.execute(sa.text("""
                 CREATE TABLE pipeline_jobs (
                     id TEXT PRIMARY KEY,
-                    doc_id TEXT NOT NULL REFERENCES documents(id),
+                    document_id TEXT NOT NULL REFERENCES documents(id),
                     source_id TEXT NOT NULL REFERENCES ingestion_sources(id),
                     job_type TEXT NOT NULL,
                     status TEXT NOT NULL DEFAULT 'pending',
@@ -420,26 +433,25 @@ class TestCountByStatus:
                     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
-            """)
-            )
-            conn.execute(
-                sa.text("""
+            """))
+            conn.execute(sa.text("""
                 CREATE TABLE document_payloads (
-                    doc_id TEXT PRIMARY KEY REFERENCES documents(id),
+                    document_id TEXT PRIMARY KEY REFERENCES documents(id),
                     content_text TEXT,
                     content_path TEXT,
                     content_sha256 TEXT,
                     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                 )
-            """)
-            )
+            """))
 
             source_id = uuid4()
             doc_id_1 = uuid4()
             doc_id_2 = uuid4()
             conn.execute(
-                sa.text("INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :n, :t)"),
+                sa.text(
+                    "INSERT INTO ingestion_sources (id, name, type) VALUES (:id, :n, :t)"
+                ),
                 {"id": source_id.hex, "n": "s", "t": "folder"},
             )
             for did in (doc_id_1, doc_id_2):

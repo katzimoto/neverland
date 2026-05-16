@@ -18,21 +18,26 @@ export function CommentComposer({ docId }: CommentComposerProps) {
       const previous = queryClient.getQueryData<Comment[]>(["comments", docId]);
       const optimistic: Comment = {
         id: `optimistic-${Date.now()}`,
-        doc_id: docId,
+        document_id: docId,
         author_id: "current-user",
         author_name: "Reader",
         body: draft,
         created_at: new Date().toISOString(),
         updated_at: null,
       };
-      queryClient.setQueryData<Comment[]>(["comments", docId], (current = []) => [...current, optimistic]);
+      queryClient.setQueryData<Comment[]>(
+        ["comments", docId],
+        (current = []) => [...current, optimistic]
+      );
       setBody("");
       return { previous };
     },
     onError: (_error, _draft, context) => {
-      if (context?.previous) queryClient.setQueryData(["comments", docId], context.previous);
+      if (context?.previous)
+        queryClient.setQueryData(["comments", docId], context.previous);
     },
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: ["comments", docId] }),
+    onSettled: () =>
+      void queryClient.invalidateQueries({ queryKey: ["comments", docId] }),
   });
 
   return (
@@ -52,8 +57,18 @@ export function CommentComposer({ docId }: CommentComposerProps) {
         placeholder="Share context with readers…"
       />
       <div className={styles.actions}>
-        <Button type="submit" disabled={!body.trim()} loading={mutation.isPending}>Post comment</Button>
-        {mutation.isError && <span role="alert" className={styles.muted}>Could not post comment.</span>}
+        <Button
+          type="submit"
+          disabled={!body.trim()}
+          loading={mutation.isPending}
+        >
+          Post comment
+        </Button>
+        {mutation.isError && (
+          <span role="alert" className={styles.muted}>
+            Could not post comment.
+          </span>
+        )}
       </div>
     </form>
   );

@@ -46,7 +46,9 @@ class DocumentRow(BaseModel):
     updated_at: datetime
 
 
-TranslationVersionStatus = Literal["available", "pending", "running", "failed", "canceled"]
+TranslationVersionStatus = Literal[
+    "available", "pending", "running", "failed", "canceled"
+]
 TranslationVersionQuality = Literal["fast", "high"]
 TranslationVersionRequestType = Literal["ingestion", "manual", "auto_enrich"]
 
@@ -55,7 +57,7 @@ class DocumentTranslationVersion(BaseModel):
     """Row model for the document_translation_versions table."""
 
     id: UUID
-    doc_id: UUID
+    document_id: UUID
     version_number: int
     label: str
     source_language: str | None = None

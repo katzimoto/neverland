@@ -87,7 +87,7 @@ path if demand exists; it must not be built inside this track.
 CREATE TABLE pipeline_jobs (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     job_type        TEXT    NOT NULL,   -- 'pipeline' | 'slow'
-    doc_id          UUID    NOT NULL,
+    document_id          UUID    NOT NULL,
     source_id       UUID    NOT NULL,
     status          TEXT    NOT NULL DEFAULT 'pending',
                                        -- pending | running | done | failed | dlq
@@ -160,7 +160,7 @@ GET /admin/jobs/{job_id}
 → 200 {
     "id": "<uuid>",
     "job_type": "pipeline"|"slow",
-    "doc_id": "<uuid>",
+    "document_id": "<uuid>",
     "source_id": "<uuid>",
     "status": "pending"|"running"|"done"|"failed"|"dlq",
     "attempts": N,
@@ -287,7 +287,7 @@ event:
 {
   "worker_type": "pipeline"|"slow",
   "job_id": "<uuid>",
-  "doc_id": "<uuid>",
+  "document_id": "<uuid>",
   "source_id": "<uuid>",
   "attempt": 1,
   "outcome": "done"|"failed"|"dlq"|"retry",

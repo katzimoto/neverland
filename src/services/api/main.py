@@ -62,6 +62,7 @@ from services.search.elastic import ElasticsearchSearchClient
 from services.search.factory import build_encoder
 from services.search.hybrid import SearchResult, merge_results
 from services.search.meili_provider import MeilisearchSearchProvider
+from services.search.meili_types import DocumentSearchQuery
 from services.search.qdrant import QdrantSearchClient
 from services.translation.client import LibreTranslateClient
 from shared.config import Settings
@@ -153,7 +154,9 @@ def _sanitize_source_error(message: str, source_row: Any | None = None) -> str:
         for key, value in config.items():
             if key.lower() in _SENSITIVE_CONFIG_KEYS and value not in (None, ""):
                 sanitized = sanitized.replace(str(value), "[redacted]")
-    sanitized = re.sub(r"//([^:/\s]+):([^@/\s]+)@", r"//[redacted]:[redacted]@", sanitized)
+    sanitized = re.sub(
+        r"//([^:/\s]+):([^@/\s]+)@", r"//[redacted]:[redacted]@", sanitized
+    )
     return sanitized
 
 
@@ -166,7 +169,11 @@ def _classify_connection_error(
     """Classify a connector error into status type and sanitized message."""
     message = str(exc).lower()
     if connector_type in ("smb", "folder"):
-        if "does not exist" in message or "not found" in message or "unreachable" in message:
+        if (
+            "does not exist" in message
+            or "not found" in message
+            or "unreachable" in message
+        ):
             return ("unreachable", _sanitize_source_error(str(exc), source_row))
         if "permission" in message or "access denied" in message:
             return ("permission_denied", _sanitize_source_error(str(exc), source_row))
@@ -270,7 +277,7 @@ def _notification_response(row: dict[str, Any]) -> dict[str, Any]:
         "subscription_id": str(to_uuid(row["subscription_id"])),
         "subscription_name": row["subscription_name"],
         "subscription_query": row["subscription_query"],
-        "doc_id": str(to_uuid(row["doc_id"])),
+        "document_id": str(to_uuid(row["document_id"])),
         "doc_title": row["doc_title"],
         "similarity": row["similarity"],
         "read": bool(row["read"]),
@@ -293,7 +300,7 @@ class SearchRequest(BaseModel):
 class SearchResultItem(BaseModel):
     """Single search result."""
 
-    doc_id: str
+    document_id: str
     source_id: str
     external_id: str | None = None
     title: str | None = None
@@ -323,7 +330,7 @@ class SearchResponse(BaseModel):
 class PreviewResponse(BaseModel):
     """Document preview response."""
 
-    doc_id: str
+    document_id: str
     title: str | None = None
     mime_type: str
     translation_quality: str | None = None
@@ -340,7 +347,9 @@ class ConnectionTestResult(BaseModel):
     """Source connection validation result."""
 
     source_id: str
-    status: Literal["ok", "unreachable", "auth_failed", "permission_denied", "config_invalid"]
+    status: Literal[
+        "ok", "unreachable", "auth_failed", "permission_denied", "config_invalid"
+    ]
     checked_at: str
     details: dict[str, Any] | None = None
     error: str | None = None
@@ -416,7 +425,7 @@ class DlqItem(BaseModel):
     """DLQ item response."""
 
     id: str
-    doc_id: str | None
+    document_id: str | None
     error_message: str
     retry_count: int
     status: str
@@ -458,13 +467,13 @@ def create_app(
     if app.state.settings.feature_meilisearch_search:
         import meilisearch
 
+        is_meiliseach_shadow = app.state.settings.feature_meilisearch_shadow_index
         meili_client = meilisearch.Client(
             app.state.settings.meilisearch_url,
             api_key=app.state.settings.meilisearch_master_key,
         )
         app.state.meili_provider = MeilisearchSearchProvider(
-            meili_client,
-            metrics=app.state.metrics,
+            meili_client, metrics=app.state.metrics, is_shadow=is_meiliseach_shadow
         )
     else:
         app.state.meili_provider = None
@@ -507,7 +516,9 @@ def create_app(
             route = route_template_for_request(request)
             elapsed = time.perf_counter() - start
             metrics: MetricsRegistry = request.app.state.metrics
-            metrics.http_request_duration_seconds.labels(request.method, route).observe(elapsed)
+            metrics.http_request_duration_seconds.labels(request.method, route).observe(
+                elapsed
+            )
             metrics.http_requests_total.labels(
                 request.method, route, status_class(response.status_code)
             ).inc()
@@ -518,7 +529,9 @@ def create_app(
             elapsed = time.perf_counter() - start
             metrics = request.app.state.metrics
             error_type = exc.__class__.__name__
-            metrics.http_request_duration_seconds.labels(request.method, route).observe(elapsed)
+            metrics.http_request_duration_seconds.labels(request.method, route).observe(
+                elapsed
+            )
             metrics.http_requests_total.labels(request.method, route, "5xx").inc()
             metrics.http_exceptions_total.labels(route, error_type).inc()
             return Response(
@@ -549,7 +562,9 @@ def create_app(
     def require_related_docs_enabled(connection: sa.Connection) -> None:
         """Raise 404 when related documents are disabled."""
         if not app.state.settings.feature_related_docs:
-            raise HTTPException(status_code=404, detail="Related documents are disabled")
+            raise HTTPException(
+                status_code=404, detail="Related documents are disabled"
+            )
         row = (
             connection.execute(
                 sa.text("SELECT value FROM system_config WHERE key = :key"),
@@ -559,7 +574,9 @@ def create_app(
             .first()
         )
         if row and not _config_bool(row["value"], default=True):
-            raise HTTPException(status_code=404, detail="Related documents are disabled")
+            raise HTTPException(
+                status_code=404, detail="Related documents are disabled"
+            )
 
     def require_expertise_enabled(connection: sa.Connection) -> None:
         """Raise 404 when expertise map is disabled."""
@@ -638,7 +655,9 @@ def create_app(
                 ldap_authenticator=app.state.ldap_authenticator,
                 metrics=app.state.metrics,
             )
-            return service.register(request.email, request.password, request.display_name)
+            return service.register(
+                request.email, request.password, request.display_name
+            )
 
     @app.get("/health")
     def app_health() -> HealthResponse:
@@ -725,17 +744,19 @@ def create_app(
             source_language = source_row.get("source_language")
 
             def _record_sync_dlq(
-                doc_id: UUID | None,
+                document_id: UUID | None,
                 message: str,
             ) -> None:
                 connection.execute(
                     sa.text("""
-                        INSERT INTO dlq (id, doc_id, error_message, status)
-                        VALUES (:id, :doc_id, :error_message, 'pending')
+                        INSERT INTO dlq (id, document_id, error_message, status)
+                        VALUES (:id, :document_id, :error_message, 'pending')
                         """),
                     {
                         "id": db_uuid(uuid4()),
-                        "doc_id": db_uuid(doc_id) if doc_id is not None else None,
+                        "document_id": (
+                            db_uuid(document_id) if document_id is not None else None
+                        ),
                         "error_message": message,
                     },
                 )
@@ -788,7 +809,7 @@ def create_app(
                     results["created"] += 1
                     try:
                         job_repo.enqueue_document(
-                            doc_id=doc.id,
+                            document_id=doc.id,
                             source_id=source_id,
                             content_text=item.text_content,
                         )
@@ -853,24 +874,60 @@ def create_app(
         else:
             with app.state.engine.begin() as _conn:
                 _auth_repo = AuthRepository(_conn)
-                _effective = set(user.groups) | set(_auth_repo.get_effective_group_ids(user.groups))
+                _effective = set(user.groups) | set(
+                    _auth_repo.get_effective_group_ids(user.groups)
+                )
             search_group_ids = [str(g) for g in _effective]
+        if app.state.meili_provider:
+            try:
+                backend_start = time.perf_counter()
+                meili_results = app.state.meili_provider.search(
+                    query=DocumentSearchQuery(
+                        q=request.query, filters=request.filters, top_k=request.top_k
+                    ),
+                    user=user,
+                )
+                app.state.metrics.search_backend_duration_seconds.labels(
+                    "meilisearch", "search"
+                ).observe(time.perf_counter() - backend_start)
+                logger.debug(f"The Meilisearch provider returned {meili_results}")
+                bm25_results = meili_results
+            except Exception:
+                logger.warning(
+                    "Meilisearch search degraded route=/search stage=bm25_search "
+                    "correlation_id=%s",
+                    get_correlation_id(),
+                )
+                bm25_results = []
+                raise
+        else:
+            try:
+                es_client = app.state.es_client or ElasticsearchSearchClient(
+                    hosts=[app.state.settings.elastic_url]
+                )
+                encoder = build_encoder(app.state.settings)
+                qdrant_client = app.state.qdrant_client or QdrantSearchClient(
+                    url=app.state.settings.qdrant_url,
+                    dimension=encoder.dimension,
+                )
 
-        es_client = app.state.es_client or ElasticsearchSearchClient(
-            hosts=[app.state.settings.elastic_url]
-        )
-        encoder = build_encoder(app.state.settings)
-        qdrant_client = app.state.qdrant_client or QdrantSearchClient(
-            url=app.state.settings.qdrant_url,
-            dimension=encoder.dimension,
-        )
+                backend_start = time.perf_counter()
+                bm25_results = es_client.search(
+                    request.query, group_ids=search_group_ids, size=50
+                )
+                app.state.metrics.search_backend_duration_seconds.labels(
+                    "elasticsearch", "search"
+                ).observe(time.perf_counter() - backend_start)
+                logger.debug(f"The elastic search client returned {bm25_results}")
+            except Exception as exc:
+                logger.warning(
+                    "Elasticsearch search degraded route=/search stage=bm25_search "
+                    "error_type=%s correlation_id=%s",
+                    exc.__class__.__name__,
+                    get_correlation_id(),
+                )
+                bm25_results = []
 
-        backend_start = time.perf_counter()
-        bm25_results = es_client.search(request.query, group_ids=search_group_ids, size=50)
-        app.state.metrics.search_backend_duration_seconds.labels("elasticsearch", "search").observe(
-            time.perf_counter() - backend_start
-        )
-        logger.debug(f"The elastic search client returned {bm25_results}")
         vector_results: list[SearchResult] = []
         try:
             qdrant_client = app.state.qdrant_client or QdrantSearchClient(
@@ -883,9 +940,9 @@ def create_app(
                 vector=query_vector, group_ids=search_group_ids, limit=50
             )
             logger.debug(f"The word vector returned {vector_results}")
-            app.state.metrics.search_backend_duration_seconds.labels("qdrant", "search").observe(
-                time.perf_counter() - backend_start
-            )
+            app.state.metrics.search_backend_duration_seconds.labels(
+                "qdrant", "search"
+            ).observe(time.perf_counter() - backend_start)
         except Exception as exc:
             logger.warning(
                 "Vector search degraded route=/search stage=vector_search "
@@ -897,10 +954,14 @@ def create_app(
 
         with app.state.engine.begin() as connection:
             vector_row = connection.execute(
-                sa.text("SELECT value FROM system_config WHERE key = 'search.vector_weight'"),
+                sa.text(
+                    "SELECT value FROM system_config WHERE key = 'search.vector_weight'"
+                ),
             ).scalar()
             bm25_row = connection.execute(
-                sa.text("SELECT value FROM system_config WHERE key = 'search.bm25_weight'"),
+                sa.text(
+                    "SELECT value FROM system_config WHERE key = 'search.bm25_weight'"
+                ),
             ).scalar()
             try:
                 vector_weight = float(vector_row) if vector_row is not None else 0.7
@@ -931,7 +992,7 @@ def create_app(
             all_merged_ids: list[UUID] = []
             for r in merged:
                 with suppress(ValueError):
-                    all_merged_ids.append(UUID(r.doc_id))
+                    all_merged_ids.append(UUID(r.document_id))
             if all_merged_ids:
                 with app.state.engine.begin() as connection:
                     _doc_repo = DocumentRepository(connection)
@@ -940,7 +1001,7 @@ def create_app(
                         for doc in _doc_repo.list_by_ids(all_merged_ids)
                         if not doc.is_latest
                     }
-                merged = [r for r in merged if r.doc_id not in non_latest]
+                merged = [r for r in merged if r.document_id not in non_latest]
 
         start = (request.page - 1) * request.page_size
         end = start + request.page_size
@@ -950,7 +1011,7 @@ def create_app(
         doc_ids: list[UUID] = []
         for r in page:
             with suppress(ValueError):
-                doc_ids.append(UUID(r.doc_id))
+                doc_ids.append(UUID(r.document_id))
 
         docs: dict[str, DocumentRow] = {}
         family_current: dict[UUID, UUID] = {}
@@ -965,16 +1026,18 @@ def create_app(
                     if d.version_family_id and not d.is_latest
                 ]
                 if non_latest_family_ids:
-                    family_current = doc_repo.get_family_current_doc_ids(non_latest_family_ids)
+                    family_current = doc_repo.get_family_current_doc_ids(
+                        non_latest_family_ids
+                    )
 
         now = datetime.now(UTC).isoformat()
         results: list[SearchResultItem] = []
         for r in page:
-            doc_row = docs.get(r.doc_id)
+            doc_row = docs.get(r.document_id)
             if doc_row is None:
                 results.append(
                     SearchResultItem(
-                        doc_id=r.doc_id,
+                        document_id=r.document_id,
                         source_id="",
                         external_id=None,
                         title=r.title,
@@ -1006,7 +1069,7 @@ def create_app(
 
             results.append(
                 SearchResultItem(
-                    doc_id=r.doc_id,
+                    document_id=r.document_id,
                     source_id=str(doc_row.source_id),
                     external_id=doc_row.external_id or None,
                     title=r.title or doc_row.title,
@@ -1038,22 +1101,24 @@ def create_app(
             query=request.query,
         )
 
-    @app.get("/preview/{doc_id}", response_model=PreviewResponse)
+    @app.get("/preview/{document_id}", response_model=PreviewResponse)
     def preview(
-        doc_id: UUID,
+        document_id: UUID,
         user: Annotated[TokenPayload, Depends(current_user)],
         translation_version_id: UUID | None = None,
     ) -> PreviewResponse:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            assert_doc_access(document_id, user, auth_repo)
 
             preview_service = PreviewService(connection)
             result = preview_service.get_preview(
-                doc_id, user.sub, translation_version_id=translation_version_id
+                document_id, user.sub, translation_version_id=translation_version_id
             )
             if not result:
-                app.state.metrics.preview_requests_total.labels("unknown", "failure").inc()
+                app.state.metrics.preview_requests_total.labels(
+                    "unknown", "failure"
+                ).inc()
                 raise HTTPException(status_code=404, detail="Document not found")
 
             app.state.metrics.preview_requests_total.labels(
@@ -1061,7 +1126,7 @@ def create_app(
             ).inc()
 
             doc_repo = DocumentRepository(connection)
-            doc_row = doc_repo.get_by_id(doc_id)
+            doc_row = doc_repo.get_by_id(document_id)
 
             version_number: int | None = None
             is_latest_val: bool | None = None
@@ -1074,12 +1139,14 @@ def create_app(
                 if doc_row.is_latest:
                     latest_document_id = str(doc_row.id)
                 elif doc_row.version_family_id:
-                    family_map = doc_repo.get_family_current_doc_ids([doc_row.version_family_id])
+                    family_map = doc_repo.get_family_current_doc_ids(
+                        [doc_row.version_family_id]
+                    )
                     raw = family_map.get(doc_row.version_family_id)
                     latest_document_id = str(raw) if raw else None
 
             return PreviewResponse(
-                doc_id=result["doc_id"],
+                document_id=result["document_id"],
                 title=result["title"],
                 mime_type=result["mime_type"],
                 translation_quality=result["translation_quality"],
@@ -1102,56 +1169,58 @@ def create_app(
             preview_service = PreviewService(connection)
             return preview_service.get_user_activity(user.sub, limit=limit, offset=skip)
 
-    @app.post("/documents/{doc_id}/translate")
+    @app.post("/documents/{document_id}/translate")
     def request_translation(
-        doc_id: UUID,
+        document_id: UUID,
         user: Annotated[TokenPayload, Depends(current_user)],
     ) -> dict[str, Any]:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            assert_doc_access(document_id, user, auth_repo)
 
             doc_repo = DocumentRepository(connection)
-            doc = doc_repo.get_by_id(doc_id)
+            doc = doc_repo.get_by_id(document_id)
             if doc is None:
                 raise HTTPException(status_code=404, detail="Document not found")
 
             version_repo = TranslationVersionRepository(connection)
-            existing = version_repo.find_pending_or_running(doc_id, doc.target_language)
+            existing = version_repo.find_pending_or_running(
+                document_id, doc.target_language
+            )
             if existing:
                 return {
-                    "doc_id": str(doc_id),
+                    "document_id": str(document_id),
                     "translation_version_id": str(existing["id"]),
                     "status": existing["status"],
                 }
 
             version = version_repo.create_version(
-                doc_id=doc_id,
+                document_id=document_id,
                 label=f"Manual {doc.target_language}",
                 quality="high",
                 request_type="manual",
                 requested_by_id=user.sub,
                 target_language=doc.target_language,
             )
-            doc_repo.update_translation_quality(doc_id, "pending_high")
+            doc_repo.update_translation_quality(document_id, "pending_high")
 
             return {
-                "doc_id": str(doc_id),
+                "document_id": str(document_id),
                 "translation_version_id": str(version["id"]),
                 "status": version["status"],
             }
 
-    @app.get("/documents/{doc_id}/translation-versions")
+    @app.get("/documents/{document_id}/translation-versions")
     def list_translation_versions(
-        doc_id: UUID,
+        document_id: UUID,
         user: Annotated[TokenPayload, Depends(current_user)],
     ) -> list[dict[str, Any]]:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            assert_doc_access(document_id, user, auth_repo)
 
             version_repo = TranslationVersionRepository(connection)
-            versions = version_repo.list_versions(doc_id)
+            versions = version_repo.list_versions(document_id)
             return [
                 {
                     "version_id": str(v["id"]),
@@ -1165,20 +1234,20 @@ def create_app(
                 for v in versions
             ]
 
-    @app.get("/documents/{doc_id}/versions")
+    @app.get("/documents/{document_id}/versions")
     def list_document_versions(
-        doc_id: UUID,
+        document_id: UUID,
         user: Annotated[TokenPayload, Depends(current_user)],
     ) -> list[dict[str, Any]]:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            assert_doc_access(document_id, user, auth_repo)
 
             doc_repo = DocumentRepository(connection)
-            versions = doc_repo.list_versions_in_family(doc_id)
+            versions = doc_repo.list_versions_in_family(document_id)
             return [
                 {
-                    "doc_id": str(v.id),
+                    "document_id": str(v.id),
                     "version_number": v.version_number,
                     "is_latest": v.is_latest,
                     "title": v.title,
@@ -1187,37 +1256,37 @@ def create_app(
                 for v in versions
             ]
 
-    @app.get("/documents/{doc_id}/summary")
+    @app.get("/documents/{document_id}/summary")
     def get_summary(
-        doc_id: UUID,
+        document_id: UUID,
         user: Annotated[TokenPayload, Depends(current_user)],
     ) -> dict[str, Any]:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            assert_doc_access(document_id, user, auth_repo)
 
             intelligence_repo = IntelligenceRepository(connection)
-            summary = intelligence_repo.get_summary(doc_id)
+            summary = intelligence_repo.get_summary(document_id)
             if summary is None:
                 raise HTTPException(status_code=404, detail="Summary not found")
             return {
-                "doc_id": str(doc_id),
+                "document_id": str(document_id),
                 "summary": summary["summary"],
                 "model": summary["model"],
                 "updated_at": _fmt_dt(summary["updated_at"]),
             }
 
-    @app.get("/documents/{doc_id}/entities")
+    @app.get("/documents/{document_id}/entities")
     def get_entities(
-        doc_id: UUID,
+        document_id: UUID,
         user: Annotated[TokenPayload, Depends(current_user)],
     ) -> list[dict[str, Any]]:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            assert_doc_access(document_id, user, auth_repo)
 
             intelligence_repo = IntelligenceRepository(connection)
-            entities = intelligence_repo.get_entities(doc_id)
+            entities = intelligence_repo.get_entities(document_id)
             return [
                 {
                     "id": str(e["id"]),
@@ -1228,37 +1297,37 @@ def create_app(
                 for e in entities
             ]
 
-    @app.get("/documents/{doc_id}/tags")
+    @app.get("/documents/{document_id}/tags")
     def get_tags(
-        doc_id: UUID,
+        document_id: UUID,
         user: Annotated[TokenPayload, Depends(current_user)],
     ) -> dict[str, Any]:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            assert_doc_access(document_id, user, auth_repo)
 
             intelligence_repo = IntelligenceRepository(connection)
-            tags = intelligence_repo.get_tags(doc_id)
-            return {"doc_id": str(doc_id), "tags": tags}
+            tags = intelligence_repo.get_tags(document_id)
+            return {"document_id": str(document_id), "tags": tags}
 
-    @app.get("/documents/{doc_id}/related")
+    @app.get("/documents/{document_id}/related")
     def related_documents(
-        doc_id: UUID,
+        document_id: UUID,
         user: Annotated[TokenPayload, Depends(current_user)],
     ) -> dict[str, Any]:
         with app.state.engine.begin() as connection:
             require_related_docs_enabled(connection)
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            assert_doc_access(document_id, user, auth_repo)
 
             doc_repo = DocumentRepository(connection)
-            doc = doc_repo.get_by_id(doc_id)
+            doc = doc_repo.get_by_id(document_id)
             if doc is None:
                 raise HTTPException(status_code=404, detail="Document not found")
 
             group_ids = [str(group_id) for group_id in user.groups]
             if not group_ids:
-                return {"doc_id": str(doc_id), "related": []}
+                return {"document_id": str(document_id), "related": []}
 
             encoder = build_encoder(app.state.settings)
             qdrant_client = app.state.qdrant_client or QdrantSearchClient(
@@ -1278,13 +1347,13 @@ def create_app(
                 )
             except Exception as exc:
                 logger.warning(
-                    "Related documents degraded route=/documents/{doc_id}/related "
+                    "Related documents degraded route=/documents/{document_id}/related "
                     "stage=vector_search error_type=%s correlation_id=%s",
                     exc.__class__.__name__,
                     get_correlation_id(),
                 )
                 related = []
-            return {"doc_id": str(doc_id), "related": related}
+            return {"document_id": str(document_id), "related": related}
 
     @app.get("/expertise")
     def expertise(
@@ -1302,7 +1371,9 @@ def create_app(
                 group_ids: list[str] = []
             else:
                 _auth_repo = AuthRepository(connection)
-                _effective = set(user.groups) | set(_auth_repo.get_effective_group_ids(user.groups))
+                _effective = set(user.groups) | set(
+                    _auth_repo.get_effective_group_ids(user.groups)
+                )
                 group_ids = [str(g) for g in _effective]
             encoder = build_encoder(app.state.settings)
             qdrant_client = app.state.qdrant_client or QdrantSearchClient(
@@ -1325,9 +1396,9 @@ def create_app(
                 )
                 return []
 
-    @app.get("/documents/{doc_id}/comments")
+    @app.get("/documents/{document_id}/comments")
     def list_comments(
-        doc_id: UUID,
+        document_id: UUID,
         user: Annotated[TokenPayload, Depends(current_user)],
         skip: int = 0,
         limit: int = 50,
@@ -1335,13 +1406,15 @@ def create_app(
     ) -> dict[str, Any]:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            assert_doc_access(document_id, user, auth_repo)
 
             repo = CommentRepository(connection)
-            comments = repo.list_comments(doc_id, skip=skip, limit=limit, sort=sort)
-            total = repo.count_comments(doc_id)
+            comments = repo.list_comments(
+                document_id, skip=skip, limit=limit, sort=sort
+            )
+            total = repo.count_comments(document_id)
             return {
-                "doc_id": str(doc_id),
+                "document_id": str(document_id),
                 "comments": [
                     {
                         "id": str(to_uuid(c["id"])),
@@ -1351,7 +1424,9 @@ def create_app(
                         "created_at": _fmt_dt(c["created_at"]),
                         "edited_at": _fmt_dt(c["edited_at"]),
                         "edited_by_id": (
-                            str(to_uuid(c["edited_by_id"])) if c["edited_by_id"] else None
+                            str(to_uuid(c["edited_by_id"]))
+                            if c["edited_by_id"]
+                            else None
                         ),
                         "deleted_at": _fmt_dt(c["deleted_at"]),
                     }
@@ -1362,37 +1437,37 @@ def create_app(
                 "limit": limit,
             }
 
-    @app.post("/documents/{doc_id}/comments", status_code=201)
+    @app.post("/documents/{document_id}/comments", status_code=201)
     def create_comment(
-        doc_id: UUID,
+        document_id: UUID,
         request: CommentCreateRequest,
         user: Annotated[TokenPayload, Depends(current_user)],
     ) -> dict[str, Any]:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            assert_doc_access(document_id, user, auth_repo)
 
             repo = CommentRepository(connection)
-            comment = repo.create(doc_id, user.sub, request.body)
+            comment = repo.create(document_id, user.sub, request.body)
             app.state.metrics.comments_total.labels("create", "success").inc()
             return {
                 "id": str(to_uuid(comment["id"])),
-                "doc_id": str(to_uuid(comment["doc_id"])),
+                "document_id": str(to_uuid(comment["document_id"])),
                 "author_id": str(to_uuid(comment["author_id"])),
                 "body": comment["body"],
                 "created_at": _fmt_dt(comment["created_at"]),
             }
 
-    @app.patch("/documents/{doc_id}/comments/{comment_id}")
+    @app.patch("/documents/{document_id}/comments/{comment_id}")
     def update_comment(
-        doc_id: UUID,
+        document_id: UUID,
         comment_id: UUID,
         request: CommentUpdateRequest,
         user: Annotated[TokenPayload, Depends(current_user)],
     ) -> dict[str, Any]:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            assert_doc_access(document_id, user, auth_repo)
 
             repo = CommentRepository(connection)
             comment = repo.get_by_id(comment_id)
@@ -1414,43 +1489,49 @@ def create_app(
                 "created_at": _fmt_dt(updated["created_at"]),
                 "edited_at": _fmt_dt(updated["edited_at"]),
                 "edited_by_id": (
-                    str(to_uuid(updated["edited_by_id"])) if updated["edited_by_id"] else None
+                    str(to_uuid(updated["edited_by_id"]))
+                    if updated["edited_by_id"]
+                    else None
                 ),
             }
 
-    @app.delete("/documents/{doc_id}/comments/{comment_id}", status_code=204)
+    @app.delete("/documents/{document_id}/comments/{comment_id}", status_code=204)
     def delete_comment(
-        doc_id: UUID,
+        document_id: UUID,
         comment_id: UUID,
         user: Annotated[TokenPayload, Depends(current_user)],
     ) -> None:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            assert_doc_access(document_id, user, auth_repo)
 
             repo = CommentRepository(connection)
             comment = repo.get_by_id(comment_id)
             if comment is None or comment["deleted_at"] is not None:
                 raise HTTPException(status_code=404, detail="Comment not found")
             if not repo.can_delete(comment_id, user.sub, user.is_admin):
-                raise HTTPException(status_code=403, detail="Cannot delete this comment")
+                raise HTTPException(
+                    status_code=403, detail="Cannot delete this comment"
+                )
 
             repo.soft_delete(comment_id, deleted_by_id=user.sub)
             app.state.metrics.comments_total.labels("delete", "success").inc()
 
-    @app.get("/documents/{doc_id}/annotations")
+    @app.get("/documents/{document_id}/annotations")
     def list_annotations(
-        doc_id: UUID,
+        document_id: UUID,
         user: Annotated[TokenPayload, Depends(current_user)],
     ) -> dict[str, Any]:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            assert_doc_access(document_id, user, auth_repo)
 
             repo = AnnotationRepository(connection)
-            annotations = repo.list_annotations(doc_id, user.sub, is_admin=user.is_admin)
+            annotations = repo.list_annotations(
+                document_id, user.sub, is_admin=user.is_admin
+            )
             return {
-                "doc_id": str(doc_id),
+                "document_id": str(document_id),
                 "annotations": [
                     {
                         "id": str(to_uuid(a["id"])),
@@ -1466,19 +1547,19 @@ def create_app(
                 ],
             }
 
-    @app.post("/documents/{doc_id}/annotations", status_code=201)
+    @app.post("/documents/{document_id}/annotations", status_code=201)
     def create_annotation(
-        doc_id: UUID,
+        document_id: UUID,
         request: AnnotationCreateRequest,
         user: Annotated[TokenPayload, Depends(current_user)],
     ) -> dict[str, Any]:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            assert_doc_access(document_id, user, auth_repo)
 
             repo = AnnotationRepository(connection)
             annotation = repo.create(
-                doc_id=doc_id,
+                document_id=document_id,
                 user_id=user.sub,
                 text=request.text,
                 note=request.note,
@@ -1486,10 +1567,12 @@ def create_app(
                 is_private=request.is_private,
             )
             visibility = "private" if request.is_private else "shared"
-            app.state.metrics.annotations_total.labels("create", visibility, "success").inc()
+            app.state.metrics.annotations_total.labels(
+                "create", visibility, "success"
+            ).inc()
             return {
                 "id": str(to_uuid(annotation["id"])),
-                "doc_id": str(to_uuid(annotation["doc_id"])),
+                "document_id": str(to_uuid(annotation["document_id"])),
                 "user_id": str(to_uuid(annotation["user_id"])),
                 "text": annotation["text"],
                 "note": annotation["note"],
@@ -1512,10 +1595,12 @@ def create_app(
 
             # Verify doc access
             auth_repo = AuthRepository(connection)
-            assert_doc_access(to_uuid(annotation["doc_id"]), user, auth_repo)
+            assert_doc_access(to_uuid(annotation["document_id"]), user, auth_repo)
 
             if not repo.can_modify(annotation_id, user.sub, user.is_admin):
-                raise HTTPException(status_code=403, detail="Cannot modify this annotation")
+                raise HTTPException(
+                    status_code=403, detail="Cannot modify this annotation"
+                )
 
             repo.update(
                 annotation_id,
@@ -1525,7 +1610,9 @@ def create_app(
                 is_private=request.is_private,
             )
             visibility = "private" if request.is_private else "shared"
-            app.state.metrics.annotations_total.labels("update", visibility, "success").inc()
+            app.state.metrics.annotations_total.labels(
+                "update", visibility, "success"
+            ).inc()
             updated = repo.get_by_id(annotation_id)
             if updated is None:
                 raise HTTPException(status_code=404, detail="Annotation not found")
@@ -1554,14 +1641,18 @@ def create_app(
 
             # Verify doc access
             auth_repo = AuthRepository(connection)
-            assert_doc_access(to_uuid(annotation["doc_id"]), user, auth_repo)
+            assert_doc_access(to_uuid(annotation["document_id"]), user, auth_repo)
 
             if not repo.can_modify(annotation_id, user.sub, user.is_admin):
-                raise HTTPException(status_code=403, detail="Cannot delete this annotation")
+                raise HTTPException(
+                    status_code=403, detail="Cannot delete this annotation"
+                )
 
             visibility = "private" if annotation["is_private"] else "shared"
             repo.delete(annotation_id)
-            app.state.metrics.annotations_total.labels("delete", visibility, "success").inc()
+            app.state.metrics.annotations_total.labels(
+                "delete", visibility, "success"
+            ).inc()
 
     @app.get("/subscriptions")
     def list_subscriptions(
@@ -1570,7 +1661,9 @@ def create_app(
         with app.state.engine.begin() as connection:
             require_subscriptions_enabled(connection)
             repo = AlertRepository(connection)
-            return [_subscription_response(row) for row in repo.list_subscriptions(user.sub)]
+            return [
+                _subscription_response(row) for row in repo.list_subscriptions(user.sub)
+            ]
 
     @app.post("/subscriptions", status_code=201)
     def create_subscription(
@@ -1661,16 +1754,16 @@ def create_app(
                 "read": bool(updated["read"]),
             }
 
-    @app.post("/admin/alerts/{doc_id}/trigger")
+    @app.post("/admin/alerts/{document_id}/trigger")
     def trigger_alert_matching(
-        doc_id: UUID,
+        document_id: UUID,
         user: Annotated[TokenPayload, Depends(current_user)],
     ) -> dict[str, Any]:
         require_admin(user)
         with app.state.engine.begin() as connection:
             require_subscriptions_enabled(connection)
             doc_repo = DocumentRepository(connection)
-            doc = doc_repo.get_by_id(doc_id)
+            doc = doc_repo.get_by_id(document_id)
             if doc is None or doc.path is None:
                 raise HTTPException(status_code=404, detail="Document not found")
 
@@ -1681,7 +1774,7 @@ def create_app(
                 default_threshold=default_alert_threshold(connection),
             )
             created = matcher.match_document(doc, content)
-            return {"doc_id": str(doc_id), "notifications_created": created}
+            return {"document_id": str(document_id), "notifications_created": created}
 
     @app.post("/qa")
     def qa(
@@ -1716,7 +1809,9 @@ def create_app(
                 group_ids: list[str] = []
             else:
                 _auth_repo = AuthRepository(connection)
-                _effective = set(user.groups) | set(_auth_repo.get_effective_group_ids(user.groups))
+                _effective = set(user.groups) | set(
+                    _auth_repo.get_effective_group_ids(user.groups)
+                )
                 group_ids = [str(g) for g in _effective]
 
             encoder = build_encoder(app.state.settings)
@@ -1773,7 +1868,7 @@ def create_app(
                 "answer": result.answer,
                 "citations": [
                     {
-                        "doc_id": c.doc_id,
+                        "document_id": c.document_id,
                         "doc_title": c.doc_title,
                         "chunk_text": c.chunk_text,
                         "score": c.score,
@@ -1783,15 +1878,15 @@ def create_app(
                 "model": result.model,
             }
 
-    @app.post("/admin/intelligence/{doc_id}/trigger")
+    @app.post("/admin/intelligence/{document_id}/trigger")
     def trigger_intelligence(
-        doc_id: UUID,
+        document_id: UUID,
         user: Annotated[TokenPayload, Depends(current_user)],
     ) -> dict[str, Any]:
         require_admin(user)
         with app.state.engine.begin() as connection:
             doc_repo = DocumentRepository(connection)
-            doc = doc_repo.get_by_id(doc_id)
+            doc = doc_repo.get_by_id(document_id)
             if doc is None or doc.path is None:
                 raise HTTPException(status_code=404, detail="Document not found")
 
@@ -1815,17 +1910,17 @@ def create_app(
                     ollama_client=ollama_client,
                     es_client=es_client,
                 )
-                worker.process_document(doc_id, text)
+                worker.process_document(document_id, text)
             except Exception as exc:
                 logger.warning(
                     "Intelligence trigger degraded route=/admin/intelligence/%s/trigger "
                     "error_type=%s correlation_id=%s",
-                    doc_id,
+                    document_id,
                     exc.__class__.__name__,
                     get_correlation_id(),
                 )
 
-            return {"doc_id": str(doc_id), "triggered": True}
+            return {"document_id": str(document_id), "triggered": True}
 
     @app.get("/admin/enrichment-queue")
     def enrichment_queue(
@@ -1837,7 +1932,7 @@ def create_app(
             pending = doc_repo.list_pending_enrichment()
             return [
                 {
-                    "doc_id": str(doc.id),
+                    "document_id": str(doc.id),
                     "title": doc.title,
                     "mime_type": doc.mime_type,
                     "status": doc.status,
@@ -1845,17 +1940,17 @@ def create_app(
                 for doc in pending
             ]
 
-    @app.get("/download/{doc_id}")
+    @app.get("/download/{document_id}")
     def download(
-        doc_id: UUID,
+        document_id: UUID,
         user: Annotated[TokenPayload, Depends(current_user)],
     ) -> StreamingResponse:
         with app.state.engine.begin() as connection:
             auth_repo = AuthRepository(connection)
-            assert_doc_access(doc_id, user, auth_repo)
+            assert_doc_access(document_id, user, auth_repo)
 
             doc_repo = DocumentRepository(connection)
-            doc = doc_repo.get_by_id(doc_id)
+            doc = doc_repo.get_by_id(document_id)
             if doc is None or doc.path is None:
                 app.state.metrics.download_requests_total.labels("failure").inc()
                 raise HTTPException(status_code=404, detail="Document not found")
@@ -1886,12 +1981,10 @@ def create_app(
     ) -> list[dict[str, Any]]:
         require_admin(user)
         with app.state.engine.begin() as connection:
-            rows = connection.execute(
-                sa.text("""
+            rows = connection.execute(sa.text("""
                     SELECT id, email, display_name, auth_source, is_admin, created_at
                     FROM users ORDER BY created_at DESC
-                    """)
-            ).mappings()
+                    """)).mappings()
             return [
                 {
                     "id": str(to_uuid(row["id"])),
@@ -1960,7 +2053,9 @@ def create_app(
             rows = connection.execute(
                 sa.text("SELECT id, name FROM groups ORDER BY name")
             ).mappings()
-            return [{"id": str(to_uuid(row["id"])), "name": row["name"]} for row in rows]
+            return [
+                {"id": str(to_uuid(row["id"])), "name": row["name"]} for row in rows
+            ]
 
     @app.get("/admin/users/{user_id}")
     def admin_get_user(
@@ -2003,7 +2098,9 @@ def create_app(
                 "auth_source": row["auth_source"],
                 "is_admin": row["is_admin"],
                 "created_at": _fmt_dt(row["created_at"]),
-                "groups": [{"id": str(to_uuid(g["id"])), "name": g["name"]} for g in groups],
+                "groups": [
+                    {"id": str(to_uuid(g["id"])), "name": g["name"]} for g in groups
+                ],
             }
 
     @app.put("/admin/users/{user_id}/groups")
@@ -2039,7 +2136,9 @@ def create_app(
                 {"groups": list(request.group_names)},
             )
             return {
-                "groups": [{"id": str(to_uuid(g["id"])), "name": g["name"]} for g in groups],
+                "groups": [
+                    {"id": str(to_uuid(g["id"])), "name": g["name"]} for g in groups
+                ],
             }
 
     @app.post("/admin/groups", status_code=201)
@@ -2302,7 +2401,9 @@ def create_app(
                 connector = build_connector(source_row)
                 connector.validate()
             except Exception as exc:
-                status, error = _classify_connection_error(exc, connector_type, source_row)
+                status, error = _classify_connection_error(
+                    exc, connector_type, source_row
+                )
                 connection.execute(
                     sa.text("""
                         UPDATE ingestion_sources
@@ -2352,15 +2453,13 @@ def create_app(
     ) -> list[dict[str, Any]]:
         require_admin(user)
         with app.state.engine.begin() as connection:
-            rows = connection.execute(
-                sa.text("""
+            rows = connection.execute(sa.text("""
                     SELECT id, name, type, path, source_language, enabled, created_at,
                            last_sync_status, last_sync_indexed, last_sync_skipped,
                            last_sync_failed, last_sync_error, last_sync_at,
                            last_validation_status, last_validation_error, last_validated_at
                     FROM ingestion_sources ORDER BY created_at DESC
-                    """)
-            ).mappings()
+                    """)).mappings()
             return [
                 {
                     "id": str(to_uuid(row["id"])),
@@ -2449,7 +2548,10 @@ def create_app(
                 "last_validation_status": row.get("last_validation_status"),
                 "last_validation_error": row.get("last_validation_error"),
                 "last_validated_at": _fmt_dt(row.get("last_validated_at")),
-                "groups": [{"id": str(to_uuid(p["id"])), "name": p["name"]} for p in permissions],
+                "groups": [
+                    {"id": str(to_uuid(p["id"])), "name": p["name"]}
+                    for p in permissions
+                ],
             }
 
     @app.put("/admin/sources/{source_id}")
@@ -2483,7 +2585,9 @@ def create_app(
                 params["config"] = json.dumps(request.config)
             if updates:
                 connection.execute(
-                    sa.text(f"UPDATE ingestion_sources SET {', '.join(updates)} WHERE id = :id"),
+                    sa.text(
+                        f"UPDATE ingestion_sources SET {', '.join(updates)} WHERE id = :id"
+                    ),
                     params,
                 )
             _audit_log(connection, user.sub, "update", "source", str(source_id))
@@ -2629,7 +2733,9 @@ def create_app(
             )
             row = (
                 connection.execute(
-                    sa.text("SELECT key, value, updated_at FROM system_config WHERE key = :key"),
+                    sa.text(
+                        "SELECT key, value, updated_at FROM system_config WHERE key = :key"
+                    ),
                     {"key": key},
                 )
                 .mappings()
@@ -2677,16 +2783,16 @@ def create_app(
     ) -> list[DlqItem]:
         require_admin(user)
         with app.state.engine.begin() as connection:
-            rows = connection.execute(
-                sa.text("""
-                    SELECT id, doc_id, error_message, retry_count, status, created_at, updated_at
+            rows = connection.execute(sa.text("""
+                    SELECT id, document_id, error_message, retry_count, status, created_at, updated_at
                     FROM dlq ORDER BY created_at DESC
-                    """)
-            ).mappings()
+                    """)).mappings()
             return [
                 DlqItem(
                     id=str(to_uuid(row["id"])),
-                    doc_id=str(to_uuid(row["doc_id"])) if row["doc_id"] else None,
+                    document_id=(
+                        str(to_uuid(row["document_id"])) if row["document_id"] else None
+                    ),
                     error_message=row["error_message"],
                     retry_count=row["retry_count"],
                     status=row["status"],
@@ -2713,7 +2819,9 @@ def create_app(
                 {"id": dlq_id.hex},
             )
             if result.rowcount == 0:
-                raise HTTPException(status_code=404, detail="DLQ item not found or not pending")
+                raise HTTPException(
+                    status_code=404, detail="DLQ item not found or not pending"
+                )
             _audit_log(connection, user.sub, "retry", "dlq", str(dlq_id))
             return {"id": str(dlq_id), "status": "retried"}
 
@@ -2723,12 +2831,10 @@ def create_app(
     ) -> list[dict[str, Any]]:
         require_admin(user)
         with app.state.engine.begin() as connection:
-            rows = connection.execute(
-                sa.text("""
+            rows = connection.execute(sa.text("""
                     SELECT id, user_id, action, resource_type, resource_id, details, created_at
                     FROM audit_log ORDER BY created_at DESC LIMIT 100
-                    """)
-            ).mappings()
+                    """)).mappings()
             return [
                 {
                     "id": str(to_uuid(row["id"])),

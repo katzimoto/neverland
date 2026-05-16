@@ -17,39 +17,35 @@ class IntelligenceRepository:
     def __init__(self, connection: Connection) -> None:
         self._connection = connection
 
-    def upsert_summary(self, doc_id: UUID, summary: str, model: str) -> None:
+    def upsert_summary(self, document_id: UUID, summary: str, model: str) -> None:
         """Insert or update the summary for a document."""
         self._connection.execute(
-            sa.text(
-                """
-                INSERT INTO document_summaries (doc_id, summary, model)
-                VALUES (:doc_id, :summary, :model)
-                ON CONFLICT (doc_id)
+            sa.text("""
+                INSERT INTO document_summaries (document_id, summary, model)
+                VALUES (:document_id, :summary, :model)
+                ON CONFLICT (document_id)
                 DO UPDATE SET
                     summary = EXCLUDED.summary,
                     model = EXCLUDED.model,
                     updated_at = CURRENT_TIMESTAMP
-                """
-            ),
+                """),
             {
-                "doc_id": db_uuid(doc_id),
+                "document_id": db_uuid(document_id),
                 "summary": summary,
                 "model": model,
             },
         )
 
-    def get_summary(self, doc_id: UUID) -> dict[str, Any] | None:
+    def get_summary(self, document_id: UUID) -> dict[str, Any] | None:
         """Return the summary for a document, or None."""
         row = (
             self._connection.execute(
-                sa.text(
-                    """
-                    SELECT doc_id, summary, model, created_at, updated_at
+                sa.text("""
+                    SELECT document_id, summary, model, created_at, updated_at
                     FROM document_summaries
-                    WHERE doc_id = :doc_id
-                    """
-                ),
-                {"doc_id": db_uuid(doc_id)},
+                    WHERE document_id = :document_id
+                    """),
+                {"document_id": db_uuid(document_id)},
             )
             .mappings()
             .first()
@@ -63,15 +59,13 @@ class IntelligenceRepository:
         """
         entity_id = uuid4()
         self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 INSERT INTO entities (id, name, type)
                 VALUES (:id, :name, :type)
                 ON CONFLICT (name, type)
                 DO UPDATE SET name = EXCLUDED.name
                 RETURNING id
-                """
-            ),
+                """),
             {
                 "id": db_uuid(entity_id),
                 "name": name,
@@ -81,12 +75,10 @@ class IntelligenceRepository:
         # Re-fetch to get the actual id (whether inserted or existing)
         row = (
             self._connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     SELECT id FROM entities
                     WHERE name = :name AND type = :type
-                    """
-                ),
+                    """),
                 {"name": name, "type": entity_type},
             )
             .mappings()
@@ -98,72 +90,64 @@ class IntelligenceRepository:
 
     def link_document_entity(
         self,
-        doc_id: UUID,
+        document_id: UUID,
         entity_id: UUID,
         frequency: int = 1,
     ) -> None:
         """Link a document to an entity, incrementing frequency on conflict."""
         self._connection.execute(
-            sa.text(
-                """
-                INSERT INTO document_entities (doc_id, entity_id, frequency)
-                VALUES (:doc_id, :entity_id, :frequency)
-                ON CONFLICT (doc_id, entity_id)
+            sa.text("""
+                INSERT INTO document_entities (document_id, entity_id, frequency)
+                VALUES (:document_id, :entity_id, :frequency)
+                ON CONFLICT (document_id, entity_id)
                 DO UPDATE SET
                     frequency = document_entities.frequency + EXCLUDED.frequency
-                """
-            ),
+                """),
             {
-                "doc_id": db_uuid(doc_id),
+                "document_id": db_uuid(document_id),
                 "entity_id": db_uuid(entity_id),
                 "frequency": frequency,
             },
         )
 
-    def get_entities(self, doc_id: UUID) -> list[dict[str, Any]]:
+    def get_entities(self, document_id: UUID) -> list[dict[str, Any]]:
         """Return all entities linked to a document."""
         rows = self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 SELECT e.id, e.name, e.type, de.frequency
                 FROM document_entities de
                 JOIN entities e ON e.id = de.entity_id
-                WHERE de.doc_id = :doc_id
+                WHERE de.document_id = :document_id
                 ORDER BY de.frequency DESC, e.name
-                """
-            ),
-            {"doc_id": db_uuid(doc_id)},
+                """),
+            {"document_id": db_uuid(document_id)},
         ).mappings()
         return [dict(row) for row in rows]
 
-    def replace_tags(self, doc_id: UUID, tags: list[str]) -> None:
+    def replace_tags(self, document_id: UUID, tags: list[str]) -> None:
         """Replace all tags for a document with the given list."""
         self._connection.execute(
-            sa.text("DELETE FROM document_tags WHERE doc_id = :doc_id"),
-            {"doc_id": db_uuid(doc_id)},
+            sa.text("DELETE FROM document_tags WHERE document_id = :document_id"),
+            {"document_id": db_uuid(document_id)},
         )
         if not tags:
             return
         self._connection.execute(
-            sa.text(
-                """
-                INSERT INTO document_tags (doc_id, tag)
-                VALUES (:doc_id, :tag)
-                """
-            ),
-            [{"doc_id": db_uuid(doc_id), "tag": tag} for tag in tags],
+            sa.text("""
+                INSERT INTO document_tags (document_id, tag)
+                VALUES (:document_id, :tag)
+                """),
+            [{"document_id": db_uuid(document_id), "tag": tag} for tag in tags],
         )
 
-    def get_tags(self, doc_id: UUID) -> list[str]:
+    def get_tags(self, document_id: UUID) -> list[str]:
         """Return all tags for a document."""
         rows = self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 SELECT tag FROM document_tags
-                WHERE doc_id = :doc_id
+                WHERE document_id = :document_id
                 ORDER BY tag
-                """
-            ),
-            {"doc_id": db_uuid(doc_id)},
+                """),
+            {"document_id": db_uuid(document_id)},
         ).scalars()
         return list(rows)

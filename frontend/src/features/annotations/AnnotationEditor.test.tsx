@@ -8,7 +8,10 @@ const mocks = vi.hoisted(() => ({
   updateAnnotation: vi.fn(),
 }));
 
-vi.mock("@/api/annotations", () => ({ createAnnotation: mocks.createAnnotation, updateAnnotation: mocks.updateAnnotation }));
+vi.mock("@/api/annotations", () => ({
+  createAnnotation: mocks.createAnnotation,
+  updateAnnotation: mocks.updateAnnotation,
+}));
 
 beforeEach(() => {
   mocks.createAnnotation.mockReset();
@@ -21,8 +24,12 @@ test("supports shared annotation toggle", async () => {
   const user = userEvent.setup();
   render(<AnnotationEditor docId="d1" />);
   await user.type(screen.getByLabelText("New annotation"), "private note");
-  await user.click(screen.getByLabelText("Share with readers who can access this document"));
-  expect(screen.getByLabelText("Share with readers who can access this document")).toBeChecked();
+  await user.click(
+    screen.getByLabelText("Share with readers who can access this document")
+  );
+  expect(
+    screen.getByLabelText("Share with readers who can access this document")
+  ).toBeChecked();
 });
 
 test("sends create annotations through the backend-compatible API boundary", async () => {
@@ -30,20 +37,50 @@ test("sends create annotations through the backend-compatible API boundary", asy
   render(<AnnotationEditor docId="d1" />);
 
   await user.type(screen.getByLabelText("New annotation"), "shared note");
-  await user.click(screen.getByLabelText("Share with readers who can access this document"));
+  await user.click(
+    screen.getByLabelText("Share with readers who can access this document")
+  );
   await user.click(screen.getByRole("button", { name: "Create annotation" }));
 
-  await waitFor(() => expect(mocks.createAnnotation).toHaveBeenCalledWith("d1", { body: "shared note", shared: true, position: null }));
+  await waitFor(() =>
+    expect(mocks.createAnnotation).toHaveBeenCalledWith("d1", {
+      body: "shared note",
+      shared: true,
+      position: null,
+    })
+  );
 });
 
 test("sends update annotations with body shared and position for API mapping", async () => {
   const user = userEvent.setup();
-  render(<AnnotationEditor docId="d1" annotation={{ id: "a1", doc_id: "d1", author_id: "u1", author_name: "Ari", body: "old note", position: { page: 4 }, shared: false, created_at: "2026-05-01T10:00:00Z" }} />);
+  render(
+    <AnnotationEditor
+      docId="d1"
+      annotation={{
+        id: "a1",
+        document_id: "d1",
+        author_id: "u1",
+        author_name: "Ari",
+        body: "old note",
+        position: { page: 4 },
+        shared: false,
+        created_at: "2026-05-01T10:00:00Z",
+      }}
+    />
+  );
 
   await user.clear(screen.getByLabelText("Edit annotation"));
   await user.type(screen.getByLabelText("Edit annotation"), "updated note");
-  await user.click(screen.getByLabelText("Share with readers who can access this document"));
+  await user.click(
+    screen.getByLabelText("Share with readers who can access this document")
+  );
   await user.click(screen.getByRole("button", { name: "Save annotation" }));
 
-  await waitFor(() => expect(mocks.updateAnnotation).toHaveBeenCalledWith("a1", { body: "updated note", shared: true, position: { page: 4 } }));
+  await waitFor(() =>
+    expect(mocks.updateAnnotation).toHaveBeenCalledWith("a1", {
+      body: "updated note",
+      shared: true,
+      position: { page: 4 },
+    })
+  );
 });

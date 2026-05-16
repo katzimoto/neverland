@@ -44,15 +44,13 @@ class DocumentRepository:
         """
         if sha256 is not None:
             existing_doc_id = self._connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     SELECT id
                     FROM documents
                     WHERE source_id = :source_id
                       AND external_id = :external_id
                       AND content_sha256 = :sha256
-                    """
-                ),
+                    """),
                 {
                     "source_id": db_uuid(source_id),
                     "external_id": external_id,
@@ -63,17 +61,16 @@ class DocumentRepository:
                 return None
 
         content_sha256 = sha256 or ""
-        doc_id = uuid4()
+        document_id = uuid4()
 
         family_id_hex, version_number = self._get_or_create_version_family(
             source_id=source_id,
             external_id=external_id,
-            new_doc_id=doc_id,
+            new_doc_id=document_id,
         )
 
         self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 INSERT INTO documents (
                     id, source_id, external_id, source, path,
                     mime_type, title, source_language, status,
@@ -84,12 +81,11 @@ class DocumentRepository:
                     :id, :source_id, :external_id, :source, :path,
                     :mime_type, :title, :source_language, 'pending',
                     :content_sha256, :metadata,
-                    :version_family_id, :version_number, 1
+                    :version_family_id, :version_number, True
                 )
-                """
-            ).bindparams(sa.bindparam("metadata", type_=sa.JSON())),
+                """).bindparams(sa.bindparam("metadata", type_=sa.JSON())),
             {
-                "id": db_uuid(doc_id),
+                "id": db_uuid(document_id),
                 "source_id": db_uuid(source_id),
                 "external_id": external_id,
                 "source": source,
@@ -106,55 +102,55 @@ class DocumentRepository:
 
         if sha256 is not None:
             self._connection.execute(
-                sa.text(
-                    """
-                    INSERT INTO ingested_files (sha256, doc_id, source_id, external_id)
-                    VALUES (:sha256, :doc_id, :source_id, :external_id)
-                    """
-                ),
+                sa.text("""
+                    INSERT INTO ingested_files (sha256, document_id, source_id, external_id)
+                    VALUES (:sha256, :document_id, :source_id, :external_id)
+                    """),
                 {
                     "sha256": sha256,
-                    "doc_id": db_uuid(doc_id),
+                    "document_id": db_uuid(document_id),
                     "source_id": db_uuid(source_id),
                     "external_id": external_id,
                 },
             )
 
-        row = self._get_row_by_id(doc_id)
+        row = self._get_row_by_id(document_id)
         if row is None:
             raise RuntimeError("document insert did not persist")
         return self._row_to_model(row)
 
-    def get_by_id(self, doc_id: UUID) -> DocumentRow | None:
+    def get_by_id(self, document_id: UUID) -> DocumentRow | None:
         """Return a document by primary key."""
-        row = self._get_row_by_id(doc_id)
+        row = self._get_row_by_id(document_id)
         if row is None:
             return None
         return self._row_to_model(row)
 
-    def update_status(self, doc_id: UUID, status: DocumentStatus) -> None:
+    def update_status(self, document_id: UUID, status: DocumentStatus) -> None:
         """Update the document status."""
         self._connection.execute(
             sa.text("UPDATE documents SET status = :status WHERE id = :id"),
-            {"status": status, "id": db_uuid(doc_id)},
+            {"status": status, "id": db_uuid(document_id)},
         )
 
     def update_indexed(
         self,
-        doc_id: UUID,
+        document_id: UUID,
         status: DocumentStatus,
         translation_quality: str | None,
     ) -> None:
         """Update document status and translation quality after indexing."""
         self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 UPDATE documents
                 SET status = :status, translation_quality = :quality
                 WHERE id = :id
-                """
-            ),
-            {"status": status, "quality": translation_quality, "id": db_uuid(doc_id)},
+                """),
+            {
+                "status": status,
+                "quality": translation_quality,
+                "id": db_uuid(document_id),
+            },
         )
 
     def list_by_source(self, source_id: UUID) -> list[DocumentRow]:
@@ -179,77 +175,71 @@ class DocumentRepository:
 
     def update_translation_quality(
         self,
-        doc_id: UUID,
+        document_id: UUID,
         quality: str,
     ) -> None:
         """Update the document translation quality."""
         self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 UPDATE documents
                 SET translation_quality = :quality
                 WHERE id = :id
-                """
-            ),
-            {"quality": quality, "id": db_uuid(doc_id)},
+                """),
+            {"quality": quality, "id": db_uuid(document_id)},
         )
 
     def list_pending_enrichment(self) -> list[DocumentRow]:
         """List documents queued for high-quality translation."""
         rows = self._connection.execute(
-            sa.text("SELECT * FROM documents WHERE translation_quality = 'pending_high'"),
+            sa.text(
+                "SELECT * FROM documents WHERE translation_quality = 'pending_high'"
+            ),
         ).mappings()
         return [self._row_to_model(row) for row in rows]
 
     def source_group_ids(self, source_id: UUID) -> list[UUID]:
         """Return group IDs granted access to an ingestion source."""
         rows = self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 SELECT group_id
                 FROM source_permissions
                 WHERE source_id = :source_id
                 ORDER BY group_id
-                """
-            ),
+                """),
             {"source_id": db_uuid(source_id)},
         ).scalars()
         return [to_uuid(row) for row in rows]
 
-    def list_versions_in_family(self, doc_id: UUID) -> list[DocumentRow]:
-        """Return all document versions in the same family as *doc_id*, oldest first."""
+    def list_versions_in_family(self, document_id: UUID) -> list[DocumentRow]:
+        """Return all document versions in the same family as *document_id*, oldest first."""
         family_id_raw = self._connection.execute(
             sa.text("SELECT version_family_id FROM documents WHERE id = :id"),
-            {"id": db_uuid(doc_id)},
+            {"id": db_uuid(document_id)},
         ).scalar_one_or_none()
         if family_id_raw is None:
             return []
         rows = self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 SELECT * FROM documents
                 WHERE version_family_id = :family_id
                 ORDER BY version_number ASC
-                """
-            ),
+                """),
             {"family_id": str(family_id_raw)},
         ).mappings()
         return [self._row_to_model(r) for r in rows]
 
-    def get_latest_in_family(self, doc_id: UUID) -> DocumentRow | None:
-        """Return the latest document version in the same family as *doc_id*."""
+    def get_latest_in_family(self, document_id: UUID) -> DocumentRow | None:
+        """Return the latest document version in the same family as *document_id*."""
         row = (
             self._connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                 SELECT * FROM documents
                 WHERE version_family_id = (
-                    SELECT version_family_id FROM documents WHERE id = :doc_id
+                    SELECT version_family_id FROM documents WHERE id = :document_id
                 )
-                AND is_latest = 1
-                """
-                ),
-                {"doc_id": db_uuid(doc_id)},
+                AND is_latest = True
+                """),
+                {"document_id": db_uuid(document_id)},
             )
             .mappings()
             .first()
@@ -282,25 +272,21 @@ class DocumentRepository:
         current latest document as non-latest and updates current_document_id.
         """
         family_id_raw = self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 SELECT id FROM document_version_families
                 WHERE source_id = :source_id AND external_id = :external_id
-                """
-            ),
+                """),
             {"source_id": db_uuid(source_id), "external_id": external_id},
         ).scalar_one_or_none()
 
         if family_id_raw is None:
             family_id = uuid4()
             self._connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     INSERT INTO document_version_families
                         (id, source_id, external_id, current_document_id)
                     VALUES (:id, :source_id, :external_id, :current_doc_id)
-                    """
-                ),
+                    """),
                 {
                     "id": db_uuid(family_id),
                     "source_id": db_uuid(source_id),
@@ -313,45 +299,39 @@ class DocumentRepository:
         family_id_hex = str(family_id_raw)
 
         next_version = self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 SELECT COALESCE(MAX(version_number), 0) + 1
                 FROM documents
                 WHERE version_family_id = :family_id
-                """
-            ),
+                """),
             {"family_id": family_id_hex},
         ).scalar_one()
 
         self._connection.execute(
-            sa.text(
-                """
-                UPDATE documents SET is_latest = 0
-                WHERE version_family_id = :family_id AND is_latest = 1
-                """
-            ),
+            sa.text("""
+                UPDATE documents SET is_latest = False
+                WHERE version_family_id = :family_id AND is_latest = True
+                """),
             {"family_id": family_id_hex},
         )
 
         self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 UPDATE document_version_families
                 SET current_document_id = :new_doc_id,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = :family_id
-                """
-            ),
+                """),
             {"new_doc_id": db_uuid(new_doc_id), "family_id": family_id_hex},
         )
 
         return family_id_hex, int(next_version)
 
-    def _get_row_by_id(self, doc_id: UUID) -> RowMapping | None:
+    def _get_row_by_id(self, document_id: UUID) -> RowMapping | None:
         return (
             self._connection.execute(
                 sa.text("SELECT * FROM documents WHERE id = :id"),
-                {"id": db_uuid(doc_id)},
+                {"id": db_uuid(document_id)},
             )
             .mappings()
             .first()
@@ -378,7 +358,9 @@ class DocumentRepository:
             translation_quality=row["translation_quality"],
             status=cast("DocumentStatus", str(row["status"])),
             content_sha256=row.get("content_sha256"),
-            version_family_id=to_uuid(version_family_id_raw) if version_family_id_raw else None,
+            version_family_id=(
+                to_uuid(version_family_id_raw) if version_family_id_raw else None
+            ),
             version_number=int(row.get("version_number") or 1),
             is_latest=bool(row.get("is_latest", True)),
             metadata=metadata,
@@ -395,7 +377,7 @@ class TranslationVersionRepository:
 
     def create_version(
         self,
-        doc_id: UUID,
+        document_id: UUID,
         label: str,
         quality: str,
         request_type: str,
@@ -404,34 +386,34 @@ class TranslationVersionRepository:
         request_note: str | None = None,
     ) -> dict[str, Any]:
         """Create a pending translation version and return its record."""
-        version_number = self._get_next_version_number(doc_id)
+        version_number = self._get_next_version_number(document_id)
         version_id = uuid4()
         row = (
             self._connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     INSERT INTO document_translation_versions (
-                        id, doc_id, version_number, label, quality, request_type,
+                        id, document_id, version_number, label, quality, request_type,
                         status, target_language, requested_by_id, request_note
                     )
                     VALUES (
-                        :id, :doc_id, :version_number, :label, :quality, :request_type,
+                        :id, :document_id, :version_number, :label, :quality, :request_type,
                         'pending', :target_language, :requested_by_id, :request_note
                     )
-                    RETURNING id, doc_id, version_number, label, source_language,
+                    RETURNING id, document_id, version_number, label, source_language,
                               target_language, quality, request_type, status,
                               requested_by_id, requested_at
-                    """
-                ),
+                    """),
                 {
                     "id": db_uuid(version_id),
-                    "doc_id": db_uuid(doc_id),
+                    "document_id": db_uuid(document_id),
                     "version_number": version_number,
                     "label": label,
                     "quality": quality,
                     "request_type": request_type,
                     "target_language": target_language,
-                    "requested_by_id": db_uuid(requested_by_id) if requested_by_id else None,
+                    "requested_by_id": (
+                        db_uuid(requested_by_id) if requested_by_id else None
+                    ),
                     "request_note": request_note,
                 },
             )
@@ -442,54 +424,48 @@ class TranslationVersionRepository:
             raise RuntimeError("version insert did not persist")
         return dict(row)
 
-    def list_versions(self, doc_id: UUID) -> list[dict[str, Any]]:
+    def list_versions(self, document_id: UUID) -> list[dict[str, Any]]:
         """List all translation versions for a document, newest first."""
         rows = self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 SELECT * FROM document_translation_versions
-                WHERE doc_id = :doc_id
+                WHERE document_id = :document_id
                 ORDER BY version_number DESC
-                """
-            ),
-            {"doc_id": db_uuid(doc_id)},
+                """),
+            {"document_id": db_uuid(document_id)},
         ).mappings()
         return [dict(row) for row in rows]
 
-    def get_pending_versions(self, doc_id: UUID) -> list[dict[str, Any]]:
+    def get_pending_versions(self, document_id: UUID) -> list[dict[str, Any]]:
         """Return pending translation versions for a document."""
         rows = self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 SELECT * FROM document_translation_versions
-                WHERE doc_id = :doc_id AND status = 'pending'
+                WHERE document_id = :document_id AND status = 'pending'
                 ORDER BY version_number
-                """
-            ),
-            {"doc_id": db_uuid(doc_id)},
+                """),
+            {"document_id": db_uuid(document_id)},
         ).mappings()
         return [dict(row) for row in rows]
 
     def find_pending_or_running(
         self,
-        doc_id: UUID,
+        document_id: UUID,
         target_language: str,
     ) -> dict[str, Any] | None:
         """Return a pending or running version for the same doc + language."""
         row = (
             self._connection.execute(
-                sa.text(
-                    """
+                sa.text("""
                     SELECT * FROM document_translation_versions
-                    WHERE doc_id = :doc_id
+                    WHERE document_id = :document_id
                       AND target_language = :target_language
                       AND status IN ('pending', 'running')
                     ORDER BY requested_at DESC
                     LIMIT 1
-                    """
-                ),
+                    """),
                 {
-                    "doc_id": db_uuid(doc_id),
+                    "document_id": db_uuid(document_id),
                     "target_language": target_language,
                 },
             )
@@ -507,8 +483,7 @@ class TranslationVersionRepository:
     ) -> None:
         """Update version status and optional result fields."""
         self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 UPDATE document_translation_versions
                 SET status = :status,
                     translated_text = COALESCE(
@@ -528,8 +503,7 @@ class TranslationVersionRepository:
                         ELSE completed_at
                     END
                 WHERE id = :id
-                """
-            ),
+                """),
             {
                 "status": status,
                 "translated_text": translated_text,
@@ -538,16 +512,14 @@ class TranslationVersionRepository:
             },
         )
 
-    def _get_next_version_number(self, doc_id: UUID) -> int:
+    def _get_next_version_number(self, document_id: UUID) -> int:
         """Return the next version number for a document."""
         result = self._connection.execute(
-            sa.text(
-                """
+            sa.text("""
                 SELECT COALESCE(MAX(version_number), 0) + 1
                 FROM document_translation_versions
-                WHERE doc_id = :doc_id
-                """
-            ),
-            {"doc_id": db_uuid(doc_id)},
+                WHERE document_id = :document_id
+                """),
+            {"document_id": db_uuid(document_id)},
         ).scalar_one()
         return int(result)

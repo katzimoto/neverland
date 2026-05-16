@@ -5,7 +5,7 @@ import { TrustDisplay } from "./TrustDisplay";
 import type { DocumentPreview } from "@/api/documents";
 
 const base: DocumentPreview = {
-  doc_id: "doc-1",
+  document_id: "doc-1",
   title: "Test",
   mime_type: "text/plain",
   translation_quality: null,

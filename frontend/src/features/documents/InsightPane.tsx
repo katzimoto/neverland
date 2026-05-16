@@ -205,10 +205,10 @@ function RelatedTab({ docId }: { docId: string }) {
   return (
     <ul className={styles.relatedList}>
       {data.related.map((doc) => (
-        <li key={doc.doc_id}>
+        <li key={doc.document_id}>
           <Link
             to="/doc/$docId"
-            params={{ docId: doc.doc_id }}
+            params={{ docId: doc.document_id }}
             className={styles.relatedLink}
           >
             <span className={styles.relatedTitle}>{doc.title}</span>
@@ -249,7 +249,7 @@ function AnnotationsTab({ docId }: { docId: string }) {
       ]);
       const optimistic: DocAnnotation = {
         id: `optimistic-${Date.now()}`,
-        doc_id: docId,
+        document_id: docId,
         user_id: "current-user",
         text,
         note: null,
@@ -408,7 +408,7 @@ function CommentsTab({ docId }: { docId: string }) {
       ]);
       const optimistic: Comment = {
         id: `optimistic-${Date.now()}`,
-        doc_id: docId,
+        document_id: docId,
         author_id: "current-user",
         author_display_name: "Reader",
         body,
@@ -640,10 +640,10 @@ function VersionsTab({ docId }: { docId: string }) {
   return (
     <ul className={styles.relatedList}>
       {data.map((v) => (
-        <li key={v.doc_id}>
+        <li key={v.document_id}>
           <Link
             to="/doc/$docId"
-            params={{ docId: v.doc_id }}
+            params={{ docId: v.document_id }}
             className={styles.relatedLink}
           >
             <span className={styles.relatedTitle}>
