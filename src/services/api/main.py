@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import re
 import time
 from collections.abc import Awaitable, Callable, Iterator
 from contextlib import contextmanager, suppress
@@ -17,7 +16,6 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
-from pydantic import BaseModel, Field
 from sqlalchemy import Engine
 
 from services.alerts.models import SubscriptionCreateRequest, SubscriptionUpdateRequest
@@ -25,7 +23,37 @@ from services.alerts.repository import AlertRepository
 from services.alerts.service import AlertMatcher
 from services.annotations.models import AnnotationCreateRequest, AnnotationUpdateRequest
 from services.annotations.repository import AnnotationRepository
+from services.api._helpers import (
+    _SENSITIVE_CONFIG_KEYS,
+    _audit_log,
+    _classify_connection_error,
+    _config_bool,
+    _fmt_dt,
+    _notification_response,
+    _parse_json,
+    _record_source_sync_state,
+    _sanitize_source_error,
+    _source_config,
+    _subscription_response,
+)
 from services.api.readiness import ReadinessChecker, ReadinessResponse
+from services.api.schemas import (
+    AddChildGroupRequest,
+    AddUserToGroupRequest,
+    AdminUpdateUserGroupsRequest,
+    ConnectionTestResult,
+    CreateGroupRequest,
+    CreateSourceRequest,
+    CreateUserRequest,
+    DlqItem,
+    GrantPermissionRequest,
+    PreviewResponse,
+    SearchRequest,
+    SearchResponse,
+    SearchResultItem,
+    UpdateConfigRequest,
+    UpdateSourceRequest,
+)
 from services.auth.jwt import JwtService
 from services.auth.ldap import LdapAuthenticator
 from services.auth.models import (
@@ -69,7 +97,6 @@ from shared.correlation import get_correlation_id
 from shared.db import db_uuid, to_uuid
 from shared.metrics import (
     MetricsRegistry,
-    current_metrics,
     mime_family,
     reset_current_metrics,
     route_template_for_request,
@@ -91,337 +118,6 @@ def current_user(request: Request) -> TokenPayload:
     token = authorization.removeprefix(AUTH_SCHEME)
     jwt_service = JwtService(secret=request.app.state.settings.jwt_secret)
     return jwt_service.decode(token)
-
-
-def _fmt_dt(value: Any) -> str | None:
-    """Format a datetime value (object or string) to ISO format."""
-    if value is None:
-        return None
-    if isinstance(value, str):
-        return value
-    # value is a datetime object
-    return str(value.isoformat())
-
-
-def _parse_json(value: Any) -> Any:
-    """Parse a JSON value from the database (string or dict)."""
-    if value is None:
-        return None
-    if isinstance(value, str):
-        return json.loads(value)
-    return value
-
-
-def _config_bool(value: Any, default: bool) -> bool:
-    """Parse a runtime config value as a boolean."""
-    if value is None:
-        return default
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        return value.lower() in {"1", "true", "yes", "on"}
-    return bool(value)
-
-
-_SENSITIVE_CONFIG_KEYS = frozenset(
-    {
-        "api_token",
-        "password",
-        "token",
-        "secret",
-        "client_secret",
-        "api_key",
-        "private_key",
-    }
-)
-
-
-def _source_config(value: Any) -> dict[str, Any]:
-    """Return a source config dict without exposing invalid JSON to callers."""
-    try:
-        parsed = _parse_json(value)
-    except (TypeError, ValueError, json.JSONDecodeError):
-        return {}
-    return parsed if isinstance(parsed, dict) else {}
-
-
-def _sanitize_source_error(message: str, source_row: Any | None = None) -> str:
-    """Redact connector secrets from an operator-facing source error message."""
-    sanitized = message or "Source operation failed"
-    if source_row is not None:
-        config = _source_config(source_row.get("config"))
-        for key, value in config.items():
-            if key.lower() in _SENSITIVE_CONFIG_KEYS and value not in (None, ""):
-                sanitized = sanitized.replace(str(value), "[redacted]")
-    sanitized = re.sub(r"//([^:/\s]+):([^@/\s]+)@", r"//[redacted]:[redacted]@", sanitized)
-    return sanitized
-
-
-def _classify_connection_error(
-    exc: Exception, connector_type: str, source_row: Any | None = None
-) -> tuple[
-    Literal["ok", "unreachable", "auth_failed", "permission_denied", "config_invalid"],
-    str,
-]:
-    """Classify a connector error into status type and sanitized message."""
-    message = str(exc).lower()
-    if connector_type in ("smb", "folder"):
-        if "does not exist" in message or "not found" in message or "unreachable" in message:
-            return ("unreachable", _sanitize_source_error(str(exc), source_row))
-        if "permission" in message or "access denied" in message:
-            return ("permission_denied", _sanitize_source_error(str(exc), source_row))
-    if connector_type in ("confluence", "jira"):
-        if "401" in message or "unauthorized" in message or "auth" in message:
-            return ("auth_failed", _sanitize_source_error(str(exc), source_row))
-        if "403" in message or "forbidden" in message:
-            return ("permission_denied", _sanitize_source_error(str(exc), source_row))
-        if "connection" in message or "timeout" in message or "refused" in message:
-            return ("unreachable", _sanitize_source_error(str(exc), source_row))
-    if "requires" in message or "missing" in message or "invalid" in message:
-        return ("config_invalid", _sanitize_source_error(str(exc), source_row))
-    return ("config_invalid", _sanitize_source_error(str(exc), source_row))
-
-
-def _record_source_sync_state(
-    connection: sa.Connection,
-    source_id: UUID,
-    *,
-    status: str,
-    indexed: int = 0,
-    skipped: int = 0,
-    failed: int = 0,
-    error: str | None = None,
-) -> None:
-    """Persist the latest admin sync summary for an ingestion source."""
-    connection.execute(
-        sa.text("""
-            UPDATE ingestion_sources
-            SET last_sync_status = :status,
-                last_sync_indexed = :indexed,
-                last_sync_skipped = :skipped,
-                last_sync_failed = :failed,
-                last_sync_error = :error,
-                last_sync_at = :synced_at,
-                updated_at = :synced_at
-            WHERE id = :id
-            """),
-        {
-            "id": source_id.hex,
-            "status": status,
-            "indexed": indexed,
-            "skipped": skipped,
-            "failed": failed,
-            "error": error,
-            "synced_at": datetime.now(UTC),
-        },
-    )
-
-
-def _audit_log(
-    connection: sa.Connection,
-    user_id: UUID | None,
-    action: str,
-    resource_type: str,
-    resource_id: str | None = None,
-    details: dict[str, Any] | None = None,
-) -> None:
-    """Write an audit log entry."""
-    metrics = current_metrics()
-    if metrics is not None:
-        metrics.admin_actions_total.labels(
-            safe_label_value(action), safe_label_value(resource_type)
-        ).inc()
-    connection.execute(
-        sa.text("""
-            INSERT INTO audit_log (id, user_id, action, resource_type, resource_id, details)
-            VALUES (:id, :user_id, :action, :resource_type, :resource_id, :details)
-            """),
-        {
-            "id": uuid4().hex,
-            "user_id": user_id.hex if user_id else None,
-            "action": action,
-            "resource_type": resource_type,
-            "resource_id": resource_id,
-            "details": json.dumps(details or {}),
-        },
-    )
-
-
-def _subscription_response(row: dict[str, Any]) -> dict[str, Any]:
-    """Serialize an alert subscription row."""
-    return {
-        "id": str(to_uuid(row["id"])),
-        "user_id": str(to_uuid(row["user_id"])),
-        "name": row["name"],
-        "query": row["query"],
-        "similarity_threshold": row["similarity_threshold"],
-        "enabled": bool(row["enabled"]),
-        "unread_count": int(row.get("unread_count") or 0),
-        "last_notified": _fmt_dt(row["last_notified"]),
-        "created_at": _fmt_dt(row["created_at"]),
-        "updated_at": _fmt_dt(row["updated_at"]),
-    }
-
-
-def _notification_response(row: dict[str, Any]) -> dict[str, Any]:
-    """Serialize an alert notification row."""
-    return {
-        "id": str(to_uuid(row["id"])),
-        "subscription_id": str(to_uuid(row["subscription_id"])),
-        "subscription_name": row["subscription_name"],
-        "subscription_query": row["subscription_query"],
-        "doc_id": str(to_uuid(row["doc_id"])),
-        "doc_title": row["doc_title"],
-        "similarity": row["similarity"],
-        "read": bool(row["read"]),
-        "created_at": _fmt_dt(row["created_at"]),
-    }
-
-
-class SearchRequest(BaseModel):
-    """Search request body."""
-
-    query: str
-    mode: str = "hybrid"
-    filters: dict[str, Any] = Field(default_factory=dict)
-    top_k: int = Field(default=20, ge=1, le=100)
-    page: int = 1
-    page_size: int = Field(default=20, ge=1, le=100)
-    include_older_versions: bool = False
-
-
-class SearchResultItem(BaseModel):
-    """Single search result."""
-
-    doc_id: str
-    source_id: str
-    external_id: str | None = None
-    title: str | None = None
-    snippet: str | None = None
-    source: str
-    source_label: str
-    mime_type: str
-    tags: list[str] = Field(default_factory=list)
-    translation_quality: str | None = None
-    score: float
-    updated_at: str
-    indexed_at: str
-    version_number: int | None = None
-    is_latest: bool | None = None
-    latest_document_id: str | None = None
-    has_newer_version: bool | None = None
-
-
-class SearchResponse(BaseModel):
-    """Search response."""
-
-    results: list[SearchResultItem]
-    total: int
-    query: str = ""
-
-
-class PreviewResponse(BaseModel):
-    """Document preview response."""
-
-    doc_id: str
-    title: str | None = None
-    mime_type: str
-    translation_quality: str | None = None
-    view_count: int = 0
-    metadata: dict[str, Any]
-    snippet: str
-    version_number: int | None = None
-    is_latest: bool | None = None
-    latest_document_id: str | None = None
-    has_newer_version: bool | None = None
-
-
-class ConnectionTestResult(BaseModel):
-    """Source connection validation result."""
-
-    source_id: str
-    status: Literal["ok", "unreachable", "auth_failed", "permission_denied", "config_invalid"]
-    checked_at: str
-    details: dict[str, Any] | None = None
-    error: str | None = None
-
-
-class CreateUserRequest(BaseModel):
-    """Admin create user request."""
-
-    email: str
-    password: str
-    display_name: str | None = None
-    is_admin: bool = False
-    group_names: list[str] = Field(default_factory=list)
-
-
-class CreateGroupRequest(BaseModel):
-    """Admin create group request."""
-
-    name: str
-
-
-class CreateSourceRequest(BaseModel):
-    """Admin create source request."""
-
-    name: str
-    type: Literal["folder", "nifi", "confluence", "jira", "smb"] = "folder"
-    path: str | None = None
-    source_language: str | None = "en"
-    enabled: bool = True
-    config: dict[str, Any] = Field(default_factory=dict)
-
-
-class UpdateSourceRequest(BaseModel):
-    """Admin update source request."""
-
-    name: str | None = None
-    source_language: str | None = None
-    enabled: bool | None = None
-    config: dict[str, Any] | None = None
-
-
-class GrantPermissionRequest(BaseModel):
-    """Admin grant permission request."""
-
-    group_id: str
-
-
-class AdminUpdateUserGroupsRequest(BaseModel):
-    """Admin update user group memberships request."""
-
-    group_names: list[str]
-
-
-class AddUserToGroupRequest(BaseModel):
-    """Admin add user to group request."""
-
-    user_id: str
-
-
-class AddChildGroupRequest(BaseModel):
-    """Admin add child group request."""
-
-    child_group_id: str
-
-
-class UpdateConfigRequest(BaseModel):
-    """Admin update config request."""
-
-    value: Any
-
-
-class DlqItem(BaseModel):
-    """DLQ item response."""
-
-    id: str
-    doc_id: str | None
-    error_message: str
-    retry_count: int
-    status: str
-    created_at: str | None = None
-    updated_at: str | None = None
 
 
 def create_app(
