@@ -25,6 +25,7 @@ export function TranslationVersionSelector({
   onSelect,
 }: TranslationVersionSelectorProps) {
   const hadInProgressRef = useRef(false);
+  const initialSelectDoneRef = useRef(false);
 
   const { data: versions } = useQuery({
     queryKey: ["doc-translation-versions", docId],
@@ -35,8 +36,9 @@ export function TranslationVersionSelector({
     },
   });
 
-  // When a pending/running translation completes, auto-select the latest available version
-  // so the preview switches to the translated content without requiring a manual action.
+  // Auto-select the latest available translation version:
+  // - on initial load when translations are already available, and
+  // - when a pending/running translation completes.
   useEffect(() => {
     if (!versions) return;
     if (selectedVersionId !== undefined) return;
@@ -44,14 +46,19 @@ export function TranslationVersionSelector({
       hadInProgressRef.current = true;
       return;
     }
+    const latestAvailable = [...versions]
+      .filter((v) => v.status === "available")
+      .sort((a, b) => b.version_number - a.version_number)[0];
     if (hadInProgressRef.current) {
       hadInProgressRef.current = false;
-      const latestAvailable = [...versions]
-        .filter((v) => v.status === "available")
-        .sort((a, b) => b.version_number - a.version_number)[0];
       if (latestAvailable) {
         onSelect(latestAvailable.version_id);
       }
+      return;
+    }
+    if (!initialSelectDoneRef.current && latestAvailable) {
+      initialSelectDoneRef.current = true;
+      onSelect(latestAvailable.version_id);
     }
   }, [versions, selectedVersionId, onSelect]);
 

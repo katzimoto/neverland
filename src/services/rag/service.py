@@ -46,6 +46,7 @@ class RagService:
         question: str,
         group_ids: list[str],
         top_k: int = 5,
+        document_id: str | None = None,
     ) -> AnswerResponse:
         """Answer a question using RAG.
 
@@ -53,6 +54,7 @@ class RagService:
             question: The user's question.
             group_ids: List of group IDs the user belongs to (for permission filtering).
             top_k: Number of chunks to retrieve.
+            document_id: When set, restricts retrieval to chunks from this document.
 
         Returns:
             An AnswerResponse with the generated answer and citations.
@@ -61,7 +63,7 @@ class RagService:
         request_start = time.perf_counter()
         # 1. Retrieve relevant chunks
         phase_start = time.perf_counter()
-        chunks = self._retrieve_chunks(question, group_ids, top_k)
+        chunks = self._retrieve_chunks(question, group_ids, top_k, document_id=document_id)
         if metrics is not None:
             metrics.rag_duration_seconds.labels("retrieval").observe(
                 time.perf_counter() - phase_start
@@ -136,6 +138,7 @@ class RagService:
         question: str,
         group_ids: list[str],
         top_k: int,
+        document_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """Retrieve top-K chunks from Qdrant filtered by group_ids."""
         query_vector = self._encoder.encode(question)
@@ -143,6 +146,7 @@ class RagService:
             vector=query_vector,
             group_ids=group_ids,
             limit=top_k,
+            document_id=document_id,
         )
 
         # Deduplicate by document_id (keep highest score)

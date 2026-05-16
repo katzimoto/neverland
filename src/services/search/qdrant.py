@@ -95,19 +95,25 @@ class QdrantSearchClient:
         vector: list[float],
         group_ids: list[str],
         limit: int = 50,
+        document_id: str | None = None,
     ) -> list[SearchResult]:
         """Vector search restricted to *group_ids*.
 
         When *group_ids* is empty (admins-group user), no permission
         filter is applied, giving the caller global document access.
+        When *document_id* is provided, results are further restricted to
+        chunks belonging to that specific document.
         """
         self._ensure_vector_dimension(vector)
 
-        query_filter = None
+        must_conditions = []
         if group_ids:
-            query_filter = Filter(
-                must=[FieldCondition(key="group_id", match=MatchAny(any=group_ids))]
+            must_conditions.append(FieldCondition(key="group_id", match=MatchAny(any=group_ids)))
+        if document_id:
+            must_conditions.append(
+                FieldCondition(key="document_id", match=MatchValue(value=document_id))
             )
+        query_filter = Filter(must=must_conditions) if must_conditions else None
 
         response = self._client.query_points(
             collection_name=self._collection_name,
