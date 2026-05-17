@@ -18,6 +18,7 @@ const mockPreview: DocumentPreview = {
   title: "Vendor Risk Assessment",
   mime_type: "text/plain",
   translation_quality: "fast",
+  translation_score: 0.5,
   metadata: {},
   snippet: "",
   view_count: 2,
