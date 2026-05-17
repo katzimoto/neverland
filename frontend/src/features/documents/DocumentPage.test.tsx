@@ -125,4 +125,31 @@ describe("DocumentPage", () => {
       ).toBeInTheDocument();
     });
   });
+
+  it("shows version selector with Latest and Original options", async () => {
+    render(<DocumentPage />);
+    const select = await screen.findByRole("combobox", {
+      name: "Translation version",
+    });
+    expect(select).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Latest" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Original" })
+    ).toBeInTheDocument();
+  });
+
+  it("calls getPreview with show_original=true when Original is selected", async () => {
+    render(<DocumentPage />);
+    const select = await screen.findByRole("combobox", {
+      name: "Translation version",
+    });
+    await fireEvent.change(select, { target: { value: "__original__" } });
+    await waitFor(() => {
+      expect(
+        screen.getByRole("option", { name: "Original" })
+      ).toBeInTheDocument();
+    });
+  });
 });

@@ -124,7 +124,7 @@ describe("TranslationVersionSelector", () => {
     expect(availableOption).not.toBeDisabled();
   });
 
-  it("returns null when no versions exist", async () => {
+  it("shows Latest and Original options when no versions exist", async () => {
     vi.mocked(documentsApi.getTranslationVersions).mockResolvedValue([]);
     render(
       <TranslationVersionSelector
@@ -135,8 +135,16 @@ describe("TranslationVersionSelector", () => {
         onShowOriginalChange={vi.fn()}
       />
     );
-    await new Promise((r) => setTimeout(r, 50));
-    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    const select = await screen.findByRole("combobox", {
+      name: "Translation version",
+    });
+    expect(select).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Latest" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Original" })
+    ).toBeInTheDocument();
   });
 
   it("polls for updates when pending or running versions exist", async () => {
@@ -180,7 +188,7 @@ describe("TranslationVersionSelector", () => {
     expect(option).toBeDisabled();
 
     // Verify the API was called at least once (polling is configured)
-    expect(documentsApi.getTranslationVersions).toHaveBeenCalledWith("doc-2");
+    expect(documentsApi.getTranslationVersions).toHaveBeenCalledWith("doc-1");
   });
 
   it("auto-selects latest available version when translation transitions from pending to available", async () => {

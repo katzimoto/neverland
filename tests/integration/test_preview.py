@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 from pathlib import Path
+from uuid import UUID
 
+import sqlalchemy as sa
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine
 
 from services.api.main import create_app
 from services.auth.passwords import hash_password
 from services.auth.repository import AuthRepository
-from services.documents.repository import DocumentRepository
+from services.documents.repository import DocumentRepository, TranslationVersionRepository
 from shared.config import Settings
 
 TEST_JWT_SECRET = "x" * 32
@@ -82,7 +84,7 @@ def test_preview_returns_snippet_and_view_count(
     test_file = files_root / "test.txt"
     test_file.write_text("Hello world, this is a test document for preview.")
 
-    _source_id, documant_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
+    _source_id, document_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
 
     client = TestClient(
         create_app(
@@ -92,13 +94,15 @@ def test_preview_returns_snippet_and_view_count(
     )
     token = _user_token(client)
 
-    response = client.get(f"/preview/{documant_id}", headers={"Authorization": f"Bearer {token}"})
+    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 200
     data = response.json()
-    assert data["documant_id"] == documant_id
+    assert data["document_id"] == document_id
     assert data["snippet"] == "Hello world, this is a test document for preview."
     assert data["view_count"] == 1
+    assert data["translation_score"] == 0.0
+    assert data["translation_quality"] is None
 
 
 def test_preview_deduplicates_views(
@@ -131,7 +135,7 @@ def test_preview_deduplicates_views(
             path=str(test_file),
         )
         assert doc is not None
-        documant_id = str(doc.id)
+        document_id = str(doc.id)
 
     client = TestClient(
         create_app(
@@ -142,19 +146,21 @@ def test_preview_deduplicates_views(
     token = _user_token(client)
 
     # First preview
-    response = client.get(f"/preview/{documant_id}", headers={"Authorization": f"Bearer {token}"})
+    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200
-    assert response.json()["view_count"] == 1
+    data = response.json()
+    assert data["view_count"] == 1
+    assert "translation_score" in data
 
     # Second preview by same user — should not increment
-    response = client.get(f"/preview/{documant_id}", headers={"Authorization": f"Bearer {token}"})
+    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200
     assert response.json()["view_count"] == 1
 
     # Preview by different user should increment
     admin_token = _admin_token(client)
     response = client.get(
-        f"/preview/{documant_id}",
+        f"/preview/{document_id}",
         headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200
@@ -173,7 +179,7 @@ def test_preview_truncates_long_text(
     long_text = "A" * 3000
     test_file.write_text(long_text)
 
-    _source_id, documant_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
+    _source_id, document_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
 
     client = TestClient(
         create_app(
@@ -183,7 +189,7 @@ def test_preview_truncates_long_text(
     )
     token = _user_token(client)
 
-    response = client.get(f"/preview/{documant_id}", headers={"Authorization": f"Bearer {token}"})
+    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 200
     data = response.json()
@@ -203,7 +209,7 @@ def test_preview_sanitizes_html(
         "<p>Hello</p><script>alert('xss')</script><div onclick='bad()'>Click</div>"
     )
 
-    _source_id, documant_id = _create_source_with_doc(
+    _source_id, document_id = _create_source_with_doc(
         migrated_engine, "users", mime_type="text/html", path=str(test_file)
     )
 
@@ -215,7 +221,7 @@ def test_preview_sanitizes_html(
     )
     token = _user_token(client)
 
-    response = client.get(f"/preview/{documant_id}", headers={"Authorization": f"Bearer {token}"})
+    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 200
     data = response.json()
@@ -243,7 +249,7 @@ def test_preview_archive_lists_filenames(
         zf.writestr("file1.txt", "content1")
         zf.writestr("file2.txt", "content2")
 
-    _source_id, documant_id = _create_source_with_doc(
+    _source_id, document_id = _create_source_with_doc(
         migrated_engine, "users", mime_type="application/zip", path=str(test_file)
     )
 
@@ -255,7 +261,7 @@ def test_preview_archive_lists_filenames(
     )
     token = _user_token(client)
 
-    response = client.get(f"/preview/{documant_id}", headers={"Authorization": f"Bearer {token}"})
+    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 200
     data = response.json()
@@ -284,7 +290,7 @@ def test_preview_tar_archive_lists_filenames(
             info.size = len(data)
             tf.addfile(info, io.BytesIO(data))
 
-    _source_id, documant_id = _create_source_with_doc(
+    _source_id, document_id = _create_source_with_doc(
         migrated_engine, "users", mime_type="application/gzip", path=str(test_file)
     )
 
@@ -296,12 +302,120 @@ def test_preview_tar_archive_lists_filenames(
     )
     token = _user_token(client)
 
-    response = client.get(f"/preview/{documant_id}", headers={"Authorization": f"Bearer {token}"})
+    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 200
     data = response.json()
     assert "a.txt" in data["snippet"]
     assert "b.txt" in data["snippet"]
+
+
+def test_preview_with_show_original_returns_original_text(
+    migrated_engine: Engine,
+    tmp_path: Path,
+) -> None:
+    _setup_users(migrated_engine)
+
+    files_root = tmp_path / "files"
+    files_root.mkdir()
+    test_file = files_root / "test.txt"
+    test_file.write_text("Original file content only.")
+
+    _source_id, document_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
+
+    # Create a translation version so the non-original path would resolve
+    with migrated_engine.begin() as connection:
+        version_repo = TranslationVersionRepository(connection)
+        created = version_repo.create_version(
+            document_id=UUID(document_id),
+            label="Manual",
+            quality="high",
+            request_type="manual",
+            target_language="en",
+        )
+        version_repo.update_version_status(
+            UUID(str(created["id"])),
+            "available",
+            translated_text="Translated version content.",
+        )
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+        )
+    )
+    token = _user_token(client)
+
+    # Without show_original — should return the translated version
+    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 200
+    assert response.json()["snippet"] == "Translated version content."
+
+    # With show_original=true — should return the original file text
+    response = client.get(
+        f"/preview/{document_id}?show_original=true",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    assert response.json()["snippet"] == "Original file content only."
+
+
+def test_preview_falls_back_to_document_payloads_translated_text(
+    migrated_engine: Engine,
+    tmp_path: Path,
+) -> None:
+    _setup_users(migrated_engine)
+
+    files_root = tmp_path / "files"
+    files_root.mkdir()
+    test_file = files_root / "test.txt"
+    test_file.write_text("Original file content.")
+
+    _source_id, document_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
+
+    # Insert a document_payloads record with translated_text but
+    # NO document_translation_versions record (legacy scenario).
+    with migrated_engine.begin() as connection:
+        connection.execute(
+            sa.text("""
+                INSERT INTO document_payloads
+                    (document_id, content_text, translated_text, created_at, updated_at)
+                VALUES
+                    (:document_id, :content_text, :translated_text,
+                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT (document_id) DO UPDATE SET
+                    translated_text = EXCLUDED.translated_text,
+                    updated_at = CURRENT_TIMESTAMP
+            """),
+            {
+                "document_id": UUID(document_id),
+                "content_text": "Original file content.",
+                "translated_text": "Payload translated content.",
+            },
+        )
+
+    client = TestClient(
+        create_app(
+            migrated_engine,
+            Settings(auth_provider="local", jwt_secret=TEST_JWT_SECRET),
+        )
+    )
+    token = _user_token(client)
+
+    # Without show_original — should fall back to document_payloads.translated_text
+    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["snippet"] == "Payload translated content."
+
+    # With show_original=true — should return original file content
+    response = client.get(
+        f"/preview/{document_id}?show_original=true",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    assert response.json()["snippet"] == "Original file content."
 
 
 def test_me_activity_returns_view_history(
@@ -315,7 +429,7 @@ def test_me_activity_returns_view_history(
     test_file = files_root / "test.txt"
     test_file.write_text("Content")
 
-    _source_id, documant_id = _create_source_with_doc(
+    _source_id, document_id = _create_source_with_doc(
         migrated_engine, "users", doc_title="History Doc", path=str(test_file)
     )
 
@@ -328,7 +442,7 @@ def test_me_activity_returns_view_history(
     token = _user_token(client)
 
     # Preview the document
-    response = client.get(f"/preview/{documant_id}", headers={"Authorization": f"Bearer {token}"})
+    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200
 
     # Get activity
@@ -336,7 +450,7 @@ def test_me_activity_returns_view_history(
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 1
-    assert data[0]["documant_id"] == documant_id
+    assert data[0]["document_id"] == document_id
     assert data[0]["title"] == "History Doc"
     assert data[0]["mime_type"] == "text/plain"
     assert data[0]["viewed_at"] is not None
@@ -382,8 +496,8 @@ def test_me_activity_orders_by_most_recent(
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 2
-    assert data[0]["documant_id"] == doc_id2
-    assert data[1]["documant_id"] == doc_id1
+    assert data[0]["document_id"] == doc_id2
+    assert data[1]["document_id"] == doc_id1
 
 
 def test_preview_returns_empty_snippet_for_missing_file(
@@ -391,7 +505,7 @@ def test_preview_returns_empty_snippet_for_missing_file(
 ) -> None:
     _setup_users(migrated_engine)
 
-    _source_id, documant_id = _create_source_with_doc(
+    _source_id, document_id = _create_source_with_doc(
         migrated_engine, "users", path="/nonexistent/file.txt"
     )
 
@@ -403,7 +517,7 @@ def test_preview_returns_empty_snippet_for_missing_file(
     )
     token = _user_token(client)
 
-    response = client.get(f"/preview/{documant_id}", headers={"Authorization": f"Bearer {token}"})
+    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 200
     data = response.json()
