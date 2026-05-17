@@ -20,6 +20,7 @@ from services.documents.repository import DocumentRepository
 from services.search.elastic import ElasticsearchSearchClient
 from services.search.factory import build_encoder
 from services.search.hybrid import SearchResult, merge_results
+from services.search.meili_types import DocumentSearchQuery
 from services.search.qdrant import QdrantSearchClient
 from shared.correlation import get_correlation_id
 
@@ -52,21 +53,56 @@ def search(
             _effective = set(user.groups) | set(_auth_repo.get_effective_group_ids(user.groups))
         search_group_ids = [str(g) for g in _effective]
 
-    es_client = http_request.app.state.es_client or ElasticsearchSearchClient(
-        hosts=[http_request.app.state.settings.elastic_url]
-    )
-    encoder = build_encoder(http_request.app.state.settings)
-    qdrant_client = http_request.app.state.qdrant_client or QdrantSearchClient(
-        url=http_request.app.state.settings.qdrant_url,
-        dimension=encoder.dimension,
-    )
+    bm25_results: list[SearchResult] = []
+    if http_request.app.state.meili_provider is not None:
+        try:
+            backend_start = time.perf_counter()
+            meili_results = http_request.app.state.meili_provider.search(
+                query=DocumentSearchQuery(
+                    q=request.query,
+                    limit=request.top_k,
+                ),
+                user=user,
+            )
+            logger.info(f"""Using Meilisearch provider results for search, \
+                    query is {request.query} results are {meili_results}""")
+            http_request.app.state.metrics.search_backend_duration_seconds.labels(
+                "meilisearch", "search"
+            ).observe(time.perf_counter() - backend_start)
+            logger.debug(f"The Meilisearch provider returned {meili_results}")
+            bm25_results = meili_results
+        except Exception:
+            logger.warning(
+                "Meilisearch search degraded route=/search stage=bm25_search correlation_id=%s",
+                get_correlation_id(),
+            )
 
-    backend_start = time.perf_counter()
-    bm25_results = es_client.search(request.query, group_ids=search_group_ids, size=50)
-    http_request.app.state.metrics.search_backend_duration_seconds.labels(
-        "elasticsearch", "search"
-    ).observe(time.perf_counter() - backend_start)
-    logger.debug(f"The elastic search client returned {bm25_results}")
+            raise
+    else:
+        try:
+            es_client = http_request.app.state.es_client or ElasticsearchSearchClient(
+                hosts=[http_request.app.state.settings.elastic_url]
+            )
+            encoder = build_encoder(http_request.app.state.settings)
+            qdrant_client = http_request.app.state.qdrant_client or QdrantSearchClient(
+                url=http_request.app.state.settings.qdrant_url,
+                dimension=encoder.dimension,
+            )
+
+            backend_start = time.perf_counter()
+            bm25_results = es_client.search(request.query, group_ids=search_group_ids, size=50)
+            http_request.app.state.metrics.search_backend_duration_seconds.labels(
+                "elasticsearch", "search"
+            ).observe(time.perf_counter() - backend_start)
+            logger.debug(f"The elastic search client returned {bm25_results}")
+        except Exception as exc:
+            logger.warning(
+                "Elasticsearch search degraded route=/search stage=bm25_search "
+                "error_type=%s correlation_id=%s",
+                exc.__class__.__name__,
+                get_correlation_id(),
+            )
+
     vector_results: list[SearchResult] = []
     try:
         qdrant_client = http_request.app.state.qdrant_client or QdrantSearchClient(
