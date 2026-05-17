@@ -182,6 +182,7 @@ def run_vector_loop(
     qdrant: QdrantSearchClient,
     doc_repo: DocumentRepository,
     extractor: ExtractorRegistry,
+    conn: Connection,
     worker_id: str = "vector-worker",
     poll_interval: float = 1.0,
     metrics: MetricsRegistry | None = None,
@@ -190,6 +191,8 @@ def run_vector_loop(
 
     Emits a heartbeat gauge and queue-depth snapshot each iteration.
     Reaps stale locks every ``_REAP_INTERVAL_SECONDS`` seconds.
+    Each iteration runs in its own short transaction so other
+    processes (API, pipeline runner) see results immediately.
     """
     logger.info(
         "vector worker started: worker_id=%s poll_interval=%.1f",
@@ -233,7 +236,12 @@ def run_vector_loop(
                     worker_id=worker_id,
                     metrics=metrics,
                 )
+                if ran:
+                    conn.commit()
+                else:
+                    conn.rollback()
             except Exception as exc:
+                conn.rollback()
                 error_type = type(exc).__name__
                 if metrics is not None:
                     metrics.worker_loop_errors_total.labels(
@@ -255,6 +263,7 @@ def run_vector_loop(
 
 if __name__ == "__main__":
     from sqlalchemy import create_engine
+    from sqlalchemy.engine import Connection
 
     from services.search.factory import build_encoder
     from shared.config import Settings
@@ -262,11 +271,11 @@ if __name__ == "__main__":
     settings = Settings()
     engine = create_engine(settings.postgres_url)
 
-    with engine.begin() as conn:
+    with engine.connect() as conn:
         job_repo = PipelineJobRepository(conn)
         encoder = build_encoder(settings)
         qdrant = QdrantSearchClient(url=settings.qdrant_url)
         doc_repo = DocumentRepository(conn)
         extractor = ExtractorRegistry()
 
-        run_vector_loop(job_repo, encoder, qdrant, doc_repo, extractor)
+        run_vector_loop(job_repo, encoder, qdrant, doc_repo, extractor, conn)

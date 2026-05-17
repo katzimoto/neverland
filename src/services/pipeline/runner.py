@@ -16,6 +16,7 @@ import time
 from uuid import UUID
 
 from sqlalchemy import create_engine
+from sqlalchemy.engine import Connection
 
 from services.documents.repository import DocumentRepository, TranslationVersionRepository
 from services.extraction.registry import ExtractorRegistry
@@ -215,6 +216,7 @@ def run_once(
 def run_loop(
     job_repo: PipelineJobRepository,
     worker: PipelineWorker,
+    conn: Connection,
     worker_id: str = "worker-default",
     poll_interval: float = 1.0,
     metrics: MetricsRegistry | None = None,
@@ -223,6 +225,8 @@ def run_loop(
 
     Emits a heartbeat gauge and queue-depth snapshot each iteration.
     Reaps stale locks every ``_REAP_INTERVAL_SECONDS`` seconds.
+    Each iteration runs in its own short transaction so other
+    processes (API, vector worker) see pipeline results immediately.
     """
     logger.info(
         "pipeline worker started: worker_id=%s poll_interval=%.1f",
@@ -258,7 +262,12 @@ def run_loop(
 
             try:
                 ran = run_once(job_repo, worker, worker_id=worker_id, metrics=metrics)
+                if ran:
+                    conn.commit()
+                else:
+                    conn.rollback()
             except Exception as exc:
+                conn.rollback()
                 error_type = type(exc).__name__
                 if metrics is not None:
                     metrics.worker_loop_errors_total.labels(
@@ -295,7 +304,7 @@ if __name__ == "__main__":
         )
         meili_provider = MeilisearchSearchProvider(meili_client)
 
-    with engine.begin() as conn:
+    with engine.connect() as conn:
         doc_repo = DocumentRepository(conn)
         es_client = ElasticsearchSearchClient(hosts=[settings.elastic_url])
         qdrant_client = QdrantSearchClient(url=settings.qdrant_url)
@@ -313,4 +322,4 @@ if __name__ == "__main__":
             meili_provider=meili_provider,
         )
 
-        run_loop(job_repo, worker, worker_id="pipeline-worker")
+        run_loop(job_repo, worker, conn, worker_id="pipeline-worker")
