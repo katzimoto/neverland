@@ -9,6 +9,7 @@ const base: DocumentPreview = {
   title: "Test",
   mime_type: "text/plain",
   translation_quality: null,
+  translation_score: 0,
   metadata: {},
   snippet: "",
   view_count: 0,
