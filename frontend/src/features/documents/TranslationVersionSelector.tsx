@@ -67,8 +67,6 @@ export function TranslationVersionSelector({
     }
   }, [versions, selectedVersionId, showOriginal, onSelect]);
 
-  if (!versions?.length) return null;
-
   const currentValue = showOriginal ? "__original__" : (selectedVersionId ?? "");
 
   return (
@@ -90,18 +88,22 @@ export function TranslationVersionSelector({
       >
         <option value="">Latest</option>
         <option value="__original__">Original</option>
-        {versions.map((v: TranslationVersion) => {
-          const isSelectable = isSelectableTranslationVersion(v.status);
-          return (
-            <option
-              key={v.version_id}
-              value={v.version_id}
-              disabled={!isSelectable}
-            >
-              {v.label} {!isSelectable ? `(${v.status})` : ""}
-            </option>
-          );
-        })}
+        {versions && versions.length > 0 && (
+          <optgroup label="Saved versions">
+            {versions.map((v: TranslationVersion) => {
+              const isSelectable = isSelectableTranslationVersion(v.status);
+              return (
+                <option
+                  key={v.version_id}
+                  value={v.version_id}
+                  disabled={!isSelectable}
+                >
+                  {v.label} {!isSelectable ? `(${v.status})` : ""}
+                </option>
+              );
+            })}
+          </optgroup>
+        )}
       </select>
     </label>
   );

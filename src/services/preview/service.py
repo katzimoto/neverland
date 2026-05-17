@@ -122,68 +122,76 @@ class PreviewService:
         only if it is ``available`` and belongs to the same document.
         When omitted, resolves the latest available translation for the
         document (ordered by highest ``version_number``). Falls back to
-        the original document extraction when no available translation
-        exists.
-        When *show_original* is True, skip the resolved version entirely and
+        ``document_payloads.translated_text`` for documents that were
+        processed before version records existed, then to the original
+        file extraction.
+        When *show_original* is True, skip all translation resolution and
         always fall through to the original file extraction.
         """
-        # Determine which translation version to use
-        version_id = translation_version_id if not show_original else None
+        translated_text: str | None = None
 
-        if version_id is not None:
-            # Verify the requested version is available and belongs to
-            # the same document_id (prevent cross-document version leaks).
-            version_row = (
-                self._connection.execute(
-                    sa.text("""
-                        SELECT dv.translated_text, dv.document_id
-                        FROM document_translation_versions dv
-                        WHERE dv.id = :id AND dv.status = 'available'
-                        """),
-                    {"id": db_uuid(version_id)},
+        if not show_original:
+            if translation_version_id is not None:
+                # Verify the requested version is available and belongs to
+                # the same document_id (prevent cross-document version leaks).
+                version_row = (
+                    self._connection.execute(
+                        sa.text("""
+                            SELECT dv.translated_text, dv.document_id
+                            FROM document_translation_versions dv
+                            WHERE dv.id = :id AND dv.status = 'available'
+                            """),
+                        {"id": db_uuid(translation_version_id)},
+                    )
+                    .mappings()
+                    .first()
                 )
-                .mappings()
-                .first()
-            )
-            if version_row is None or version_row["document_id"] != db_uuid(document_id):
-                version_id = None
+                if (
+                    version_row is not None
+                    and version_row["document_id"] == db_uuid(document_id)
+                    and version_row["translated_text"]
+                ):
+                    translated_text = version_row["translated_text"]
 
-        if version_id is None and not show_original:
-            # Resolve the latest available translation for this document
-            latest_row = (
-                self._connection.execute(
-                    sa.text("""
-                        SELECT id, translated_text
-                        FROM document_translation_versions
-                        WHERE document_id = :document_id AND status = 'available'
-                        ORDER BY version_number DESC
-                        LIMIT 1
-                        """),
-                    {"document_id": db_uuid(document_id)},
+            if translated_text is None:
+                # Resolve the latest available translation for this document
+                latest_row = (
+                    self._connection.execute(
+                        sa.text("""
+                            SELECT translated_text
+                            FROM document_translation_versions
+                            WHERE document_id = :document_id AND status = 'available'
+                            ORDER BY version_number DESC
+                            LIMIT 1
+                            """),
+                        {"document_id": db_uuid(document_id)},
+                    )
+                    .mappings()
+                    .first()
                 )
-                .mappings()
-                .first()
-            )
-            if latest_row and latest_row["translated_text"]:
-                version_id = UUID(latest_row["id"])
+                if latest_row and latest_row["translated_text"]:
+                    translated_text = latest_row["translated_text"]
 
-        # If we have a resolved version, render from translated text
-        if version_id is not None:
-            version_row = (
-                self._connection.execute(
-                    sa.text("""
-                        SELECT translated_text
-                        FROM document_translation_versions
-                        WHERE id = :id
-                        """),
-                    {"id": db_uuid(version_id)},
+            if translated_text is None:
+                # Fallback to document_payloads for documents processed before
+                # version records were created (legacy compatibility).
+                payload_row = (
+                    self._connection.execute(
+                        sa.text("""
+                            SELECT translated_text
+                            FROM document_payloads
+                            WHERE document_id = :document_id
+                            """),
+                        {"document_id": db_uuid(document_id)},
+                    )
+                    .mappings()
+                    .first()
                 )
-                .mappings()
-                .first()
-            )
-            if version_row and version_row["translated_text"]:
-                text: str = version_row["translated_text"]
-                return text[:SNIPPET_LENGTH]
+                if payload_row and payload_row["translated_text"]:
+                    translated_text = payload_row["translated_text"]
+
+        if translated_text:
+            return translated_text[:SNIPPET_LENGTH]
 
         # Fall back to original document extraction
         if file_path is None:
