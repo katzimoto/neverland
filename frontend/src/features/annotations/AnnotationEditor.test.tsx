@@ -58,7 +58,7 @@ test("sends update annotations with body shared and position for API mapping", a
       docId="d1"
       annotation={{
         id: "a1",
-        document_id: "d1",
+        documant_id: "d1",
         author_id: "u1",
         author_name: "Ari",
         body: "old note",

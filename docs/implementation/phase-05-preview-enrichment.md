@@ -18,7 +18,7 @@ Expand document preview support and implement high-quality translation flow.
 
 ### Scope
 
-- **Preview endpoint enhancement:** `GET /preview/{document_id}` returns document
+- **Preview endpoint enhancement:** `GET /preview/{documant_id}` returns document
   metadata + truncated content snippet (first 2000 chars) + view statistics.
 - **Per-user view tracking:** `document_views` table records each preview access
   by user and document.
@@ -39,9 +39,9 @@ Expand document preview support and implement high-quality translation flow.
 
 ### View Tracking Behavior
 
-- Every successful `GET /preview/{document_id}` call inserts or updates a row in
+- Every successful `GET /preview/{documant_id}` call inserts or updates a row in
   `document_views`.
-- The table has `(document_id, user_id)` uniqueness to prevent duplicate counting
+- The table has `(documant_id, user_id)` uniqueness to prevent duplicate counting
   within a reasonable window. For Phase 05a MVP, a simple INSERT with
   `ON CONFLICT DO NOTHING` is sufficient.
 - Global view count per document is derived as `COUNT(DISTINCT user_id)` from
@@ -52,12 +52,12 @@ Expand document preview support and implement high-quality translation flow.
 ```sql
 CREATE TABLE document_views (
     id UUID PRIMARY KEY,
-    document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    documant_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     viewed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    UNIQUE(document_id, user_id)
+    UNIQUE(documant_id, user_id)
 );
-CREATE INDEX ix_document_views_doc_id ON document_views(document_id);
+CREATE INDEX ix_document_views_doc_id ON document_views(documant_id);
 CREATE INDEX ix_document_views_user_id ON document_views(user_id);
 ```
 
@@ -65,7 +65,7 @@ CREATE INDEX ix_document_views_user_id ON document_views(user_id);
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/preview/{document_id}` | User | Enhanced preview with snippet + view count |
+| GET | `/preview/{documant_id}` | User | Enhanced preview with snippet + view count |
 | GET | `/me/activity` | User | Own document view history |
 
 ### Validation
@@ -81,7 +81,7 @@ CREATE INDEX ix_document_views_user_id ON document_views(user_id);
 
 ### Scope
 
-- **Manual translation endpoint:** `POST /documents/{document_id}/translate` queues
+- **Manual translation endpoint:** `POST /documents/{documant_id}/translate` queues
   a document for high-quality re-translation.
 - **Auto-enrich threshold:** When a document's distinct viewer count exceeds
   `system_config.auto_enrich.threshold` (default: 5) and
@@ -117,7 +117,7 @@ On failure: log error, set `status = 'failed'`, do **not** add to DLQ
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/documents/{document_id}/translate` | User | Request high-quality translation |
+| POST | `/documents/{documant_id}/translate` | User | Request high-quality translation |
 | GET | `/admin/enrichment-queue` | Admin | View pending enrichments |
 
 ### Validation
@@ -142,7 +142,7 @@ Detailed plan: `docs/implementation/phase-05c-translation-versions.md`.
 - Allow preview to render a selected translation version.
 - Keep current preview content visible while new translation versions are
   pending.
-- Preserve `POST /documents/{document_id}/translate` as a compatibility alias until
+- Preserve `POST /documents/{documant_id}/translate` as a compatibility alias until
   UI clients migrate.
 
 ### Data Model
@@ -150,7 +150,7 @@ Detailed plan: `docs/implementation/phase-05c-translation-versions.md`.
 ```sql
 CREATE TABLE document_translation_versions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    documant_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
     version_number INTEGER NOT NULL,
     label TEXT NOT NULL,
     source_language TEXT NULL,
@@ -168,10 +168,10 @@ CREATE TABLE document_translation_versions (
     source_content_hash TEXT NULL,
     translated_text TEXT NULL,
     metadata JSONB NOT NULL DEFAULT '{}',
-    UNIQUE (document_id, version_number)
+    UNIQUE (documant_id, version_number)
 );
 
-CREATE INDEX ix_translation_versions_doc_id ON document_translation_versions (document_id);
+CREATE INDEX ix_translation_versions_doc_id ON document_translation_versions (documant_id);
 CREATE INDEX ix_translation_versions_status ON document_translation_versions (status);
 CREATE INDEX ix_translation_versions_requested_by ON document_translation_versions (requested_by_id);
 ```
@@ -189,16 +189,16 @@ pending -> canceled (admin only)
 1. **Migration** — create `document_translation_versions` table with constraints and indexes.
 2. **Model** — add `DocumentTranslationVersion` Pydantic model.
 3. **Repository** — add `TranslationVersionRepository` with:
-   - `create_version(document_id, label, quality, request_type, requested_by_id, target_language='en')`
-   - `list_versions(document_id)`
-   - `get_pending_versions(document_id)`
+   - `create_version(documant_id, label, quality, request_type, requested_by_id, target_language='en')`
+   - `list_versions(documant_id)`
+   - `get_pending_versions(documant_id)`
    - `update_version_status(version_id, status, translated_text=None, error_summary=None)`
-   - `get_next_version_number(document_id)`
-   - `find_pending_or_running(document_id, target_language)` (deduplication)
+   - `get_next_version_number(documant_id)`
+   - `find_pending_or_running(documant_id, target_language)` (deduplication)
 4. **API endpoints**:
-   - `GET /documents/{document_id}/translation-versions` — list versions with permission check.
-   - `POST /documents/{document_id}/translation-versions` — create pending version, dedupe if pending/running exists for same target language.
-   - `POST /documents/{document_id}/translate` — compatibility alias that creates a `manual` high-quality version.
+   - `GET /documents/{documant_id}/translation-versions` — list versions with permission check.
+   - `POST /documents/{documant_id}/translation-versions` — create pending version, dedupe if pending/running exists for same target language.
+   - `POST /documents/{documant_id}/translate` — compatibility alias that creates a `manual` high-quality version.
 5. **PreviewService** — accept optional `translation_version_id`. If provided and version is `available`, return `translated_text` as snippet source. Otherwise fall back to default (extract from file).
 6. **SlowWorker** — refactor to process pending versions:
    - Query pending versions instead of documents with `translation_quality = 'pending_high'`.
@@ -215,7 +215,7 @@ pending -> canceled (admin only)
 - Slow worker marks versions available or failed without failing the document.
 - Preview renders selected versions and falls back safely.
 - Search remains stable while versioned translations are introduced.
-- `POST /documents/{document_id}/translate` backward compatibility preserved.
+- `POST /documents/{documant_id}/translate` backward compatibility preserved.
 
 ---
 
@@ -225,6 +225,6 @@ pending -> canceled (admin only)
 - Manual and automatic enrichment queue work exactly once while pending.
 - Re-enriched documents update both search indexes.
 - Translation versions are persisted and selectable.
-- Existing `POST /documents/{document_id}/translate` remains backward compatible.
+- Existing `POST /documents/{documant_id}/translate` remains backward compatible.
 - All endpoints have integration tests.
 - Coverage stays ≥ 90%.

@@ -19,7 +19,7 @@ const mockAnswer: qaApi.QAResponse = {
     "Vendor risk refers to the potential exposure from third-party vendors.",
   citations: [
     {
-      document_id: "doc-1",
+      documant_id: "doc-1",
       doc_title: "Vendor Risk Assessment 2024",
       chunk_text: "Vendor risk refers to…",
       score: 0.9,

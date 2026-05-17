@@ -16,7 +16,7 @@ from shared.events import (
 
 def test_document_event_accepts_nifi_normalized_raw_event() -> None:
     event = DocumentEvent(
-        document_id=uuid4(),
+        documant_id=uuid4(),
         source_id=uuid4(),
         source=DocumentSource.NIFI,
         external_id="nifi:flow-file:123",
@@ -35,7 +35,7 @@ def test_document_event_accepts_nifi_normalized_raw_event() -> None:
 def test_document_event_rejects_invalid_operation() -> None:
     with pytest.raises(ValidationError):
         DocumentEvent(
-            document_id=uuid4(),
+            documant_id=uuid4(),
             source_id=uuid4(),
             source="folder",
             external_id="file:/data/a.txt",
@@ -49,7 +49,7 @@ def test_document_event_rejects_invalid_operation() -> None:
 def test_intelligence_event_uses_allowed_groups_not_single_group() -> None:
     group_id = uuid4()
     event = IntelligenceEvent(
-        document_id=uuid4(),
+        documant_id=uuid4(),
         content_english="hello",
         allowed_group_ids=[group_id],
         correlation_id=uuid4(),

@@ -17,7 +17,7 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 const mockCitation = {
-  document_id: "doc-1",
+  documant_id: "doc-1",
   doc_title: "Vendor Risk Assessment",
   chunk_text: "This document covers vendor risk management.",
   score: 0.92,
@@ -55,7 +55,7 @@ describe("CitationCard", () => {
     expect(screen.getByText("Relevance: 92%")).toBeInTheDocument();
   });
 
-  it("falls back to document_id when no title", () => {
+  it("falls back to documant_id when no title", () => {
     render(
       <ul>
         <CitationCard citation={{ ...mockCitation, doc_title: "" }} />

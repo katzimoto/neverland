@@ -32,8 +32,8 @@ Python 3.13; local dev is supported on Python >=3.11.
 ## Architecture (what agents need to know)
 
 - Monorepo: Python backend at repo root, React frontend in `frontend/`.
-- ASGI entrypoint: `src/services/api/asgi:app` (uvicorn). All routes live in
-  `src/services/api/main.py` — do not split routes without explicit authorization.
+- ASGI entrypoint: `src/services/api/asgi:app` (uvicorn). Routes are organized
+  in `src/services/api/routers/` by domain and included in `main.py` via `APIRouter`.
 - Services: `src/services/{auth,permissions,documents,extraction,pipeline,search,translation,intelligence,connectors,comments,annotations,alerts,rag,related,preview}`.
 - Shared infra: `src/shared/` (config, DB helpers, logging, events, metrics).
 - Config: Pydantic Settings auto-loads `.env` (`shared.config.Settings`).
@@ -210,7 +210,7 @@ bash scripts/check-pr-cleanliness.sh [target-branch]
 ### FastAPI & persistence
 - Auth dependency: `Depends(current_user)`.
 - Admin-only: `require_admin(user)`.
-- Document access: `assert_doc_access(document_id, user, auth_repo)`.
+- Document access: `assert_doc_access(documant_id, user, auth_repo)`.
 - DB transaction: `with app.state.engine.begin() as connection:`.
 
 ### Data-layer guardrail
@@ -222,7 +222,7 @@ introduce SQLModel or refactor data-layer broadly unless explicitly authorized.
 - Do not bypass feature flags.
 - Do not create migrations without downgrade paths.
 - Do not add hardcoded secrets; `.env.example` contains placeholders only.
-- Do not move routes out of `src/services/api/main.py` without explicit authorization.
+- Routes live in `src/services/api/routers/`; add new routes to the appropriate domain router.
 
 ### Review routing (short)
 - Claude: architecture, API consistency, security boundaries, migrations, plan compliance.

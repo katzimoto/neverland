@@ -167,7 +167,11 @@ def run_index_once(
             source_id=source_id,
             job_type="vector_index_document",
         )
-        logger.debug("vector job enqueued: worker_id=%s document_id=%s", worker_id, document_id)
+        logger.debug(
+            "vector job enqueued: worker_id=%s document_id=%s",
+            worker_id,
+            document_id,
+        )
     except Exception:
         logger.exception(
             "failed to enqueue vector job: worker_id=%s error_type=EnqueueError",

@@ -66,13 +66,13 @@ export function HistoryPage() {
         {items.length > 0 && (
           <ul className={styles.list}>
             {items.map((item) => (
-              <li key={item.document_id}>
+              <li key={item.documant_id}>
                 <button
                   className={styles.row}
                   onClick={() =>
                     void navigate({
                       to: "/doc/$docId",
-                      params: { docId: item.document_id },
+                      params: { docId: item.documant_id },
                     })
                   }
                 >

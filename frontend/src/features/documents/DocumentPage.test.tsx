@@ -15,7 +15,7 @@ vi.mock("@tanstack/react-router", () => ({
 vi.mock("@/api/documents");
 
 const mockPreview: documentsApi.DocumentPreview = {
-  document_id: "doc-123",
+  documant_id: "doc-123",
   title: "Vendor Risk Assessment 2024",
   mime_type: "text/plain",
   translation_quality: "fast",

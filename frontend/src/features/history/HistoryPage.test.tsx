@@ -24,21 +24,19 @@ test("shows history privacy note", async () => {
 
 test("loads history in pages when more activity exists", async () => {
   const firstPage = Array.from({ length: 50 }, (_, i) => ({
-    document_id: `doc-${i}`,
+    documant_id: `doc-${i}`,
     title: `Document ${i}`,
     mime_type: "text/plain",
     viewed_at: "2026-05-10T00:00:00Z",
   }));
-  mocks.getActivity
-    .mockResolvedValueOnce(firstPage)
-    .mockResolvedValueOnce([
-      {
-        document_id: "doc-50",
-        title: "Document 50",
-        mime_type: "application/pdf",
-        viewed_at: null,
-      },
-    ]);
+  mocks.getActivity.mockResolvedValueOnce(firstPage).mockResolvedValueOnce([
+    {
+      documant_id: "doc-50",
+      title: "Document 50",
+      mime_type: "application/pdf",
+      viewed_at: null,
+    },
+  ]);
 
   render(<HistoryPage />);
 

@@ -82,7 +82,7 @@ def test_preview_returns_snippet_and_view_count(
     test_file = files_root / "test.txt"
     test_file.write_text("Hello world, this is a test document for preview.")
 
-    _source_id, document_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
+    _source_id, documant_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
 
     client = TestClient(
         create_app(
@@ -92,11 +92,11 @@ def test_preview_returns_snippet_and_view_count(
     )
     token = _user_token(client)
 
-    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
+    response = client.get(f"/preview/{documant_id}", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 200
     data = response.json()
-    assert data["document_id"] == document_id
+    assert data["documant_id"] == documant_id
     assert data["snippet"] == "Hello world, this is a test document for preview."
     assert data["view_count"] == 1
 
@@ -131,7 +131,7 @@ def test_preview_deduplicates_views(
             path=str(test_file),
         )
         assert doc is not None
-        document_id = str(doc.id)
+        documant_id = str(doc.id)
 
     client = TestClient(
         create_app(
@@ -142,19 +142,20 @@ def test_preview_deduplicates_views(
     token = _user_token(client)
 
     # First preview
-    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
+    response = client.get(f"/preview/{documant_id}", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200
     assert response.json()["view_count"] == 1
 
     # Second preview by same user — should not increment
-    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
+    response = client.get(f"/preview/{documant_id}", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200
     assert response.json()["view_count"] == 1
 
     # Preview by different user should increment
     admin_token = _admin_token(client)
     response = client.get(
-        f"/preview/{document_id}", headers={"Authorization": f"Bearer {admin_token}"}
+        f"/preview/{documant_id}",
+        headers={"Authorization": f"Bearer {admin_token}"},
     )
     assert response.status_code == 200
     assert response.json()["view_count"] == 2
@@ -172,7 +173,7 @@ def test_preview_truncates_long_text(
     long_text = "A" * 3000
     test_file.write_text(long_text)
 
-    _source_id, document_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
+    _source_id, documant_id = _create_source_with_doc(migrated_engine, "users", path=str(test_file))
 
     client = TestClient(
         create_app(
@@ -182,7 +183,7 @@ def test_preview_truncates_long_text(
     )
     token = _user_token(client)
 
-    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
+    response = client.get(f"/preview/{documant_id}", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 200
     data = response.json()
@@ -202,7 +203,7 @@ def test_preview_sanitizes_html(
         "<p>Hello</p><script>alert('xss')</script><div onclick='bad()'>Click</div>"
     )
 
-    _source_id, document_id = _create_source_with_doc(
+    _source_id, documant_id = _create_source_with_doc(
         migrated_engine, "users", mime_type="text/html", path=str(test_file)
     )
 
@@ -214,7 +215,7 @@ def test_preview_sanitizes_html(
     )
     token = _user_token(client)
 
-    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
+    response = client.get(f"/preview/{documant_id}", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 200
     data = response.json()
@@ -242,7 +243,7 @@ def test_preview_archive_lists_filenames(
         zf.writestr("file1.txt", "content1")
         zf.writestr("file2.txt", "content2")
 
-    _source_id, document_id = _create_source_with_doc(
+    _source_id, documant_id = _create_source_with_doc(
         migrated_engine, "users", mime_type="application/zip", path=str(test_file)
     )
 
@@ -254,7 +255,7 @@ def test_preview_archive_lists_filenames(
     )
     token = _user_token(client)
 
-    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
+    response = client.get(f"/preview/{documant_id}", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 200
     data = response.json()
@@ -283,7 +284,7 @@ def test_preview_tar_archive_lists_filenames(
             info.size = len(data)
             tf.addfile(info, io.BytesIO(data))
 
-    _source_id, document_id = _create_source_with_doc(
+    _source_id, documant_id = _create_source_with_doc(
         migrated_engine, "users", mime_type="application/gzip", path=str(test_file)
     )
 
@@ -295,7 +296,7 @@ def test_preview_tar_archive_lists_filenames(
     )
     token = _user_token(client)
 
-    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
+    response = client.get(f"/preview/{documant_id}", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 200
     data = response.json()
@@ -314,7 +315,7 @@ def test_me_activity_returns_view_history(
     test_file = files_root / "test.txt"
     test_file.write_text("Content")
 
-    _source_id, document_id = _create_source_with_doc(
+    _source_id, documant_id = _create_source_with_doc(
         migrated_engine, "users", doc_title="History Doc", path=str(test_file)
     )
 
@@ -327,7 +328,7 @@ def test_me_activity_returns_view_history(
     token = _user_token(client)
 
     # Preview the document
-    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
+    response = client.get(f"/preview/{documant_id}", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200
 
     # Get activity
@@ -335,7 +336,7 @@ def test_me_activity_returns_view_history(
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 1
-    assert data[0]["document_id"] == document_id
+    assert data[0]["documant_id"] == documant_id
     assert data[0]["title"] == "History Doc"
     assert data[0]["mime_type"] == "text/plain"
     assert data[0]["viewed_at"] is not None
@@ -381,8 +382,8 @@ def test_me_activity_orders_by_most_recent(
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 2
-    assert data[0]["document_id"] == doc_id2
-    assert data[1]["document_id"] == doc_id1
+    assert data[0]["documant_id"] == doc_id2
+    assert data[1]["documant_id"] == doc_id1
 
 
 def test_preview_returns_empty_snippet_for_missing_file(
@@ -390,7 +391,7 @@ def test_preview_returns_empty_snippet_for_missing_file(
 ) -> None:
     _setup_users(migrated_engine)
 
-    _source_id, document_id = _create_source_with_doc(
+    _source_id, documant_id = _create_source_with_doc(
         migrated_engine, "users", path="/nonexistent/file.txt"
     )
 
@@ -402,7 +403,7 @@ def test_preview_returns_empty_snippet_for_missing_file(
     )
     token = _user_token(client)
 
-    response = client.get(f"/preview/{document_id}", headers={"Authorization": f"Bearer {token}"})
+    response = client.get(f"/preview/{documant_id}", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 200
     data = response.json()

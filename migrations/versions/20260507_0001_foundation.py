@@ -164,7 +164,7 @@ def upgrade() -> None:
         "ingested_files",
         sa.Column("sha256", sa.Text(), primary_key=True),
         sa.Column(
-            "document_id",
+            "documant_id",
             sa.Uuid(),
             sa.ForeignKey("documents.id", ondelete="CASCADE"),
             nullable=False,

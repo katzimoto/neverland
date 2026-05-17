@@ -235,7 +235,7 @@ class DocumentRepository:
                 WHERE version_family_id = (
                     SELECT version_family_id FROM documents WHERE id = :document_id
                 )
-                AND is_latest = True
+                AND is_latest = 1
                 """),
                 {"document_id": db_uuid(document_id)},
             )
@@ -307,8 +307,8 @@ class DocumentRepository:
 
         self._connection.execute(
             sa.text("""
-                UPDATE documents SET is_latest = False
-                WHERE version_family_id = :family_id AND is_latest = True
+                UPDATE documents SET is_latest = 0
+                WHERE version_family_id = :family_id AND is_latest = 1
                 """),
             {"family_id": family_id_hex},
         )

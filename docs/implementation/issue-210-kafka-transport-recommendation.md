@@ -256,7 +256,7 @@ For Phase 2, if a Kafka wake-up event is added:
 {
   "event_type": "pipeline.document.process.v1",
   "job_id": "<uuid>",
-  "document_id": "<uuid>",
+  "documant_id": "<uuid>",
   "source_id": "<uuid>",
   "job_type": "pipeline",
   "correlation_id": "<uuid>",
@@ -265,7 +265,7 @@ For Phase 2, if a Kafka wake-up event is added:
 ```
 
 **Constraints enforced at serialization time:**
-- `job_id`, `document_id`, `source_id`, `correlation_id`: UUID strings only. No
+- `job_id`, `documant_id`, `source_id`, `correlation_id`: UUID strings only. No
   other fields from the `pipeline_jobs` row are included.
 - `job_type`: enum string (`pipeline` or `slow`), never a raw config value.
 - `created_at`: RFC 3339 UTC timestamp.
@@ -481,13 +481,13 @@ Redpanda is in the default service set for both `docker-compose.yml` and
 
 These constraints apply to all phases:
 
-1. **Events contain IDs only.** `job_id`, `document_id`, `source_id`,
+1. **Events contain IDs only.** `job_id`, `documant_id`, `source_id`,
    `correlation_id` are UUID strings. No filenames, titles, content, or
    connector config fields.
 2. **`dlq_reason` and `error` columns are sanitized.** Exception class name
    + truncated message only. No stack traces in the DB or in events.
 3. **Kafka events are not logged in full.** Workers log `job_id` and `job_type`
-   only when consuming an event. `document_id` and `source_id` are logged at `DEBUG`
+   only when consuming an event. `documant_id` and `source_id` are logged at `DEBUG`
    level only.
 4. **No connector credentials in events or logs.** Source config is loaded from
    the DB by `source_id`; credentials are never republished.
@@ -550,7 +550,7 @@ Step 1 — Migration (#209)
 Create migrations/versions/<timestamp>_add_pipeline_jobs.py with upgrade() and
 downgrade(). Schema from the plan (Section 3):
 
-  pipeline_jobs: id UUID PK, job_type TEXT, document_id UUID, source_id UUID,
+  pipeline_jobs: id UUID PK, job_type TEXT, documant_id UUID, source_id UUID,
   status TEXT CHECK('pending','running','done','failed','dlq'), attempts INT,
   max_attempts INT, created_at TIMESTAMPTZ, claimed_at TIMESTAMPTZ,
   completed_at TIMESTAMPTZ, error TEXT, dlq_at TIMESTAMPTZ, dlq_reason TEXT,
@@ -566,7 +566,7 @@ Step 2 — JobQueue repository layer
 Create src/services/pipeline/job_queue.py with:
 
   class JobQueue:
-    def enqueue(self, *, job_type, document_id, source_id, correlation_id,
+    def enqueue(self, *, job_type, documant_id, source_id, correlation_id,
                 max_attempts=3) -> UUID
     def claim(self, *, job_type, stale_timeout_seconds=600) -> PipelineJob | None
       # SELECT … FOR UPDATE SKIP LOCKED

@@ -130,7 +130,11 @@ class IntelligenceWorker:
             str(e.get("name", "")) for e in entities if isinstance(e, dict) and e.get("name")
         ]
         self._update_es_field(document_id, "entities", entity_names)
-        logger.info("Extracted %d entities for document_id=%s", len(entities), document_id)
+        logger.info(
+            "Extracted %d entities for document_id=%s",
+            len(entities),
+            document_id,
+        )
 
     def _auto_tag(self, document_id: UUID, content: str) -> None:
         """Generate tags and replace existing tags for the document."""

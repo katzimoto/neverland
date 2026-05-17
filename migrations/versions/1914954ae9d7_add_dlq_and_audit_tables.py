@@ -23,7 +23,7 @@ def upgrade() -> None:
         "dlq",
         sa.Column("id", sa.Uuid(), primary_key=True),
         sa.Column(
-            "document_id",
+            "documant_id",
             sa.Uuid(),
             sa.ForeignKey("documents.id", ondelete="CASCADE"),
             nullable=False,

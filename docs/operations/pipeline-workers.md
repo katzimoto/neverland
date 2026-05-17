@@ -199,7 +199,7 @@ docker compose logs -f slow-worker
 ```
 
 Each log line for a job event includes:
-- `worker_type`, `job_id`, `document_id`, `source_id`
+- `worker_type`, `job_id`, `documant_id`, `source_id`
 - `attempt` (1-based), `outcome` (done/failed/dlq/retry)
 - `duration_ms`, `correlation_id`
 

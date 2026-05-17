@@ -74,7 +74,10 @@ class AnnotationRepository:
                       )
                     ORDER BY a.created_at DESC
                     """),
-                {"document_id": db_uuid(document_id), "user_id": db_uuid(user_id)},
+                {
+                    "document_id": db_uuid(document_id),
+                    "user_id": db_uuid(user_id),
+                },
             ).mappings()
         return [dict(row) for row in rows]
 

@@ -29,7 +29,7 @@ def upgrade() -> None:
         SET content_sha256 = COALESCE((
             SELECT ingested_files.sha256
             FROM ingested_files
-            WHERE ingested_files.document_id = documents.id
+            WHERE ingested_files.documant_id = documents.id
             LIMIT 1
         ), '')
         WHERE content_sha256 = ''
@@ -47,14 +47,14 @@ def upgrade() -> None:
         sa.Column("source_id", sa.Uuid(), nullable=False),
         sa.Column("external_id", sa.Text(), nullable=False, server_default=""),
         sa.Column("sha256", sa.Text(), nullable=False),
-        sa.Column("document_id", sa.Uuid(), nullable=False),
+        sa.Column("documant_id", sa.Uuid(), nullable=False),
         sa.Column(
             "ingested_at",
             sa.DateTime(timezone=True),
             nullable=False,
             server_default=sa.func.now(),
         ),
-        sa.ForeignKeyConstraint(["document_id"], ["documents.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["documant_id"], ["documents.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["source_id"], ["ingestion_sources.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint(
             "source_id",
@@ -64,10 +64,10 @@ def upgrade() -> None:
         ),
     )
     op.execute("""
-        INSERT INTO ingested_files_v2 (source_id, external_id, sha256, document_id, ingested_at)
-        SELECT i.source_id, COALESCE(d.external_id, ''), i.sha256, i.document_id, i.ingested_at
+        INSERT INTO ingested_files_v2 (source_id, external_id, sha256, documant_id, ingested_at)
+        SELECT i.source_id, COALESCE(d.external_id, ''), i.sha256, i.documant_id, i.ingested_at
         FROM ingested_files AS i
-        LEFT JOIN documents AS d ON d.id = i.document_id
+        LEFT JOIN documents AS d ON d.id = i.documant_id
         """)
     op.drop_table("ingested_files")
     op.rename_table("ingested_files_v2", "ingested_files")
@@ -96,7 +96,7 @@ def downgrade() -> None:
     op.create_table(
         "ingested_files_v1",
         sa.Column("sha256", sa.Text(), primary_key=True),
-        sa.Column("document_id", sa.Uuid(), nullable=False),
+        sa.Column("documant_id", sa.Uuid(), nullable=False),
         sa.Column("source_id", sa.Uuid(), nullable=False),
         sa.Column(
             "ingested_at",
@@ -104,12 +104,12 @@ def downgrade() -> None:
             nullable=False,
             server_default=sa.func.now(),
         ),
-        sa.ForeignKeyConstraint(["document_id"], ["documents.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["documant_id"], ["documents.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["source_id"], ["ingestion_sources.id"], ondelete="CASCADE"),
     )
     op.execute("""
-        INSERT INTO ingested_files_v1 (sha256, document_id, source_id, ingested_at)
-        SELECT sha256, MIN(document_id), MIN(source_id), MIN(ingested_at)
+        INSERT INTO ingested_files_v1 (sha256, documant_id, source_id, ingested_at)
+        SELECT sha256, MIN(documant_id), MIN(source_id), MIN(ingested_at)
         FROM ingested_files
         GROUP BY sha256
         """)

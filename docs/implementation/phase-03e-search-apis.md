@@ -8,8 +8,8 @@ and file download.
 ## Scope
 
 - `POST /search` — hybrid BM25 + vector search with permission filtering.
-- `GET /preview/{document_id}` — returns content, metadata, and translation state.
-- `GET /download/{document_id}` — raw file bytes with correct content type.
+- `GET /preview/{documant_id}` — returns content, metadata, and translation state.
+- `GET /download/{documant_id}` — raw file bytes with correct content type.
 - Permission enforcement on every endpoint.
 
 ## Implementation Notes

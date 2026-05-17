@@ -20,7 +20,7 @@ function downloadUrl(docId: string) {
 export function PreviewPane({ preview }: PreviewPaneProps) {
   const mime = preview.mime_type;
   const text = preview.snippet;
-  const dl = downloadUrl(preview.document_id);
+  const dl = downloadUrl(preview.documant_id);
 
   if (mime === "text/html") {
     return (
@@ -92,7 +92,7 @@ export function PreviewPane({ preview }: PreviewPaneProps) {
   if (mime.startsWith("image/")) {
     return (
       <div className={styles.pane}>
-        <ImagePreview docId={preview.document_id} />
+        <ImagePreview docId={preview.documant_id} />
       </div>
     );
   }

@@ -17,7 +17,7 @@ def test_upsert_chunks_success() -> None:
     chunks = [
         {
             "chunk_id": "doc-1-0",
-            "document_id": "doc-1",
+            "documant_id": "doc-1",
             "group_id": "group-1",
             "chunk_index": 0,
             "text": "hello",
@@ -25,7 +25,7 @@ def test_upsert_chunks_success() -> None:
         },
         {
             "chunk_id": "doc-1-1",
-            "document_id": "doc-1",
+            "documant_id": "doc-1",
             "group_id": "group-1",
             "chunk_index": 1,
             "text": "world",
@@ -41,7 +41,7 @@ def test_upsert_chunks_success() -> None:
     points = call_args.kwargs["points"]
     assert len(points) == 2
     assert points[0].id == "doc-1-0"
-    assert points[0].payload["document_id"] == "doc-1"
+    assert points[0].payload["documant_id"] == "doc-1"
 
 
 def test_upsert_chunks_empty_list() -> None:
@@ -62,7 +62,7 @@ def test_upsert_chunks_dimension_mismatch() -> None:
     chunks = [
         {
             "chunk_id": "doc-1-0",
-            "document_id": "doc-1",
+            "documant_id": "doc-1",
             "group_id": "group-1",
             "chunk_index": 0,
             "text": "hello",
@@ -80,15 +80,15 @@ def test_search_vector() -> None:
     client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
     mock_qdrant = MagicMock()
     mock_qdrant.query_points.return_value.points = [
-        MagicMock(score=0.95, payload={"document_id": "doc-1", "text": "hello"}),
-        MagicMock(score=0.85, payload={"document_id": "doc-1", "text": "world"}),
+        MagicMock(score=0.95, payload={"documant_id": "doc-1", "text": "hello"}),
+        MagicMock(score=0.85, payload={"documant_id": "doc-1", "text": "world"}),
     ]
     client._client = mock_qdrant
 
     results = client.search(vector=[0.1] * 384, group_ids=["group-1"], limit=10)
 
     assert len(results) == 2
-    assert results[0].document_id == "doc-1"
+    assert results[0].documant_id == "doc-1"
     assert results[0].score == 0.95
     assert results[0].chunk_text == "hello"
 

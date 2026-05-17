@@ -26,7 +26,7 @@ def _make_pipeline_job(
 ) -> dict:
     return {
         "id": uuid4(),
-        "document_id": uuid4(),
+        "documant_id": uuid4(),
         "source_id": uuid4(),
         "job_type": job_type,
         "priority": 0,
@@ -51,7 +51,7 @@ class _FakePipelineRepo:
     def claim_next(self, worker_id: str) -> dict | None:
         return self.claimed_job
 
-    def get_payload(self, document_id: object) -> dict | None:
+    def get_payload(self, documant_id: object) -> dict | None:
         return self.payload
 
     def mark_running_stage(self, job_id: object, stage: str) -> None:
@@ -417,7 +417,7 @@ class TestCountByStatus:
                 sa.text("""
                 CREATE TABLE pipeline_jobs (
                     id TEXT PRIMARY KEY,
-                    document_id TEXT NOT NULL REFERENCES documents(id),
+                    documant_id TEXT NOT NULL REFERENCES documents(id),
                     source_id TEXT NOT NULL REFERENCES ingestion_sources(id),
                     job_type TEXT NOT NULL,
                     status TEXT NOT NULL DEFAULT 'pending',
@@ -437,7 +437,7 @@ class TestCountByStatus:
             conn.execute(
                 sa.text("""
                 CREATE TABLE document_payloads (
-                    document_id TEXT PRIMARY KEY REFERENCES documents(id),
+                    documant_id TEXT PRIMARY KEY REFERENCES documents(id),
                     content_text TEXT,
                     content_path TEXT,
                     content_sha256 TEXT,

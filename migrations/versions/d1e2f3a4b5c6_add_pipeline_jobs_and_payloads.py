@@ -23,7 +23,7 @@ def upgrade() -> None:
         "pipeline_jobs",
         sa.Column("id", sa.Uuid(), primary_key=True),
         sa.Column(
-            "document_id",
+            "documant_id",
             sa.Uuid(),
             sa.ForeignKey("documents.id", ondelete="CASCADE"),
             nullable=False,
@@ -62,7 +62,7 @@ def upgrade() -> None:
             server_default=sa.text("CURRENT_TIMESTAMP"),
         ),
     )
-    op.create_index("ix_pipeline_jobs_doc_id", "pipeline_jobs", ["document_id"])
+    op.create_index("ix_pipeline_jobs_doc_id", "pipeline_jobs", ["documant_id"])
     op.create_index("ix_pipeline_jobs_source_id", "pipeline_jobs", ["source_id"])
     op.create_index(
         "ix_pipeline_jobs_ready",
@@ -71,14 +71,14 @@ def upgrade() -> None:
     )
     op.execute("""
         CREATE UNIQUE INDEX ix_pipeline_jobs_active_unique
-        ON pipeline_jobs (document_id, job_type)
+        ON pipeline_jobs (documant_id, job_type)
         WHERE status IN ('pending', 'running', 'retry')
         """)
 
     op.create_table(
         "document_payloads",
         sa.Column(
-            "document_id",
+            "documant_id",
             sa.Uuid(),
             sa.ForeignKey("documents.id", ondelete="CASCADE"),
             primary_key=True,

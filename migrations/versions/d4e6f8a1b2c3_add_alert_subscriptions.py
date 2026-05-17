@@ -68,7 +68,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column(
-            "document_id",
+            "documant_id",
             sa.Uuid(),
             sa.ForeignKey("documents.id", ondelete="CASCADE"),
             nullable=False,
@@ -90,7 +90,7 @@ def upgrade() -> None:
     op.create_index(
         "uq_alert_notifications_subscription_doc",
         "alert_notifications",
-        ["subscription_id", "document_id"],
+        ["subscription_id", "documant_id"],
         unique=True,
     )
 

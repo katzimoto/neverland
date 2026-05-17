@@ -7,7 +7,7 @@ callable pipeline, exposed via an admin API.
 
 ## Scope
 
-- Fast worker `process_document(document_id)` pipeline.
+- Fast worker `process_document(documant_id)` pipeline.
 - `POST /admin/ingestion/{source_id}/sync-now` endpoint (admin-only,
   synchronous for MVP).
 - Folder scanning, document creation, and pipeline invocation.

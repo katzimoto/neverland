@@ -148,7 +148,11 @@ def run_translation_once(
             source_id=source_id,
             job_type="index_document",
         )
-        logger.debug("index job enqueued: worker_id=%s document_id=%s", worker_id, document_id)
+        logger.debug(
+            "index job enqueued: worker_id=%s document_id=%s",
+            worker_id,
+            document_id,
+        )
     except Exception:
         logger.exception(
             "failed to enqueue index job: worker_id=%s error_type=EnqueueError",

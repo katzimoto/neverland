@@ -10,9 +10,9 @@ These items must be resolved before implementation reaches the affected phase.
   - **Resolved for Phase 01:** add canonical `documents` table with UUID `id`,
     `source_id`, `external_id`, metadata, language, status, and translation
     fields. Later indexes derive from this table.
-- **Document identity:** Kafka events define `document_id` as a UUID, while Atlassian
+- **Document identity:** Kafka events define `documant_id` as a UUID, while Atlassian
   mappings use deterministic string identifiers like `jira:{issue_key}`.
-  - **Resolved for Phase 01:** `document_id` is always the internal UUID. Stable
+  - **Resolved for Phase 01:** `documant_id` is always the internal UUID. Stable
     source keys are stored as `documents.external_id`, unique per source.
 - **Group ownership:** `group_id` appears on document events and index payloads,
   but source permissions are modeled as many-to-many source/group mappings.

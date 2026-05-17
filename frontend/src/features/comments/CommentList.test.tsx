@@ -39,7 +39,7 @@ test("renders comments mapped from the backend envelope", async () => {
   mocks.listComments.mockResolvedValueOnce([
     {
       id: "c1",
-      document_id: "d1",
+      documant_id: "d1",
       author_id: "u1",
       author_name: "Ari",
       body: "Backend envelope comment",

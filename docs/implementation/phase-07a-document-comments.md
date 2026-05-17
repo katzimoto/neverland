@@ -46,7 +46,7 @@ Add a `document_comments` table:
 ```sql
 CREATE TABLE document_comments (
     id UUID PRIMARY KEY,
-    document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    documant_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
     author_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     body TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
@@ -58,7 +58,7 @@ CREATE TABLE document_comments (
 );
 
 CREATE INDEX ix_document_comments_doc_id_created_at
-    ON document_comments (document_id, created_at DESC);
+    ON document_comments (documant_id, created_at DESC);
 CREATE INDEX ix_document_comments_author_id
     ON document_comments (author_id);
 ```
@@ -75,8 +75,8 @@ Behavior:
 
 Add a document comments service/repository:
 
-- `list_comments(document_id, current_user, sort)`
-- `create_comment(document_id, body, current_user)`
+- `list_comments(documant_id, current_user, sort)`
+- `create_comment(documant_id, body, current_user)`
 - `update_comment(comment_id, body, current_user)`
 - `delete_comment(comment_id, current_user)`
 - `can_edit_comment(comment, current_user)`
@@ -93,10 +93,10 @@ Every method must:
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| GET | `/documents/{document_id}/comments` | Document access | List visible comments |
-| POST | `/documents/{document_id}/comments` | Document access | Create shared comment |
-| PATCH | `/documents/{document_id}/comments/{comment_id}` | Creator or admin | Edit comment |
-| DELETE | `/documents/{document_id}/comments/{comment_id}` | Creator or admin | Soft-delete comment |
+| GET | `/documents/{documant_id}/comments` | Document access | List visible comments |
+| POST | `/documents/{documant_id}/comments` | Document access | Create shared comment |
+| PATCH | `/documents/{documant_id}/comments/{comment_id}` | Creator or admin | Edit comment |
+| DELETE | `/documents/{documant_id}/comments/{comment_id}` | Creator or admin | Soft-delete comment |
 
 Request/response contracts are defined in
 `docs/design/document-comments-spec.md`.

@@ -24,17 +24,17 @@ beforeEach(() => {
 
 test("maps the backend annotations envelope and privacy fields", async () => {
   get.mockResolvedValueOnce({
-    document_id: "d1",
+    documant_id: "d1",
     annotations: [{ id: "a1", user_id: "u1", user_display_name: "Ari", text: "Shared note", position: { page: 2 }, is_private: false, created_at: "2026-05-01T10:00:00Z", updated_at: "2026-05-01T11:00:00Z" }],
   });
 
   await expect(listAnnotations("d1")).resolves.toEqual([
-    { id: "a1", document_id: "d1", author_id: "u1", author_name: "Ari", body: "Shared note", position: { page: 2 }, shared: true, created_at: "2026-05-01T10:00:00Z", updated_at: "2026-05-01T11:00:00Z" },
+    { id: "a1", documant_id: "d1", author_id: "u1", author_name: "Ari", body: "Shared note", position: { page: 2 }, shared: true, created_at: "2026-05-01T10:00:00Z", updated_at: "2026-05-01T11:00:00Z" },
   ]);
 });
 
 test("maps create and update writes to backend annotation payloads", async () => {
-  const response = { id: "a1", document_id: "d1", user_id: "u1", user_display_name: "Ari", text: "Private note", position: { page: 1 }, is_private: true, created_at: "2026-05-01T10:00:00Z", updated_at: "2026-05-01T10:00:00Z" };
+  const response = { id: "a1", documant_id: "d1", user_id: "u1", user_display_name: "Ari", text: "Private note", position: { page: 1 }, is_private: true, created_at: "2026-05-01T10:00:00Z", updated_at: "2026-05-01T10:00:00Z" };
   post.mockResolvedValueOnce(response);
   put.mockResolvedValueOnce(response);
 

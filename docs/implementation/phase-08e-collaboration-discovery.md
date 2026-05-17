@@ -34,12 +34,12 @@ adapters are needed. See `docs/implementation/phase-08b-frontend-ui.md` API
 Availability Map for the full table.
 
 Endpoints used in this phase:
-- `GET /documents/{document_id}/comments`
-- `POST /documents/{document_id}/comments`
-- `PATCH /documents/{document_id}/comments/{comment_id}`
-- `DELETE /documents/{document_id}/comments/{comment_id}`
-- `GET /documents/{document_id}/annotations`
-- `POST /documents/{document_id}/annotations`
+- `GET /documents/{documant_id}/comments`
+- `POST /documents/{documant_id}/comments`
+- `PATCH /documents/{documant_id}/comments/{comment_id}`
+- `DELETE /documents/{documant_id}/comments/{comment_id}`
+- `GET /documents/{documant_id}/annotations`
+- `POST /documents/{documant_id}/annotations`
 - `PUT /annotations/{annotation_id}`
 - `DELETE /annotations/{annotation_id}`
 - `GET /subscriptions`
@@ -65,18 +65,18 @@ These components populate the `comments` and `annotations` tabs in
 
 ### Comments (`src/features/comments/`)
 
-- `CommentList.tsx` — fetches `GET /documents/{document_id}/comments` via TanStack
+- `CommentList.tsx` — fetches `GET /documents/{documant_id}/comments` via TanStack
   Query. Renders `CommentItem` list with `CommentComposer` at the bottom.
   Handles loading (skeleton), empty ("No comments yet"), error, and
   feature-disabled states.
 - `CommentComposer.tsx` — multiline textarea supporting long text, line breaks,
-  and emoji. Submit creates via `POST /documents/{document_id}/comments`. Draft is
+  and emoji. Submit creates via `POST /documents/{documant_id}/comments`. Draft is
   preserved in component state.
 - `CommentItem.tsx` — displays author, timestamp, body text. Collapses long
   comments with expand toggle. Shows edit/delete actions for the comment
   creator and for admins. Read-only for other users.
 - `CommentEditForm.tsx` — inline edit form replacing the comment body on edit.
-  Submits via `PATCH /documents/{document_id}/comments/{comment_id}`.
+  Submits via `PATCH /documents/{documant_id}/comments/{comment_id}`.
 - Tests: `CommentList.test.tsx`, `CommentComposer.test.tsx`,
   `CommentItem.test.tsx`.
 
@@ -88,7 +88,7 @@ Create `src/api/comments.ts`:
 
 ### Annotations (`src/features/annotations/`)
 
-- `AnnotationList.tsx` — fetches `GET /documents/{document_id}/annotations`. Lists
+- `AnnotationList.tsx` — fetches `GET /documents/{documant_id}/annotations`. Lists
   `AnnotationItem` components. Handles loading, empty, and error states.
 - `AnnotationEditor.tsx` — create/edit form with body field and private/shared
   toggle via React Hook Form + Zod. Submits `POST` or `PUT`.

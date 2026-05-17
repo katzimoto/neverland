@@ -29,7 +29,7 @@ function renderWithClient(ui: React.ReactElement, queryClient: QueryClient) {
 
 beforeEach(() => {
   vi.mocked(documentsApi.requestTranslation).mockResolvedValue({
-    document_id: "doc-1",
+    documant_id: "doc-1",
     translation_version_id: "v-new",
     status: "pending",
   });

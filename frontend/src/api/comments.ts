@@ -7,7 +7,7 @@ export interface CommentAuthor {
 
 export interface Comment {
   id: string;
-  document_id: string;
+  documant_id: string;
   author_id: string;
   author_name?: string;
   author?: CommentAuthor;
@@ -18,7 +18,7 @@ export interface Comment {
 
 export interface CommentRaw {
   id: string;
-  document_id?: string;
+  documant_id?: string;
   author_id: string;
   author_display_name?: string | null;
   author_name?: string;
@@ -30,7 +30,7 @@ export interface CommentRaw {
 }
 
 export interface CommentListEnvelope {
-  document_id: string;
+  documant_id: string;
   comments: CommentRaw[];
   total: number;
   skip: number;
@@ -64,7 +64,7 @@ function toQuery(params: CommentListParams = {}): string {
 function mapComment(raw: CommentRaw, docId: string): Comment {
   return {
     id: raw.id,
-    document_id: raw.document_id ?? docId,
+    documant_id: raw.documant_id ?? docId,
     author_id: raw.author_id,
     author_name: raw.author_display_name ?? raw.author_name,
     author: raw.author,
@@ -76,7 +76,7 @@ function mapComment(raw: CommentRaw, docId: string): Comment {
 
 export async function listComments(docId: string, params?: CommentListParams): Promise<Comment[]> {
   const envelope = await api.get<CommentListEnvelope>(`/documents/${docId}/comments${toQuery(params)}`);
-  return envelope.comments.map((comment) => mapComment(comment, envelope.document_id));
+  return envelope.comments.map((comment) => mapComment(comment, envelope.documant_id));
 }
 
 export async function createComment(docId: string, body: string): Promise<Comment> {
