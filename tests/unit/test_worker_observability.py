@@ -26,7 +26,7 @@ def _make_pipeline_job(
 ) -> dict:
     return {
         "id": uuid4(),
-        "documant_id": uuid4(),
+        "document_id": uuid4(),
         "source_id": uuid4(),
         "job_type": job_type,
         "priority": 0,
@@ -417,7 +417,7 @@ class TestCountByStatus:
                 sa.text("""
                 CREATE TABLE pipeline_jobs (
                     id TEXT PRIMARY KEY,
-                    documant_id TEXT NOT NULL REFERENCES documents(id),
+                    document_id TEXT NOT NULL REFERENCES documents(id),
                     source_id TEXT NOT NULL REFERENCES ingestion_sources(id),
                     job_type TEXT NOT NULL,
                     status TEXT NOT NULL DEFAULT 'pending',
