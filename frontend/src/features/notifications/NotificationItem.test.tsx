@@ -20,7 +20,7 @@ const notification: Notification = {
   subscription_id: "s1",
   subscription_name: "Risk",
   subscription_query: "risk",
-  documant_id: "d1",
+  document_id: "d1",
   doc_title: "Doc",
   similarity: 0.8,
   read: false,

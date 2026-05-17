@@ -178,10 +178,10 @@ function RelatedTab({ docId }: { docId: string }) {
   return (
     <ul className={styles.relatedList}>
       {data.related.map((doc) => (
-        <li key={doc.documant_id}>
+        <li key={doc.document_id}>
           <Link
             to="/doc/$docId"
-            params={{ docId: doc.documant_id }}
+            params={{ docId: doc.document_id }}
             className={styles.relatedLink}
           >
             <span className={styles.relatedTitle}>{doc.title}</span>

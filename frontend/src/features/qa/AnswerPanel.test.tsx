@@ -14,7 +14,7 @@ const mockResult = {
   answer: "Vendor risk is the potential exposure from third-party vendors.",
   citations: [
     {
-      documant_id: "doc-1",
+      document_id: "doc-1",
       doc_title: "Vendor Policy",
       chunk_text: "Vendor risk refers to…",
       score: 0.9,

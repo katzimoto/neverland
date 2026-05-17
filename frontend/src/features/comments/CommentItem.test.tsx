@@ -6,7 +6,7 @@ import type { Comment } from "@/api/comments";
 
 const comment: Comment = {
   id: "c1",
-  documant_id: "d1",
+  document_id: "d1",
   author_id: "u1",
   author_name: "Ari",
   body: "hello",

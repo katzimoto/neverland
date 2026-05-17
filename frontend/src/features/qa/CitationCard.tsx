@@ -15,11 +15,11 @@ export function CitationCard({
     <li className={styles.card}>
       <Link
         to="/doc/$docId"
-        params={{ docId: citation.documant_id }}
+        params={{ docId: citation.document_id }}
         search={{ return: returnPath } as Record<string, string>}
         className={styles.title}
       >
-        {citation.doc_title || citation.documant_id}
+        {citation.doc_title || citation.document_id}
       </Link>
       {citation.chunk_text && (
         <p className={styles.chunk}>{citation.chunk_text}</p>

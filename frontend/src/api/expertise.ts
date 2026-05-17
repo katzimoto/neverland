@@ -8,7 +8,7 @@ export interface ExpertiseSignals {
 }
 
 export interface ExpertiseTopDoc {
-  documant_id: string;
+  document_id: string;
   title: string | null;
   score: number;
 }

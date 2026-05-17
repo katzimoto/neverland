@@ -41,7 +41,7 @@ test("renders annotations mapped from the backend envelope", async () => {
   mocks.listAnnotations.mockResolvedValueOnce([
     {
       id: "a1",
-      documant_id: "d1",
+      document_id: "d1",
       author_id: "u1",
       author_name: "Ari",
       body: "Shared backend note",
@@ -52,7 +52,7 @@ test("renders annotations mapped from the backend envelope", async () => {
     },
     {
       id: "a2",
-      documant_id: "d1",
+      document_id: "d1",
       author_id: "u2",
       author_name: "Bo",
       body: "Private backend note",
