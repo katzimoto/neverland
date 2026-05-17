@@ -13,7 +13,7 @@ from uuid import UUID, uuid4
 import sqlalchemy as sa
 
 from services.extraction.registry import ExtractorRegistry
-from shared.db import db_uuid
+from shared.db import db_uuid, to_uuid
 
 SNIPPET_LENGTH = 2000
 
@@ -148,7 +148,7 @@ class PreviewService:
                 )
                 if (
                     version_row is not None
-                    and version_row["document_id"] == db_uuid(document_id)
+                    and to_uuid(version_row["document_id"]) == document_id
                     and version_row["translated_text"]
                 ):
                     translated_text = version_row["translated_text"]

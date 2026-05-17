@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Annotated, Any
 from uuid import UUID
 
+import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
@@ -32,6 +33,7 @@ from services.related.service import RelatedService
 from services.search.factory import build_encoder
 from services.search.qdrant import QdrantSearchClient
 from shared.correlation import get_correlation_id
+from shared.db import db_uuid
 from shared.metrics import mime_family
 
 logger = logging.getLogger(__name__)
@@ -165,18 +167,52 @@ def list_translation_versions(
 
         version_repo = TranslationVersionRepository(connection)
         versions = version_repo.list_versions(document_id)
-        return [
-            {
-                "version_id": str(v["id"]),
-                "version_number": v["version_number"],
-                "label": v["label"],
-                "quality": v["quality"],
-                "status": v["status"],
-                "target_language": v["target_language"],
-                "requested_at": _fmt_dt(v["requested_at"]),
-            }
-            for v in versions
-        ]
+        if versions:
+            return [
+                {
+                    "version_id": str(v["id"]),
+                    "version_number": v["version_number"],
+                    "label": v["label"],
+                    "quality": v["quality"],
+                    "status": v["status"],
+                    "target_language": v["target_language"],
+                    "requested_at": _fmt_dt(v["requested_at"]),
+                }
+                for v in versions
+            ]
+
+        # Fallback: synthesize a version from document_payloads for documents
+        # processed before the version-creation code was deployed.
+        payload_row = (
+            connection.execute(
+                sa.text("""
+                SELECT dp.translated_text, dp.updated_at,
+                       d.translation_quality, d.target_language
+                FROM document_payloads dp
+                JOIN documents d ON d.id = dp.document_id
+                WHERE dp.document_id = :document_id
+                  AND dp.translated_text IS NOT NULL
+                  AND dp.translated_text != ''
+                """),
+                {"document_id": db_uuid(document_id)},
+            )
+            .mappings()
+            .first()
+        )
+        if payload_row:
+            return [
+                {
+                    "version_id": str(document_id),
+                    "version_number": 1,
+                    "label": "Ingestion",
+                    "quality": payload_row["translation_quality"] or "fast",
+                    "status": "available",
+                    "target_language": payload_row["target_language"] or "en",
+                    "requested_at": _fmt_dt(payload_row["updated_at"]),
+                }
+            ]
+
+        return []
 
 
 @router.get("/documents/{document_id}/versions")
