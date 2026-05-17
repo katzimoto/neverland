@@ -49,7 +49,7 @@ export function DocumentToolbar({
 
         <div className={styles.controls}>
           <TranslationVersionSelector
-            docId={preview.documant_id}
+            docId={preview.document_id}
             selectedVersionId={selectedVersionId}
             onSelect={onVersionChange}
           />
@@ -64,7 +64,7 @@ export function DocumentToolbar({
             </Button>
           )}
           <a
-            href={getDownloadUrl(preview.documant_id)}
+            href={getDownloadUrl(preview.document_id)}
             download
             className={styles.downloadLink}
           >
@@ -77,7 +77,7 @@ export function DocumentToolbar({
       </header>
 
       <RequestTranslationDialog
-        docId={preview.documant_id}
+        docId={preview.document_id}
         open={translationDialogOpen}
         onClose={() => setTranslationDialogOpen(false)}
       />

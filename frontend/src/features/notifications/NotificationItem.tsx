@@ -63,7 +63,7 @@ export const NotificationItem = memo(function NotificationItem({
     if (!notification.read) read.mutate();
     void navigate({
       to: "/doc/$docId",
-      params: { docId: notification.documant_id },
+      params: { docId: notification.document_id },
     });
   }
 

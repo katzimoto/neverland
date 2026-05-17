@@ -44,7 +44,7 @@ export function ExpertiseResult({ result }: ExpertiseResultProps) {
           aria-label={`Top document evidence for ${displayName(result)}`}
         >
           {result.top_docs.map((item) => (
-            <li key={item.documant_id}>
+            <li key={item.document_id}>
               <strong>{item.title ?? "Untitled document"}</strong>
             </li>
           ))}
