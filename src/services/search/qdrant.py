@@ -158,7 +158,7 @@ class QdrantSearchClient:
         for point in response.points:
             payload = point.payload or {}
             meta: dict[str, Any] = {"chunk_id": payload.get("chunk_id", str(point.id))}
-            for extra_key in ("source_id", "title", "source_language"):
+            for extra_key in ("source_id", "title", "source_language", "chunk_index"):
                 if extra_key in payload:
                     meta[extra_key] = payload[extra_key]
             search_results.append(

@@ -327,7 +327,7 @@ def test_client_close() -> None:
 
 
 def test_search_metadata_includes_extra_payload_fields() -> None:
-    """Payload fields source_id, title, source_language appear in result metadata."""
+    """Payload fields source_id, title, source_language, chunk_index appear in result metadata."""
     client = QdrantSearchClient(url="http://localhost:6333", dimension=384)
     mock_qdrant = MagicMock()
     mock_qdrant.query_points.return_value.points = [
@@ -337,6 +337,7 @@ def test_search_metadata_includes_extra_payload_fields() -> None:
             payload={
                 "document_id": "doc-1",
                 "chunk_id": "doc-1-0",
+                "chunk_index": 3,
                 "text": "hello",
                 "source_id": "src-7",
                 "title": "Annual Report",
@@ -352,3 +353,4 @@ def test_search_metadata_includes_extra_payload_fields() -> None:
     assert results[0].metadata["source_id"] == "src-7"
     assert results[0].metadata["title"] == "Annual Report"
     assert results[0].metadata["source_language"] == "de"
+    assert results[0].metadata["chunk_index"] == 3

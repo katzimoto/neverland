@@ -337,3 +337,19 @@ def test_stale_chunk_overwrite(encoder: DeterministicTestEncoder) -> None:
     # production Qdrant will honour the delete call verified by the mock tests above.
     # We verify the upsert path ran successfully.
     assert any(p["payload"].get("text") == "updated single chunk" for p in store._points)
+
+
+def test_search_result_metadata_includes_chunk_index(
+    qdrant_client: QdrantSearchClient,
+    encoder: DeterministicTestEncoder,
+) -> None:
+    """chunk_index must be present and be an int in every search result's metadata."""
+    vector = encoder.encode("budget board Q1")
+    results = qdrant_client.search(vector=vector, group_ids=_GROUP_IDS, limit=5)
+    assert len(results) > 0
+    for r in results:
+        assert r.metadata is not None, "metadata must not be None"
+        assert "chunk_index" in r.metadata, f"chunk_index missing from metadata: {r.metadata}"
+        assert isinstance(r.metadata["chunk_index"], int), (
+            f"chunk_index must be int, got {type(r.metadata['chunk_index'])}"
+        )
